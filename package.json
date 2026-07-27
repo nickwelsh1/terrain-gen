@@ -1,0 +1,20 @@
+{
+    "name": "terrain-gen",
+    "version": "1.0.0",
+    "description": "Terrain generation engine with test suite",
+    "type": "module",
+    "devDependencies": {
+        "happy-dom": "^20.11.1",
+        "vitest": "^4.1.10"
+    },
+    "scripts": {
+        "dev": "live-server .",
+        "test": "vitest run",
+        "test:ui": "vitest --ui",
+        "lint": "biome lint --write ."
+    },
+    "dependencies": {
+        "fastnoise-lite": "^1.1.1",
+        "simplex-noise": "^4.0.3"
+    }
+}

@@ -1,0 +1,775 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Terragen Lite Engine - Dolomites Style</title>
+    <script type="importmap">
+    {
+        "imports": {
+            "simplex-noise": "./node_modules/simplex-noise/dist/esm/simplex-noise.js"
+        }
+    }
+    </script>
+    <style>
+        :root {
+            --bg: #1a1a1a;
+            --panel-bg: rgba(30, 30, 30, 0.95);
+            --text: #e0e0e0;
+            --accent: #50ff9e;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: var(--bg);
+            color: var(--text);
+            font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+            overflow: hidden;
+            display: flex;
+        }
+
+        #canvas-container {
+            width: 100vw;
+            height: 100vh;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 1;
+        }
+
+        canvas {
+            display: block;
+            image-rendering: pixelated;
+            width: 100vw;
+            height: 100vh;
+            object-fit: cover;
+        }
+
+        #ui-panel {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            width: 320px;
+            background: var(--panel-bg);
+            backdrop-filter: blur(15px);
+            padding: 24px;
+            border-radius: 12px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+            z-index: 100;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        h1 {
+            font-size: 18px;
+            margin: 0 0 18px 0;
+            text-transform: uppercase;
+            letter-spacing: 3px;
+            color: #fff;
+            border-bottom: 2px solid rgba(255, 255, 255, 0.2);
+            padding-bottom: 12px;
+            font-weight: 300;
+        }
+
+        .control-group {
+            margin-bottom: 16px;
+        }
+
+        label {
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+            color: #aaa;
+            margin-bottom: 6px;
+            letter-spacing: 0.5px;
+        }
+
+        input[type=range] {
+            width: 100%;
+            background: transparent;
+            -webkit-appearance: none;
+            height: 24px;
+            position: relative;
+        }
+
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 3px;
+            background: #3a3a3a;
+            border-radius: 1.5px;
+        }
+
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 28px;
+            width: 24px;
+            border-radius: 4px;
+            background: var(--accent);
+            margin-top: -10px;
+            cursor: pointer;
+            box-shadow: 0 2px 8px rgba(80, 255, 158, 0.3);
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        input[type=range]::-webkit-slider-thumb:hover {
+            transform: scale(1.1);
+            box-shadow: 0 4px 12px rgba(80, 255, 158, 0.5);
+        }
+
+        .stats {
+            font-size: 11px;
+            color: #666;
+            margin-top: 12px;
+            padding-top: 12px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .stats span {
+            color: #888;
+            font-family: monospace;
+        }
+
+        button#reset-btn {
+            width: 100%;
+            padding: 10px;
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0));
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            color: white;
+            cursor: pointer;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            transition: all 0.3s ease;
+        }
+
+        button#reset-btn:hover {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: var(--accent);
+        }
+
+        .info-text {
+            font-size: 10px;
+            color: #555;
+            margin-top: 8px;
+            line-height: 1.6;
+        }
+
+        .range-hint {
+            font-size: 9px;
+            color: #555;
+            margin-top: 2px;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        label span.val {
+            color: var(--accent);
+            font-family: monospace;
+            font-size: 11px;
+        }
+
+        .layers-section {
+            margin-top: 16px;
+            padding-top: 12px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .layers-section h2 {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            color: #888;
+            margin: 0 0 10px 0;
+            font-weight: 300;
+        }
+
+        .toggle-group {
+            display: flex;
+            align-items: center;
+            margin-bottom: 8px;
+            font-size: 11px;
+            color: #aaa;
+        }
+
+        .toggle-group input[type=checkbox] {
+            margin-right: 8px;
+            accent-color: var(--accent);
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="canvas-container">
+        <canvas id="terrain"></canvas>
+    </div>
+
+    <div id="ui-panel">
+        <h1>Terragen Lite Engine</h1>
+
+        <div class="control-group">
+            <label>Ridge Warp <span class="val" id="sharpness-val">1.5</span></label>
+            <input type="range" id="sharpness" min="-2.5" max="3.0" step="0.1" value="1.5">
+            <div class="range-hint"><span>Smooth</span><span>Jagged</span></div>
+        </div>
+
+        <div class="control-group">
+            <label>Erosion <span class="val" id="erosion-val">3.5</span></label>
+            <input type="range" id="erosion" min="0.0" max="8.0" step="0.1" value="3.5">
+            <div class="range-hint"><span>Gentle</span><span>Carved</span></div>
+        </div>
+
+        <div class="control-group">
+            <label>Vegetation <span class="val" id="vegetation-val">6.0</span></label>
+            <input type="range" id="vegetation" min="0.0" max="12.0" step="0.1" value="6.0">
+            <div class="range-hint"><span>Barren</span><span>Lush</span></div>
+        </div>
+
+        <div class="control-group">
+            <label>Surface Texture <span class="val" id="micro-val">0.8</span></label>
+            <input type="range" id="micro" min="-1.5" max="2.0" step="0.1" value="0.8">
+            <div class="range-hint"><span>Flat</span><span>Rough</span></div>
+        </div>
+
+        <div class="control-group">
+            <label>Zoom <span class="val" id="zoom-val">1.0</span></label>
+            <input type="range" id="zoom" min="0.3" max="3.0" step="0.1" value="1.0">
+            <div class="range-hint"><span>Far</span><span>Close</span></div>
+        </div>
+
+        <div class="control-group">
+            <label>Ridge Sharpness <span class="val" id="ridge-val">1.5</span></label>
+            <input type="range" id="ridge" min="0.5" max="4.0" step="0.1" value="1.5">
+            <div class="range-hint"><span>Rounded</span><span>Knife-edge</span></div>
+        </div>
+
+        <div class="control-group">
+            <label>Sun Direction <span class="val" id="sunAngle-val">315°</span></label>
+            <input type="range" id="sunAngle" min="0" max="360" step="5" value="315">
+            <div class="range-hint"><span>East (0°)</span><span>West (360°)</span></div>
+        </div>
+
+        <div class="layers-section">
+            <h2>Layers</h2>
+            <div class="toggle-group">
+                <input type="checkbox" id="toggle-range2" checked>
+                <label for="toggle-range2">Second Mountain Range</label>
+            </div>
+            <div class="toggle-group">
+                <input type="checkbox" id="toggle-warp" checked>
+                <label for="toggle-warp">Domain Warp</label>
+            </div>
+            <div class="toggle-group">
+                <input type="checkbox" id="toggle-medium" checked>
+                <label for="toggle-medium">Medium Detail</label>
+            </div>
+            <div class="toggle-group">
+                <input type="checkbox" id="toggle-fine" checked>
+                <label for="toggle-fine">Fine Detail</label>
+            </div>
+            <div class="toggle-group">
+                <input type="checkbox" id="toggle-erosion" checked>
+                <label for="toggle-erosion">Hydraulic Erosion</label>
+            </div>
+            <div class="toggle-group">
+                <input type="checkbox" id="toggle-micro" checked>
+                <label for="toggle-micro">Micro Texture</label>
+            </div>
+            <div class="toggle-group">
+                <input type="checkbox" id="toggle-grayscale">
+                <label for="toggle-grayscale">Grayscale Heightmap</label>
+            </div>
+        </div>
+
+        <button id="reset-btn">Regenerate Terrain</button>
+
+        <div class="stats">
+            FPS: <span id="fps">0</span><br>
+            Time: <span id="time">0</span>ms
+        </div>
+
+        <div class="info-text">
+            • Generates heightmap using layered noise<br>
+            • Simulates hydraulic erosion paths<br>
+            • Calculates slope-based biomes<br>
+            • Applies limestone micro-texture
+        </div>
+    </div>
+
+    <script type="module">
+        /**
+         * TERRAIN GENERATION ENGINE - Terragen Lite Implementation
+         * 
+         * Features:
+         * - Ridge noise with dual mountain ranges
+         * - Domain warping for non-linear geological folds
+         * - Hydraulic erosion simulation
+         * - Hillshade directional lighting
+         * - Slope-based biome separation
+         * - Grayscale heightmap mode
+         */
+
+        import { Noise } from './src/noise.js';
+
+        // Main Application
+        const canvas = document.getElementById('terrain');
+        const ctx = canvas.getContext('2d', { alpha: false });
+        let w, h;
+        let pixels = null;
+        let heightmap = null;
+        let slopeMap = null;
+        let noise = new Noise();
+
+        // State management
+        let settings = {
+            sharpness: 1.5,
+            erosion: 3.5,
+            vegetation: 6.0,
+            micro: 0.8,
+            zoom: 1.0,
+            ridge: 1.5,
+            sunAngle: 315 * Math.PI / 180,
+            enableRange2: true,
+            enableWarp: true,
+            enableMediumDetail: true,
+            enableFineDetail: true,
+            enableErosion: true,
+            enableMicroTexture: true,
+            grayscale: false
+        };
+
+        // UI element references
+        const ui = {
+            sharp: document.getElementById('sharpness'),
+            eros: document.getElementById('erosion'),
+            veg: document.getElementById('vegetation'),
+            micro: document.getElementById('micro'),
+            zoom: document.getElementById('zoom'),
+            ridge: document.getElementById('ridge'),
+            sunAngle: document.getElementById('sunAngle'),
+            toggleRange2: document.getElementById('toggle-range2'),
+            toggleWarp: document.getElementById('toggle-warp'),
+            toggleMedium: document.getElementById('toggle-medium'),
+            toggleFine: document.getElementById('toggle-fine'),
+            toggleErosion: document.getElementById('toggle-erosion'),
+            toggleMicro: document.getElementById('toggle-micro'),
+            toggleGrayscale: document.getElementById('toggle-grayscale')
+        };
+
+        // Bind UI inputs to state
+        function updateVal(id, val, suffix = '') {
+            const el = document.getElementById(id + '-val');
+            if (el) el.textContent = val + suffix;
+        }
+
+        ui.sharp.addEventListener('input', e => {
+            settings.sharpness = parseFloat(e.target.value);
+            updateVal('sharpness', e.target.value);
+        });
+        ui.eros.addEventListener('input', e => {
+            settings.erosion = parseFloat(e.target.value);
+            updateVal('erosion', e.target.value);
+        });
+        ui.veg.addEventListener('input', e => {
+            settings.vegetation = parseFloat(e.target.value);
+            updateVal('vegetation', e.target.value);
+        });
+        ui.micro.addEventListener('input', e => {
+            settings.micro = parseFloat(e.target.value);
+            updateVal('micro', e.target.value);
+        });
+        ui.zoom.addEventListener('input', e => {
+            settings.zoom = parseFloat(e.target.value);
+            updateVal('zoom', e.target.value);
+        });
+        ui.ridge.addEventListener('input', e => {
+            settings.ridge = parseFloat(e.target.value);
+            updateVal('ridge', e.target.value);
+        });
+        ui.sunAngle.addEventListener('input', e => {
+            const deg = parseFloat(e.target.value);
+            settings.sunAngle = deg * Math.PI / 180;
+            updateVal('sunAngle', deg + '°');
+            render();
+        });
+
+        // Layer toggle handlers — regenerate terrain on structural changes
+        ui.toggleRange2.addEventListener('change', e => {
+            settings.enableRange2 = e.target.checked;
+            resetTerrain();
+        });
+        ui.toggleWarp.addEventListener('change', e => {
+            settings.enableWarp = e.target.checked;
+            resetTerrain();
+        });
+        ui.toggleMedium.addEventListener('change', e => {
+            settings.enableMediumDetail = e.target.checked;
+            resetTerrain();
+        });
+        ui.toggleFine.addEventListener('change', e => {
+            settings.enableFineDetail = e.target.checked;
+            resetTerrain();
+        });
+        ui.toggleErosion.addEventListener('change', e => {
+            settings.enableErosion = e.target.checked;
+            resetTerrain();
+        });
+        ui.toggleMicro.addEventListener('change', e => {
+            settings.enableMicroTexture = e.target.checked;
+            render();
+        });
+        ui.toggleGrayscale.addEventListener('change', e => {
+            settings.grayscale = e.target.checked;
+            render();
+        });
+
+        function resetTerrain() {
+            if (!heightmap || heightmap.length === 0) resize();
+
+            // Reset arrays if needed or regenerate from scratch
+            const size = w * h;
+            pixels = new Uint32Array(size);
+            heightmap = new Float64Array(size);
+
+            initHeightmap();
+            if (settings.enableErosion !== false) simulateErosion();
+            calculateSlopes();
+            render();
+        }
+
+        // Update the event listener line:
+        document.getElementById('reset-btn').addEventListener('click', resetTerrain);
+
+        function resize() {
+            w = 1024;
+            h = 1024;
+            canvas.width = w;
+            canvas.height = h;
+
+            // Allocate memory for high-resolution buffer
+            const size = w * h;
+            pixels = new Uint32Array(size);
+            heightmap = new Float64Array(size).fill(0);
+
+            resetTerrain();
+        }
+
+        // Ridge noise helper — produces sharp ridgelines from smooth noise
+        function ridge(noiseFn, x, y) {
+            return 1 - Math.abs(noiseFn(x, y));
+        }
+
+        // Initialize heightmap with ridge-based mountain ranges
+        function initHeightmap() {
+            const scale = 0.008 * settings.zoom;
+            const ridgeSharpness = settings.ridge;
+            const enableRange2 = settings.enableRange2 !== false;
+            const enableWarp = settings.enableWarp !== false;
+            const enableMediumDetail = settings.enableMediumDetail !== false;
+            const enableFineDetail = settings.enableFineDetail !== false;
+
+            for (let y = 0; y < h; y++) {
+                for (let x = 0; x < w; x++) {
+                    let idx = y * w + x;
+
+                    // Domain warp for geological folds
+                    let warp = enableWarp ? noise.fwNoise(x, y) * 0.3 : 0;
+
+                    // Range 1: primary mountain range
+                    let r1 = ridge(noise.noise2D.bind(noise), x * scale + warp, y * scale + warp);
+
+                    // Range 2: secondary range at different angle/scale
+                    let ridges;
+                    if (enableRange2) {
+                        let r2 = ridge(noise.noise2D.bind(noise),
+                            x * scale * 1.3 + 100 + warp, y * scale * 0.7 + 200 + warp);
+                        ridges = Math.max(r1, r2) * 0.6 + r1 * r2 * 0.4;
+                    } else {
+                        ridges = r1;
+                    }
+
+                    // Apply ridge sharpness
+                    ridges = Math.pow(ridges, ridgeSharpness);
+
+                    // Base elevation from ridges
+                    let height = ridges * 400 - 50;
+
+                    // Medium detail layer
+                    if (enableMediumDetail) {
+                        let detail = noise.noise2D(x * 0.02, y * 0.02);
+                        height += detail * 60;
+                    }
+
+                    // Fine detail layer
+                    if (enableFineDetail) {
+                        let fine = noise.noise2D(x * 0.05, y * 0.05);
+                        height += fine * 20;
+                    }
+
+                    // Clamp
+                    heightmap[idx] = Math.max(-30, Math.min(500, height));
+                }
+            }
+        }
+
+        // Hydraulic Erosion Simulation - creates V-shaped ravines and riverbeds
+        function simulateErosion() {
+            const workHeight = new Float64Array(heightmap);
+
+            // Multiple passes for deeper erosion effect
+            for (let pass = 0; pass < 8; pass++) {
+                for (let y = 3; y < h - 3; y++) {
+                    for (let x = 3; x < w - 3; x++) {
+                        let idx = y * w + x;
+                        let curH = workHeight[idx];
+
+                        // Check surrounding neighbors for flow direction
+                        let down = workHeight[(y + 1) * w + x];
+                        let left = workHeight[y * w + x - 1];
+                        let right = workHeight[y * w + x + 1];
+                        let botLeft = workHeight[(y + 1) * w + x - 1];
+                        let botRight = workHeight[(y + 1) * w + x + 1];
+
+                        // Find lowest neighbor (water flows this way)
+                        let neighbors = [down, left, right, botLeft, botRight];
+                        let minH = Infinity;
+                        for (let n of neighbors) {
+                            if (n < minH) minH = n;
+                        }
+
+                        // Water flows to lowest point
+                        if (curH > minH) {
+                            let diff = curH - minH;
+
+                            // Erode current pixel based on steepness and erosion strength
+                            if (Math.random() < 0.12 + diff / 300) {
+                                workHeight[idx] -= diff * (settings.erosion / 5);
+
+                                // Deposit sediment to the receiving neighbor
+                                let targetIdx = neighbors.indexOf(minH) === 0 ? (y + 1) * w + x :
+                                    neighbors.indexOf(minH) === 1 ? y * w + x - 1 :
+                                        neighbors.indexOf(minH) === 2 ? y * w + x + 1 :
+                                            neighbors.indexOf(minH) === 3 ? (y + 1) * w + x - 1 :
+                                                (y + 1) * w + x + 1;
+
+                                workHeight[targetIdx] += diff * 0.25;
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Update heightmap with eroded terrain
+            for (let i = 0; i < heightmap.length; i++) {
+                heightmap[i] = workHeight[i];
+            }
+        }
+
+        // Calculate slope at each pixel using simple gradient approximation
+        function calculateSlopes() {
+            slopeMap = new Float64Array(w * h);
+            for (let y = 1; y < h - 1; y++) {
+                for (let x = 1; x < w - 1; x++) {
+                    let idx = y * w + x;
+
+                    let left = heightmap[y * w + x - 1];
+                    let right = heightmap[y * w + x + 1];
+                    let top = heightmap[(y - 1) * w + x];
+                    let bottom = heightmap[(y + 1) * w + x];
+
+                    // Diagonals for more accurate slope calculation
+                    let bl = heightmap[(y - 1) * w + (x - 1)];
+                    let br = heightmap[(y - 1) * w + (x + 1)];
+
+                    let hLeft = left;
+                    let hRight = right;
+                    let hTop = top;
+                    let hBottom = bottom;
+
+                    // Calculate gradient magnitude
+                    let dx = Math.abs(hRight - hLeft);
+                    let dy = Math.abs(hBottom - hTop);
+                    let diagonal = 1.414 * Math.max(dx, dy);
+
+                    slopeMap[idx] = (Math.sqrt(dy * dy + dx * dx) / (diagonal + 0.05));
+                }
+            }
+        }
+
+        // Main render function - color composition based on geology
+        function render() {
+            const size = heightmap.length;
+
+            // Grayscale heightmap mode — pure black-to-white by actual terrain height
+            if (settings.grayscale) {
+                let min = Infinity, max = -Infinity;
+                for (let i = 0; i < size; i++) {
+                    if (heightmap[i] < min) min = heightmap[i];
+                    if (heightmap[i] > max) max = heightmap[i];
+                }
+                const range = max - min || 1;
+                for (let i = 0; i < size; i++) {
+                    let v = Math.round((heightmap[i] - min) / range * 255);
+                    pixels[i] = (255 << 24) | (v << 16) | (v << 8) | v;
+                }
+                if (pixels) {
+                    const rgba = new Uint8ClampedArray(pixels.buffer);
+                    ctx.putImageData(new ImageData(rgba, w, h), 0, 0);
+                }
+                return;
+            }
+
+            for (let y = 0; y < h; y++) {
+                for (let x = 0; x < w; x++) {
+                    let idx = y * w + x;
+
+                    let height = heightmap[idx];
+                    let slope = slopeMap ? slopeMap[idx] : 0.2; // Fallback default slope
+
+                    // Get microtexture noise for lichen/porosity effects
+                    let microNoise = settings.enableMicroTexture !== false
+                        ? noise.microNoise(x * 0.1, y * 0.1) * settings.micro
+                        : 0;
+
+                    let r, g, b, a = 255;
+
+                    // --- BIOME LOGIC - Transition from Dolomites style geology ---
+
+                    if (height > 350) {
+                        // SNOW / ICE PEAKS - High altitude limestone
+                        r = 250 + microNoise * 10;
+                        g = 245 + microNoise * 8;
+                        b = 242;
+
+                        if (slope > 0.9) {
+                            // Rock edges on snow faces
+                            r -= 8; g -= 7;
+                        }
+
+                    } else if (height > 200) {
+                        // HIGH ALPINE LATEX / GRANITE - Dolomite peaks
+                        r = 195 + microNoise * 35;
+                        g = 170 + microNoise * 28;
+                        b = 145 + microNoise * 22;
+
+                        if (slope > 0.6) {
+                            // Steeper slopes show more weathered rock
+                            r -= 3; g -= 2;
+                        }
+
+                    } else if (height > 80 && settings.vegetation < 9) {
+                        // LOW ALPINE / SCREE FIELDS - Broken limestone deposits
+                        r = 175 + microNoise * 40;
+                        g = 155 + microNoise * 32;
+                        b = 125 + microNoise * 25;
+
+                        if (slope > 0.8) {
+                            // Darker scree on steep slopes with shadows
+                            r -= 6; g -= 5;
+                        }
+
+                    } else {
+                        // VEGETATION TERRAIN
+
+                        if (height < 40 && slope < 0.3) {
+                            // DENSE FOREST - Lowlands and valleys
+                            r = 18 + microNoise * 25;
+                            g = 42 + microNoise * 12;
+                            b = 15 + microNoise * 6;
+
+                            if (settings.vegetation > 7) {
+                                // Darker, denser forest canopy
+                                r -= 8; g -= 4; b -= 3;
+                            }
+                        } else if (height < 100) {
+                            // ROLLING ALPINE PASTURES - Hay meadows
+                            let mix = (height < 60 ? 0.9 : 0.4); // More vibrant in valleys
+
+                            r = 52 + microNoise * 45;
+                            g = 82 + microNoise * 18 + (mix * 30);
+                            b = 28 + microNoise * 12 + (mix * 8);
+
+                            // Add autumnal touches to hillside grass
+                            if (height > 60 && height < 140) {
+                                r += microNoise * 50; // Reddish-brown on slopes
+                                g -= microNoise * 3;
+                            }
+                        } else {
+                            // TRANITION ZONES - Rock and grass mix
+                            r = 140 + microNoise * 30;
+                            g = 125 + microNoise * 22;
+                            b = 95 + microNoise * 18;
+                        }
+                    }
+
+                    // --- HILLSHADE LIGHTING ---
+                    // Compute surface normal from heightmap gradient
+                    let hLeft = x > 0 ? heightmap[idx - 1] : height;
+                    let hRight = x < w - 1 ? heightmap[idx + 1] : height;
+                    let hUp = y > 0 ? heightmap[idx - w] : height;
+                    let hDown = y < h - 1 ? heightmap[idx + w] : height;
+                    let gradX = hRight - hLeft;
+                    let gradY = hDown - hUp;
+
+                    // Light direction from sun angle (radians)
+                    let lightX = Math.cos(settings.sunAngle);
+                    let lightY = Math.sin(settings.sunAngle);
+                    let lightZ = 0.5;
+
+                    // Dot product of surface normal with light direction
+                    let normalLen = Math.sqrt(gradX * gradX + gradY * gradY + 1);
+                    let dot = (-gradX * lightX - gradY * lightY + lightZ) / normalLen;
+
+                    // Brightness factor: 0.5 (shadow) to 1.3 (lit)
+                    let shade = 0.5 + Math.max(0, dot) * 0.8;
+                    shade = Math.min(1.3, shade);
+
+                    r = Math.min(255, Math.max(0, r * shade));
+                    g = Math.min(255, Math.max(0, g * shade));
+                    b = Math.min(255, Math.max(0, b * shade));
+
+                    // Pack to Uint32 ABGR format for Canvas putImageData
+                    pixels[idx] = (a << 24) | (b << 16) | (g << 8) | r;
+                }
+            }
+
+            // Draw to canvas
+            if (pixels) {
+                const rgba = new Uint8ClampedArray(pixels.buffer);
+                ctx.putImageData(new ImageData(rgba, w, h), 0, 0);
+            }
+        }
+
+        // Animation loop for performance monitoring
+        let lastTime = 0;
+        function loop() {
+            requestAnimationFrame(loop);
+            const now = performance.now();
+            if (now - lastTime > 100) { // Update stats every ~100ms
+                document.getElementById('fps').innerText = Math.round(1000 / (now - lastTime));
+                lastTime = now;
+            }
+        }
+
+        window.addEventListener('resize', resize);
+        window.onload = () => {
+            resize();
+            initHeightmap();
+            if (settings.enableErosion !== false) simulateErosion();
+            calculateSlopes();
+            render();
+            loop();
+        };
+
+        // Export heightmap for potential future use (development)
+        window.terrainData = {
+            getHeight: (x, y) => heightmap[y * w + x],
+            getSettings: () => settings
+        };
+
+    </script>
+
+</body>
+
+</html>
+```

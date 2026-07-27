@@ -1,0 +1,1117 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Natural Mountain Heightmap</title>
+    <script type="importmap">
+    {
+        "imports": {
+            "fastnoise-lite": "./node_modules/fastnoise-lite/FastNoiseLite.js"
+        }
+    }
+    </script>
+    <style>
+        :root {
+            --bg: #1a1a1a;
+            --panel-bg: rgba(30, 30, 30, 0.95);
+            --text: #e0e0e0;
+            --accent: #50ff9e;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: var(--bg);
+            color: var(--text);
+            font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+        }
+
+        #canvas-container {
+            flex: 1 1 auto;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: auto;
+            min-width: 0;
+        }
+
+        canvas {
+            display: block;
+            image-rendering: pixelated;
+            width: 512px;
+            height: 512px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 8px 40px rgba(0, 0, 0, 0.6);
+        }
+
+        /* Launch link (inside top-bar) */
+        #launch-link {
+            color: var(--accent);
+            font-size: 0.8rem;
+            text-decoration: none;
+            padding: 8px 14px;
+            border: 1px solid rgba(80, 255, 158, 0.3);
+            border-radius: 6px;
+            background: rgba(30, 30, 30, 0.8);
+            transition: all 0.25s ease;
+        }
+
+        #launch-link:hover {
+            background: rgba(80, 255, 158, 0.12);
+            border-color: var(--accent);
+        }
+
+        /* Top-left control bar for launch link + zoom */
+        #top-bar {
+            position: fixed;
+            top: 16px;
+            left: 16px;
+            z-index: 200;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        #zoom-control {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(30, 30, 30, 0.8);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 6px;
+            padding: 6px 12px;
+            backdrop-filter: blur(10px);
+        }
+
+        #zoom-control label {
+            font-size: 0.75rem;
+            color: #999;
+            white-space: nowrap;
+        }
+
+        #zoom-control input[type="range"] {
+            width: 100px;
+            accent-color: var(--accent);
+        }
+
+        #zoom-control .val {
+            font-size: 0.75rem;
+            color: var(--accent);
+            min-width: 24px;
+            text-align: right;
+        }
+
+        /* Scrollable control panel */
+        #ui-panel {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            width: 300px;
+            max-height: calc(100vh - 40px);
+            overflow-y: auto;
+            background: var(--panel-bg);
+            backdrop-filter: blur(15px);
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+            z-index: 100;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        #ui-panel::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        #ui-panel::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.04);
+            border-radius: 4px;
+        }
+
+        #ui-panel::-webkit-scrollbar-thumb {
+            background: rgba(80, 255, 158, 0.3);
+            border-radius: 4px;
+        }
+
+        #ui-panel::-webkit-scrollbar-thumb:hover {
+            background: rgba(80, 255, 158, 0.5);
+        }
+
+        h1 {
+            font-size: 15px;
+            margin: 0 0 16px 0;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            color: #fff;
+            border-bottom: 2px solid rgba(255, 255, 255, 0.2);
+            padding-bottom: 10px;
+            font-weight: 300;
+        }
+
+        section {
+            margin-bottom: 14px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        section>h2 {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            color: var(--accent);
+            margin: 0 0 10px 0;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        section>h2 input[type=checkbox] {
+            accent-color: var(--accent);
+            cursor: pointer;
+        }
+
+        .control-group {
+            margin-bottom: 10px;
+        }
+
+        label {
+            display: flex;
+            justify-content: space-between;
+            font-size: 11px;
+            color: #aaa;
+            margin-bottom: 4px;
+            letter-spacing: 0.3px;
+        }
+
+        label span.val {
+            color: var(--accent);
+            font-family: monospace;
+            font-size: 11px;
+        }
+
+        input[type=range] {
+            width: 100%;
+            background: transparent;
+            -webkit-appearance: none;
+            appearance: none;
+            height: 18px;
+        }
+
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 3px;
+            background: #3a3a3a;
+            border-radius: 1.5px;
+        }
+
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 16px;
+            width: 12px;
+            border-radius: 3px;
+            background: var(--accent);
+            margin-top: -7px;
+            cursor: pointer;
+        }
+
+        select {
+            width: 100%;
+            background: #2a2a2a;
+            color: var(--text);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 4px;
+            padding: 4px;
+            font-size: 11px;
+        }
+
+        button#regen-btn {
+            width: 100%;
+            padding: 10px;
+            margin-top: 4px;
+            background: linear-gradient(135deg, rgba(80, 255, 158, 0.15), rgba(80, 255, 158, 0));
+            border: 1px solid rgba(80, 255, 158, 0.4);
+            color: #fff;
+            cursor: pointer;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            border-radius: 6px;
+            transition: all 0.25s ease;
+        }
+
+        button#regen-btn:hover {
+            background: rgba(80, 255, 158, 0.15);
+            border-color: var(--accent);
+        }
+
+        /* Scrollable color mode list with gradient previews */
+        .color-mode-list {
+            max-height: 180px;
+            overflow-y: auto;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 6px;
+            padding: 4px;
+        }
+
+        .color-mode-list::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .color-mode-list::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.04);
+            border-radius: 3px;
+        }
+
+        .color-mode-list::-webkit-scrollbar-thumb {
+            background: rgba(80, 255, 158, 0.3);
+            border-radius: 3px;
+        }
+
+        .color-mode-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 8px;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background 0.2s ease;
+        }
+
+        .color-mode-item:hover {
+            background: rgba(255, 255, 255, 0.06);
+        }
+
+        .color-mode-item.selected {
+            background: rgba(80, 255, 158, 0.12);
+            border: 1px solid rgba(80, 255, 158, 0.3);
+        }
+
+        .color-mode-item input[type="radio"] {
+            display: none;
+        }
+
+        .color-mode-swatch {
+            width: 80px;
+            height: 18px;
+            border-radius: 3px;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            flex-shrink: 0;
+        }
+
+        .color-mode-label {
+            font-size: 11px;
+            color: #ccc;
+            white-space: nowrap;
+        }
+
+        button#reset-btn {
+            width: 100%;
+            padding: 10px;
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            color: #bbb;
+            cursor: pointer;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            border-radius: 6px;
+            transition: all 0.25s ease;
+        }
+
+        button#reset-btn:hover {
+            background: rgba(255, 255, 255, 0.08);
+            border-color: rgba(255, 255, 255, 0.3);
+            color: #fff;
+        }
+
+        .disabled-section {
+            opacity: 0.45;
+        }
+
+        .stats {
+            font-size: 11px;
+            color: #777;
+            font-family: monospace;
+        }
+
+        .stats span {
+            color: var(--accent);
+        }
+
+        /* Dependency dot indicators */
+        .dep-dot {
+            display: inline-block;
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            margin-left: 5px;
+            opacity: 0.25;
+            transition: opacity 0.2s ease, box-shadow 0.2s ease;
+            vertical-align: middle;
+        }
+
+        .dep-dot.dep-red {
+            background: #e74c3c;
+        }
+
+        .dep-dot.dep-yellow {
+            background: #f1c40f;
+        }
+
+        .dep-dot.dep-green {
+            background: #2ecc71;
+        }
+
+        .dep-dot.dep-blue {
+            background: #3498db;
+        }
+
+        .dep-dot.dep-purple {
+            background: #9b59b6;
+        }
+
+        .dep-dot.lit {
+            opacity: 1;
+            box-shadow: 0 0 6px 1px currentColor;
+            animation: dot-pulse 1s ease-in-out infinite;
+        }
+
+        .dep-dot.dep-red.lit {
+            box-shadow: 0 0 6px 1px #e74c3c;
+        }
+
+        .dep-dot.dep-yellow.lit {
+            box-shadow: 0 0 6px 1px #f1c40f;
+        }
+
+        .dep-dot.dep-green.lit {
+            box-shadow: 0 0 6px 1px #2ecc71;
+        }
+
+        .dep-dot.dep-blue.lit {
+            box-shadow: 0 0 6px 1px #3498db;
+        }
+
+        .dep-dot.dep-purple.lit {
+            box-shadow: 0 0 6px 1px #9b59b6;
+        }
+
+        @keyframes dot-pulse {
+
+            0%,
+            100% {
+                transform: scale(1);
+            }
+
+            50% {
+                transform: scale(1.3);
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div id="top-bar">
+        <a id="launch-link" href="tempterrain.html">Terrain Visualizer →</a>
+        <div id="zoom-control">
+            <label>Zoom</label>
+            <input type="range" id="displayZoom" min="0.5" max="5.0" step="0.1" value="1.0">
+            <span class="val" id="displayZoom-val">1.0</span>
+        </div>
+    </div>
+
+    <div id="canvas-container">
+        <canvas id="terrain" width="512" height="512"></canvas>
+    </div>
+
+    <div id="ui-panel">
+        <h1>Mountain Heightmap</h1>
+
+        <!-- General & structure -->
+        <section id="sec-general">
+            <h2>General &amp; Structure</h2>
+            <div class="control-group">
+                <label>Seed <span class="val" id="seed-val">1337</span></label>
+                <input type="range" id="seed" min="1" max="9999" step="1" value="1337">
+            </div>
+            <div class="control-group">
+                <label>Zoom <span class="val" id="zoom-val">1.0</span></label>
+                <input type="range" id="zoom" min="0.3" max="3.0" step="0.1" value="1.0">
+            </div>
+            <div class="control-group">
+                <label>Broad Elevation <span class="val" id="broadWeight-val">1.0</span></label>
+                <input type="range" id="broadWeight" min="0" max="2" step="0.05" value="1.0">
+            </div>
+            <div class="control-group">
+                <label>Cellular Structure <span class="val" id="structureWeight-val">0.6</span></label>
+                <input type="range" id="structureWeight" min="0" max="2" step="0.05" value="0.6">
+            </div>
+            <div class="control-group">
+                <label>Ridge Strength <span class="val" id="ridgeWeight-val">0.8</span></label>
+                <input type="range" id="ridgeWeight" min="0" max="2" step="0.05" value="0.8">
+            </div>
+            <div class="control-group">
+                <label>Ridge Sharpness <span class="val" id="ridgeSharpness-val">2.0</span></label>
+                <input type="range" id="ridgeSharpness" min="0.5" max="4" step="0.1" value="2.0">
+            </div>
+            <div class="control-group">
+                <label>Fine Detail <span class="val" id="detailWeight-val">0.25</span></label>
+                <input type="range" id="detailWeight" min="0" max="1" step="0.05" value="0.25">
+            </div>
+            <div class="control-group">
+                <label>Height Curve <span class="val" id="heightCurve-val">1.3</span></label>
+                <input type="range" id="heightCurve" min="0.5" max="3" step="0.1" value="1.3">
+            </div>
+        </section>
+
+        <!-- Edge falloff -->
+        <section id="sec-edge">
+            <h2><input type="checkbox" id="enableEdgeFalloff" checked> Edge Falloff</h2>
+            <div class="control-group">
+                <label>Strength <span class="val" id="edgeStrength-val">1.0</span></label>
+                <input type="range" id="edgeStrength" min="0" max="1" step="0.05" value="1.0">
+            </div>
+            <div class="control-group">
+                <label>Inner Radius <span class="val" id="edgeInnerRadius-val">0.55</span></label>
+                <input type="range" id="edgeInnerRadius" min="0" max="0.95" step="0.05" value="0.55">
+            </div>
+            <div class="control-group">
+                <label>Edge Floor <span class="val" id="edgeFloor-val">0.0</span></label>
+                <input type="range" id="edgeFloor" min="0" max="0.6" step="0.02" value="0.0">
+            </div>
+            <div class="control-group">
+                <label>Shape (rect ↔ island) <span class="val" id="edgeShape-val">0.5</span></label>
+                <input type="range" id="edgeShape" min="0" max="1" step="0.05" value="0.5">
+            </div>
+            <div class="control-group">
+                <label>Irregularity <span class="val" id="edgeIrregularity-val">0.25</span></label>
+                <input type="range" id="edgeIrregularity" min="0" max="1" step="0.05" value="0.25">
+            </div>
+        </section>
+
+        <!-- Asymmetric slopes -->
+        <section id="sec-asym">
+            <h2><input type="checkbox" id="enableAsymmetric" checked> Asymmetric Slopes</h2>
+            <div class="control-group">
+                <label>Elevation Min <span class="val" id="asymElevMin-val">0.45</span></label>
+                <input type="range" id="asymElevMin" min="0" max="1" step="0.02" value="0.45">
+            </div>
+            <div class="control-group">
+                <label>Elevation Max <span class="val" id="asymElevMax-val">0.80</span></label>
+                <input type="range" id="asymElevMax" min="0" max="1" step="0.02" value="0.80">
+            </div>
+            <div class="control-group">
+                <label>Fade Lower <span class="val" id="asymFadeLower-val">0.12</span></label>
+                <input type="range" id="asymFadeLower" min="0" max="0.4" step="0.02" value="0.12">
+            </div>
+            <div class="control-group">
+                <label>Fade Upper <span class="val" id="asymFadeUpper-val">0.12</span></label>
+                <input type="range" id="asymFadeUpper" min="0" max="0.4" step="0.02" value="0.12">
+            </div>
+            <div class="control-group">
+                <label>Strength <span class="val" id="asymStrength-val">0.8</span></label>
+                <input type="range" id="asymStrength" min="0" max="2" step="0.05" value="0.8">
+            </div>
+            <div class="control-group">
+                <label>Direction <span class="val" id="asymDirection-val">45°</span></label>
+                <input type="range" id="asymDirection" min="0" max="360" step="5" value="45">
+            </div>
+            <div class="control-group">
+                <label>Coverage <span class="val" id="asymCoverage-val">0.5</span></label>
+                <input type="range" id="asymCoverage" min="0" max="1" step="0.05" value="0.5">
+            </div>
+        </section>
+
+        <!-- Thermal shaping -->
+        <section id="sec-thermal">
+            <h2><input type="checkbox" id="enableThermal" checked> Thermal Shaping</h2>
+            <div class="control-group">
+                <label>Iterations <span class="val" id="thermalIterations-val">8</span></label>
+                <input type="range" id="thermalIterations" min="0" max="30" step="1" value="8">
+            </div>
+            <div class="control-group">
+                <label>Talus Threshold <span class="val" id="thermalTalus-val">0.006</span></label>
+                <input type="range" id="thermalTalus" min="0.001" max="0.03" step="0.001" value="0.006">
+            </div>
+            <div class="control-group">
+                <label>Strength <span class="val" id="thermalStrength-val">0.5</span></label>
+                <input type="range" id="thermalStrength" min="0" max="1" step="0.05" value="0.5">
+            </div>
+        </section>
+
+        <!-- Rivers -->
+        <section id="sec-rivers">
+            <h2><input type="checkbox" id="enableRivers" checked> Rivers &amp; Drainage</h2>
+            <div class="control-group">
+                <label>Area Threshold <span class="val" id="riverAreaThreshold-val">120</span></label>
+                <input type="range" id="riverAreaThreshold" min="20" max="600" step="10" value="120">
+            </div>
+            <div class="control-group">
+                <label>Source Elevation <span class="val" id="riverSourceElevation-val">0.25</span></label>
+                <input type="range" id="riverSourceElevation" min="0" max="0.8" step="0.02" value="0.25">
+            </div>
+            <div class="control-group">
+                <label>Carve Depth <span class="val" id="riverCarveDepth-val">0.05</span></label>
+                <input type="range" id="riverCarveDepth" min="0" max="0.2" step="0.005" value="0.05">
+            </div>
+            <div class="control-group">
+                <label>Max Width <span class="val" id="riverWidth-val">2.0</span></label>
+                <input type="range" id="riverWidth" min="1" max="6" step="0.5" value="2.0">
+            </div>
+            <div class="control-group">
+                <label style="cursor:pointer"><input type="checkbox" id="preserveLakes" checked
+                           style="accent-color:var(--accent)"> Preserve Lakes</label>
+            </div>
+        </section>
+
+        <!-- Rocks -->
+        <section id="sec-rocks">
+            <h2><input type="checkbox" id="enableRocks"> Scattered Rocks</h2>
+            <div class="control-group">
+                <label>Density <span class="val" id="rockDensity-val">0.35</span></label>
+                <input type="range" id="rockDensity" min="0.05" max="1" step="0.05" value="0.35">
+            </div>
+            <div class="control-group">
+                <label>Max Radius <span class="val" id="rockMaxRadius-val">3</span></label>
+                <input type="range" id="rockMaxRadius" min="1" max="8" step="1" value="3">
+            </div>
+        </section>
+
+        <!-- Boulders -->
+        <section id="sec-boulders">
+            <h2><input type="checkbox" id="enableBoulders"> Boulders</h2>
+            <div class="control-group">
+                <label>Density <span class="val" id="boulderDensity-val">0.15</span></label>
+                <input type="range" id="boulderDensity" min="0.02" max="0.5" step="0.01" value="0.15">
+            </div>
+            <div class="control-group">
+                <label>Max Radius <span class="val" id="boulderMaxRadius-val">8</span></label>
+                <input type="range" id="boulderMaxRadius" min="3" max="15" step="1" value="8">
+            </div>
+            <div class="control-group">
+                <label>Slope Threshold <span class="val" id="boulderSlopeMin-val">0.45</span></label>
+                <input type="range" id="boulderSlopeMin" min="0.1" max="0.9" step="0.05" value="0.45">
+            </div>
+        </section>
+
+        <!-- Post-Processing: Ridge Enhancement -->
+        <section id="sec-ridgeEnhance">
+            <h2><input type="checkbox" id="enableRidgeEnhance"> Ridge Enhancement</h2>
+            <div class="control-group">
+                <label>Strength <span class="val" id="ridgeEnhanceStrength-val">0.5</span></label>
+                <input type="range" id="ridgeEnhanceStrength" min="0" max="1" step="0.05" value="0.5">
+            </div>
+            <div class="control-group">
+                <label>Frequency <span class="val" id="ridgeEnhanceFrequency-val">0.008</span></label>
+                <input type="range" id="ridgeEnhanceFrequency" min="0.002" max="0.02" step="0.001" value="0.008">
+            </div>
+            <div class="control-group">
+                <label>Elevation Min <span class="val" id="ridgeEnhanceElevMin-val">0.3</span></label>
+                <input type="range" id="ridgeEnhanceElevMin" min="0" max="1" step="0.02" value="0.3">
+            </div>
+        </section>
+
+        <!-- Post-Processing: Ridge Mask -->
+        <section id="sec-ridgeMask">
+            <h2><input type="checkbox" id="enableRidgeMask"> Ridge Mask<span class="dep-dot dep-red"></span><span
+                      class="dep-dot dep-yellow"></span><span class="dep-dot dep-purple"></span></h2>
+            <div class="control-group">
+                <label>Strength <span class="val" id="ridgeMaskStrength-val">0.5</span></label>
+                <input type="range" id="ridgeMaskStrength" min="0" max="1" step="0.05" value="0.5">
+            </div>
+            <div class="control-group">
+                <label>Threshold <span class="val" id="ridgeMaskThreshold-val">0.5</span></label>
+                <input type="range" id="ridgeMaskThreshold" min="0" max="1" step="0.05" value="0.5">
+            </div>
+            <div class="control-group">
+                <label>Erosion Resistance <span class="val" id="ridgeMaskErosionResistance-val">0.7</span><span
+                          class="dep-dot dep-red"></span><span class="dep-dot dep-yellow"></span></label>
+                <input type="range" id="ridgeMaskErosionResistance" min="0" max="1" step="0.05" value="0.7">
+            </div>
+            <div class="control-group">
+                <label style="cursor:pointer"><input type="checkbox" id="showRidgeMask"
+                           style="accent-color:var(--accent)">
+                    Show Mask Overlay</label>
+            </div>
+        </section>
+
+        <!-- Post-Processing: Slope Channeling -->
+        <section id="sec-slopeChanneling">
+            <h2><input type="checkbox" id="enableSlopeChanneling"> Slope Channeling<span
+                      class="dep-dot dep-red"></span><span class="dep-dot dep-green"></span><span
+                      class="dep-dot dep-blue"></span></h2>
+            <div class="control-group">
+                <label>Strength <span class="val" id="slopeChannelStrength-val">0.6</span></label>
+                <input type="range" id="slopeChannelStrength" min="0" max="1" step="0.05" value="0.6">
+            </div>
+            <div class="control-group">
+                <label>Steep Threshold <span class="val" id="slopeChannelSteepThresh-val">0.45</span></label>
+                <input type="range" id="slopeChannelSteepThresh" min="0" max="1" step="0.05" value="0.45">
+            </div>
+            <div class="control-group">
+                <label style="cursor:pointer"><input type="checkbox" id="showSlopeChannelMask"
+                           style="accent-color:var(--accent)">
+                    Show Mask Overlay</label>
+            </div>
+            <div class="stats" id="slopeChannel-stats">Affected: 0.0% · Avg Δheight: 0.0</div>
+        </section>
+
+        <!-- Post-Processing: Basin Deposition -->
+        <section id="sec-basinDeposition">
+            <h2><input type="checkbox" id="enableBasinDeposition"> Basin Deposition<span
+                      class="dep-dot dep-green"></span><span class="dep-dot dep-purple"></span></h2>
+            <div class="control-group">
+                <label>Amount <span class="val" id="basinDepositionAmount-val">0.4</span></label>
+                <input type="range" id="basinDepositionAmount" min="0" max="1" step="0.05" value="0.4">
+            </div>
+            <div class="control-group">
+                <label>Slope Max <span class="val" id="basinDepoSlopeMax-val">0.25</span></label>
+                <input type="range" id="basinDepoSlopeMax" min="0" max="1" step="0.05" value="0.25">
+            </div>
+            <div class="control-group">
+                <label>Concave Threshold <span class="val" id="basinDepoConcaveThresh-val">0.2</span></label>
+                <input type="range" id="basinDepoConcaveThresh" min="0" max="1" step="0.05" value="0.2">
+            </div>
+            <div class="control-group">
+                <label style="cursor:pointer"><input type="checkbox" id="showBasinDepositionMask"
+                           style="accent-color:var(--accent)">
+                    Show Mask Overlay</label>
+            </div>
+            <div class="stats" id="basinDeposition-stats">Affected: 0.0% · Avg Δheight: 0.0</div>
+        </section>
+
+        <!-- Post-Processing: Flow Blur -->
+        <section id="sec-flowBlur">
+            <h2><input type="checkbox" id="enableFlowBlur"> Flow Blur<span class="dep-dot dep-yellow"></span><span
+                      class="dep-dot dep-blue"></span></h2>
+            <div class="control-group">
+                <label>Strength <span class="val" id="flowBlurStrength-val">0.5</span></label>
+                <input type="range" id="flowBlurStrength" min="0" max="1" step="0.05" value="0.5">
+            </div>
+            <div class="control-group">
+                <label>Radius <span class="val" id="flowBlurRadius-val">3</span></label>
+                <input type="range" id="flowBlurRadius" min="1" max="8" step="1" value="3">
+            </div>
+            <div class="control-group">
+                <label>Passes <span class="val" id="flowBlurPasses-val">2</span></label>
+                <input type="range" id="flowBlurPasses" min="1" max="4" step="1" value="2">
+            </div>
+        </section>
+
+        <!-- Post-Processing: Curvature -->
+        <section id="sec-curvature">
+            <h2><input type="checkbox" id="enableCurvature"> Curvature<span class="dep-dot dep-purple"></span></h2>
+            <div class="control-group">
+                <label>Strength <span class="val" id="curvatureStrength-val">0.5</span></label>
+                <input type="range" id="curvatureStrength" min="0" max="1" step="0.05" value="0.5">
+            </div>
+            <div class="control-group">
+                <label>Ridge Boost <span class="val" id="curvatureRidgeBoost-val">0.5</span></label>
+                <input type="range" id="curvatureRidgeBoost" min="0" max="1" step="0.05" value="0.5">
+            </div>
+            <div class="control-group">
+                <label>Valley Deepen <span class="val" id="curvatureValleyDeepen-val">0.3</span></label>
+                <input type="range" id="curvatureValleyDeepen" min="0" max="1" step="0.05" value="0.3">
+            </div>
+        </section>
+
+        <!-- Output -->
+        <section id="sec-output">
+            <h2>Output</h2>
+            <div class="control-group">
+                <label>Color Mode</label>
+                <div class="color-mode-list" id="colorMode">
+                    <label class="color-mode-item" data-value="grayscale">
+                        <input type="radio" name="colorMode" value="grayscale">
+                        <div class="color-mode-swatch" style="background:linear-gradient(to right,#000,#fff)"></div>
+                        <span class="color-mode-label">Grayscale (B&amp;W)</span>
+                    </label>
+                    <label class="color-mode-item" data-value="terrainRamp">
+                        <input type="radio" name="colorMode" value="terrainRamp">
+                        <div class="color-mode-swatch"
+                             style="background:linear-gradient(to right,rgb(10,20,60),rgb(30,60,120) 15%,rgb(40,100,70) 30%,rgb(80,130,60) 45%,rgb(140,120,70) 60%,rgb(160,140,100) 75%,rgb(220,220,220) 90%,#fff)">
+                        </div>
+                        <span class="color-mode-label">Terrain Ramp</span>
+                    </label>
+                    <label class="color-mode-item" data-value="slopeAware">
+                        <input type="radio" name="colorMode" value="slopeAware">
+                        <div class="color-mode-swatch"
+                             style="background:linear-gradient(to right,rgb(10,30,80),rgb(30,80,140) 12%,rgb(40,100,50) 30%,rgb(100,90,70) 50%,rgb(140,120,90) 65%,rgb(180,160,150) 80%,#fff)">
+                        </div>
+                        <span class="color-mode-label">Slope-Aware</span>
+                    </label>
+                    <label class="color-mode-item" data-value="geogenStyle">
+                        <input type="radio" name="colorMode" value="geogenStyle">
+                        <div class="color-mode-swatch"
+                             style="background:linear-gradient(to right,rgb(20,40,30),rgb(30,80,40) 15%,rgb(60,120,40) 30%,rgb(180,180,40) 45%,rgb(200,120,40) 60%,rgb(180,60,40) 75%,rgb(120,40,40) 88%,#fff)">
+                        </div>
+                        <span class="color-mode-label">Geogen-Style</span>
+                    </label>
+                    <label class="color-mode-item" data-value="dolomitesNatural">
+                        <input type="radio" name="colorMode" value="dolomitesNatural">
+                        <div class="color-mode-swatch"
+                             style="background:linear-gradient(to right,oklch(0.424 0.035 101.2),oklch(0.546 0.042 111.1) 7.7%,oklch(0.472 0.022 150.2) 15.4%,oklch(0.637 0.061 94.4) 23.1%,oklch(0.599 0.060 103.4) 30.8%,oklch(0.285 0.019 154.5) 38.5%,oklch(0.616 0.060 98.7) 46.2%,oklch(0.669 0.063 87.8) 53.8%,oklch(0.632 0.052 122.1) 61.5%,oklch(0.599 0.060 103.4) 69.2%,oklch(0.546 0.042 111.1) 76.9%,oklch(0.535 0.038 115.1) 84.6%,oklch(0.637 0.061 94.4) 92.3%,oklch(0.753 0.067 186.0))">
+                        </div>
+                        <span class="color-mode-label">Dolomites Natural</span>
+                    </label>
+                    <label class="color-mode-item" data-value="dolomitesExtended">
+                        <input type="radio" name="colorMode" value="dolomitesExtended">
+                        <div class="color-mode-swatch"
+                             style="background:linear-gradient(90deg,rgb(82,79,57) 0%,rgb(84,78,62) 3%,rgb(113,115,87) 7%,rgb(83,95,85) 14%,rgb(151,139,96) 20%,rgb(132,119,69) 26%,rgb(142,134,92) 32%,rgb(134,130,88) 39%,rgb(156,134,90) 44%,rgb(165,147,104) 51%,rgb(147,119,93) 57%,rgb(113,115,87) 60%,rgb(132,143,108) 64%,rgb(134,130,88) 72%,rgb(108,112,87) 82%,rgb(151,139,96) 89%,rgb(125,189,181) 94%,rgb(200,248,243) 100%)">
+                        </div>
+                        <span class="color-mode-label">Dolomites Extended</span>
+                    </label>
+                </div>
+            </div>
+            <div class="control-group">
+                <label style="cursor:pointer"><input type="checkbox" id="fixedRange" style="accent-color:var(--accent)">
+                    Fixed Elevation Range</label>
+            </div>
+            <button id="regen-btn">Regenerate</button>
+            <button id="reset-btn" style="margin-top:8px">Reset Defaults</button>
+            <div class="stats" style="margin-top:10px">
+                Render: <span id="render-time">0</span> ms
+            </div>
+        </section>
+    </div>
+
+    <script type="module">
+        import { generateTerrain, renderTerrain, DEFAULT_SETTINGS } from './src/fastnoise-terrain.js';
+
+        const W = 512;
+        const H = 512;
+        const canvas = document.getElementById('terrain');
+        const ctx = canvas.getContext('2d', { alpha: false });
+
+        // Working copy of settings
+        const settings = { ...DEFAULT_SETTINGS };
+
+        const STORAGE_KEY = 'terrain-settings';
+
+        // Load saved settings from local storage, skipping any keys not in DEFAULT_SETTINGS
+        function loadSettings() {
+            try {
+                const raw = localStorage.getItem(STORAGE_KEY);
+                if (!raw) return;
+                const saved = JSON.parse(raw);
+                for (const key of Object.keys(saved)) {
+                    if (key in DEFAULT_SETTINGS) {
+                        settings[key] = saved[key];
+                    }
+                }
+            } catch (e) {
+                // Ignore malformed storage
+            }
+        }
+
+        // Save current settings to local storage
+        function saveSettings() {
+            try {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
+            } catch (e) {
+                // Ignore quota errors
+            }
+        }
+
+        // Apply settings to UI elements
+        function applySettingsToUI() {
+            for (const id of numericSliders) {
+                const el = document.getElementById(id);
+                const valEl = document.getElementById(id + '-val');
+                if (!el) continue;
+                el.value = settings[id];
+                if (valEl) valEl.textContent = fmt(id, settings[id]);
+            }
+            // Direction slider (radians -> degrees)
+            const dirEl2 = document.getElementById('asymDirection');
+            const dirVal2 = document.getElementById('asymDirection-val');
+            const dirDeg = Math.round(settings.asymDirection * 180 / Math.PI);
+            dirEl2.value = dirDeg;
+            dirVal2.textContent = dirDeg + '°';
+            for (const id of checkboxes) {
+                const el = document.getElementById(id);
+                if (!el) continue;
+                el.checked = settings[id];
+            }
+        }
+
+        // Slider ids that map 1:1 to numeric settings keys
+        const numericSliders = [
+            'seed', 'zoom', 'broadWeight', 'structureWeight', 'ridgeWeight',
+            'ridgeSharpness', 'detailWeight', 'heightCurve', 'displayZoom',
+            'edgeStrength', 'edgeInnerRadius', 'edgeFloor', 'edgeShape', 'edgeIrregularity',
+            'asymElevMin', 'asymElevMax', 'asymFadeLower', 'asymFadeUpper', 'asymStrength',
+            'asymCoverage',
+            'thermalIterations', 'thermalTalus', 'thermalStrength',
+            'riverAreaThreshold', 'riverSourceElevation', 'riverCarveDepth', 'riverWidth',
+            'rockDensity', 'rockMaxRadius',
+            'boulderDensity', 'boulderMaxRadius', 'boulderSlopeMin',
+            'ridgeEnhanceStrength', 'ridgeEnhanceFrequency', 'ridgeEnhanceElevMin',
+            'ridgeMaskStrength', 'ridgeMaskThreshold', 'ridgeMaskErosionResistance',
+            'slopeChannelStrength', 'slopeChannelSteepThresh',
+            'basinDepositionAmount', 'basinDepoSlopeMax', 'basinDepoConcaveThresh',
+            'flowBlurStrength', 'flowBlurRadius', 'flowBlurPasses',
+            'curvatureStrength', 'curvatureRidgeBoost', 'curvatureValleyDeepen',
+        ];
+
+        const checkboxes = [
+            'enableEdgeFalloff', 'enableAsymmetric', 'enableThermal', 'enableRivers',
+            'preserveLakes', 'enableRocks', 'enableBoulders', 'fixedRange',
+            'enableRidgeEnhance', 'enableRidgeMask', 'showRidgeMask', 'enableSlopeChanneling',
+            'showSlopeChannelMask', 'enableBasinDeposition', 'showBasinDepositionMask',
+            'enableFlowBlur', 'enableCurvature',
+        ];
+
+        // Overlay checkboxes are mutually exclusive - only one mask can be shown at a time
+        const overlayCheckboxIds = ['showRidgeMask', 'showSlopeChannelMask', 'showBasinDepositionMask'];
+
+        function fmt(id, value) {
+            if (id === 'asymDirection') return value + '°';
+            if (id === 'seed' || id === 'thermalIterations' || id === 'riverAreaThreshold' ||
+                id === 'rockMaxRadius' || id === 'boulderMaxRadius' ||
+                id === 'flowBlurRadius' || id === 'flowBlurPasses') {
+                return String(Math.round(value));
+            }
+            if (id === 'ridgeEnhanceFrequency') return Number(value).toFixed(3);
+            const decimals = value < 1 ? (String(value).includes('.00') ? 3 : 2) : 1;
+            return Number(value).toFixed(decimals);
+        }
+
+        let renderScheduled = false;
+        function scheduleRender() {
+            if (renderScheduled) return;
+            renderScheduled = true;
+            requestAnimationFrame(() => {
+                renderScheduled = false;
+                run();
+            });
+        }
+
+        // Wire numeric sliders
+        for (const id of numericSliders) {
+            const el = document.getElementById(id);
+            const valEl = document.getElementById(id + '-val');
+            if (!el) continue;
+            el.addEventListener('input', () => {
+                settings[id] = parseFloat(el.value);
+                if (valEl) valEl.textContent = fmt(id, el.value);
+                saveSettings();
+                if (id === 'displayZoom') {
+                    updateCanvasSize();
+                } else {
+                    scheduleRender();
+                }
+            });
+            el.addEventListener('focus', () => highlightDeps(id));
+            el.addEventListener('blur', () => clearDeps());
+        }
+
+        // Wire color mode list (radio buttons in a scrollable list)
+        const colorModeList = document.getElementById('colorMode');
+        colorModeList.addEventListener('change', (e) => {
+            if (e.target.name === 'colorMode') {
+                settings.colorMode = e.target.value;
+                updateColorModeSelection();
+                saveSettings();
+                scheduleRender();
+            }
+        });
+
+        // Highlight the selected color mode item
+        function updateColorModeSelection() {
+            const items = colorModeList.querySelectorAll('.color-mode-item');
+            for (const item of items) {
+                const isSelected = item.dataset.value === settings.colorMode;
+                item.classList.toggle('selected', isSelected);
+                const radio = item.querySelector('input[type="radio"]');
+                if (radio) radio.checked = isSelected;
+            }
+        }
+
+        // Direction slider (degrees -> radians)
+        const dirEl = document.getElementById('asymDirection');
+        const dirVal = document.getElementById('asymDirection-val');
+        dirEl.addEventListener('input', () => {
+            settings.asymDirection = parseFloat(dirEl.value) * Math.PI / 180;
+            dirVal.textContent = dirEl.value + '°';
+            saveSettings();
+            scheduleRender();
+        });
+
+        // Wire checkboxes
+        for (const id of checkboxes) {
+            const el = document.getElementById(id);
+            if (!el) continue;
+            el.addEventListener('change', () => {
+                settings[id] = el.checked;
+                if (el.checked && overlayCheckboxIds.includes(id)) {
+                    for (const otherId of overlayCheckboxIds) {
+                        if (otherId === id) continue;
+                        settings[otherId] = false;
+                        const otherEl = document.getElementById(otherId);
+                        if (otherEl) otherEl.checked = false;
+                    }
+                }
+                saveSettings();
+                updateSectionState();
+                scheduleRender();
+            });
+        }
+
+        // Dim disabled sections for clarity
+        function updateSectionState() {
+            const map = {
+                'sec-edge': 'enableEdgeFalloff',
+                'sec-asym': 'enableAsymmetric',
+                'sec-thermal': 'enableThermal',
+                'sec-rivers': 'enableRivers',
+                'sec-rocks': 'enableRocks',
+                'sec-boulders': 'enableBoulders',
+                'sec-ridgeEnhance': 'enableRidgeEnhance',
+                'sec-ridgeMask': 'enableRidgeMask',
+                'sec-slopeChanneling': 'enableSlopeChanneling',
+                'sec-basinDeposition': 'enableBasinDeposition',
+                'sec-flowBlur': 'enableFlowBlur',
+                'sec-curvature': 'enableCurvature',
+            };
+            for (const [secId, key] of Object.entries(map)) {
+                const sec = document.getElementById(secId);
+                if (sec) sec.classList.toggle('disabled-section', !settings[key]);
+            }
+        }
+
+        document.getElementById('regen-btn').addEventListener('click', () => {
+            // Randomize seed and re-run
+            const newSeed = Math.floor(Math.random() * 9999) + 1;
+            settings.seed = newSeed;
+            const seedEl = document.getElementById('seed');
+            seedEl.value = newSeed;
+            document.getElementById('seed-val').textContent = newSeed;
+            saveSettings();
+            run();
+        });
+
+        document.getElementById('reset-btn').addEventListener('click', () => {
+            // Reset all tuning settings to DEFAULT_SETTINGS, preserving the current seed
+            const currentSeed = settings.seed;
+            for (const key of Object.keys(DEFAULT_SETTINGS)) {
+                settings[key] = DEFAULT_SETTINGS[key];
+            }
+            settings.seed = currentSeed;
+            applySettingsToUI();
+            if (settings.colorMode) {
+                updateColorModeSelection();
+            }
+            updateSectionState();
+            saveSettings();
+            run();
+        });
+
+        function run() {
+            const start = performance.now();
+            const { heightmap, slopeMap, pipelineCtx } = generateTerrain(W, H, settings);
+            const pixels = renderTerrain(heightmap, slopeMap, W, H, settings, pipelineCtx);
+            const rgba = new Uint8ClampedArray(pixels.buffer);
+            ctx.putImageData(new ImageData(rgba, W, H), 0, 0);
+            updateStatsReadouts(pipelineCtx);
+            const elapsed = performance.now() - start;
+            document.getElementById('render-time').textContent = elapsed.toFixed(1);
+        }
+
+        // Write per-stage diagnostic stats (% pixels affected, avg height delta)
+        function updateStatsReadouts(pipelineCtx) {
+            const stats = pipelineCtx?.stats || {};
+            const sc = stats.slopeChanneling || { pctAffected: 0, avgDelta: 0 };
+            const bd = stats.basinDeposition || { pctAffected: 0, avgDelta: 0 };
+            const scEl = document.getElementById('slopeChannel-stats');
+            const bdEl = document.getElementById('basinDeposition-stats');
+            if (scEl) scEl.textContent = `Affected: ${sc.pctAffected.toFixed(1)}% · Avg Δheight: ${sc.avgDelta.toFixed(1)}`;
+            if (bdEl) bdEl.textContent = `Affected: ${bd.pctAffected.toFixed(1)}% · Avg Δheight: ${bd.avgDelta.toFixed(1)}`;
+        }
+
+        // Update canvas CSS size based on displayZoom setting
+        function updateCanvasSize() {
+            const z = settings.displayZoom || 1.0;
+            canvas.style.width = (W * z) + 'px';
+            canvas.style.height = (H * z) + 'px';
+        }
+
+        // Auto-fit canvas to available space on first load
+        function autoFitZoom() {
+            const container = document.getElementById('canvas-container');
+            // Account for the fixed UI panel on the right (~340px total)
+            const panelWidth = 340;
+            const availW = container.clientWidth - panelWidth - 20;
+            const availH = container.clientHeight - 20;
+            const fitW = availW / W;
+            const fitH = availH / H;
+            const fit = Math.min(fitW, fitH);
+            const z = Math.max(0.5, Math.min(5.0, Math.round(fit * 10) / 10));
+            settings.displayZoom = z;
+            const el = document.getElementById('displayZoom');
+            const valEl = document.getElementById('displayZoom-val');
+            if (el) el.value = z;
+            if (valEl) valEl.textContent = z.toFixed(1);
+            updateCanvasSize();
+        }
+
+        // Dependency dot highlighting
+        const depMap = {
+            'ridgeMaskErosionResistance': ['dep-red', 'dep-yellow'],
+            'ridgeMaskStrength': ['dep-red', 'dep-yellow', 'dep-purple'],
+            'ridgeMaskThreshold': ['dep-red', 'dep-yellow', 'dep-purple'],
+            'slopeChannelStrength': ['dep-red', 'dep-green', 'dep-blue'],
+            'slopeChannelSteepThresh': ['dep-red', 'dep-green', 'dep-blue'],
+            'basinDepositionAmount': ['dep-green', 'dep-purple'],
+            'basinDepoSlopeMax': ['dep-green', 'dep-purple'],
+            'basinDepoConcaveThresh': ['dep-green', 'dep-purple'],
+            'flowBlurStrength': ['dep-yellow', 'dep-blue'],
+            'flowBlurRadius': ['dep-yellow', 'dep-blue'],
+            'flowBlurPasses': ['dep-yellow', 'dep-blue'],
+            'curvatureStrength': ['dep-purple'],
+            'curvatureRidgeBoost': ['dep-purple'],
+            'curvatureValleyDeepen': ['dep-purple'],
+        };
+
+        function highlightDeps(id) {
+            const deps = depMap[id];
+            if (!deps) return;
+            for (const cls of deps) {
+                document.querySelectorAll('.' + cls).forEach(el => el.classList.add('lit'));
+            }
+        }
+
+        function clearDeps() {
+            document.querySelectorAll('.dep-dot.lit').forEach(el => el.classList.remove('lit'));
+        }
+
+        loadSettings();
+        applySettingsToUI();
+        updateSectionState();
+        // Auto-fit on first load if no saved zoom, otherwise use saved
+        if (!localStorage.getItem(STORAGE_KEY)) {
+            autoFitZoom();
+        } else {
+            updateCanvasSize();
+        }
+        // Sync color mode list
+        if (settings.colorMode) {
+            updateColorModeSelection();
+        }
+        run();
+    </script>
+
+</body>
+
+</html>
