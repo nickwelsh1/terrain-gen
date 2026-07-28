@@ -11,6 +11,8 @@
     "scripts": {
         "dev": "vite",
         "dev:legacy": "live-server .",
+        "build": "vite build",
+        "preview": "vite preview",
         "test": "vitest run",
         "test:ui": "vitest --ui",
         "lint": "biome lint --write ."
