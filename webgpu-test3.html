@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Babylon Lite Storage Buffer Test v3</title>
+    <style>
+        body { margin: 0; background: #1a1a1a; color: #e0e0e0; }
+        #renderCanvas { display: block; width: 100vw; height: 100vh; touch-action: none; }
+        #status { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); }
+    </style>
+</head>
+<body>
+    <canvas id="renderCanvas"></canvas>
+    <div id="status">Loading...</div>
+    <script type="module">
+        import {
+            createEngine,
+            createSceneContext,
+            createDefaultCamera,
+            createHemisphericLight,
+            createSphere,
+            createGround,
+            createShaderMaterial,
+            createStorageBuffer,
+            attachControl,
+            addToScene,
+            registerScene,
+            startEngine,
+            setShaderStorageBuffer,
+            setThinInstances,
+        } from "@babylonjs/lite";
+
+        const canvas = document.getElementById("renderCanvas");
+        const status = document.getElementById("status");
+
+        try {
+            status.textContent = "Creating engine...";
+            const engine = await createEngine(canvas);
+            const scene = createSceneContext(engine);
+            scene.clearColor = { r: 0.1, g: 0.1, b: 0.15, a: 1.0 };
+
+            const camera = createDefaultCamera(scene);
+            camera.alpha = -Math.PI / 2;
+            camera.beta = Math.PI / 2.5;
+            camera.radius = 9;
+            attachControl(camera, canvas, scene);
+
+            addToScene(scene, createHemisphericLight([0, 1, 0], 1.0));
+
+            // Test A: Sphere with thin instances + storage buffer (like working snippet)
+            const particleCount = 100;
+            const particleData = new Float32Array(particleCount * 8); // 2 vec4s per particle
+            const instanceMatrices = new Float32Array(particleCount * 16);
+
+            for (let i = 0; i < particleCount; i++) {
+                const angle = (i / particleCount) * Math.PI * 2;
+                const radius = 2 + (i % 3) * 0.5;
+                // position.xyz + life
+                particleData[i * 8 + 0] = Math.cos(angle) * radius;
+                particleData[i * 8 + 1] = 0;
+                particleData[i * 8 + 2] = Math.sin(angle) * radius;
+                particleData[i * 8 + 3] = 0.5; // life ratio
+                // velocity.xyz + maxLife (unused in shader but needed for layout)
+                particleData[i * 8 + 4] = 0;
+                particleData[i * 8 + 5] = 0;
+                particleData[i * 8 + 6] = 0;
+                particleData[i * 8 + 7] = 1.0;
+
+                // Identity matrix
+                instanceMatrices[i * 16 + 0] = 1;
+                instanceMatrices[i * 16 + 5] = 1;
+                instanceMatrices[i * 16 + 10] = 1;
+                instanceMatrices[i * 16 + 15] = 1;
+            }
+
+            const storageBuffer = createStorageBuffer(engine, particleData, "ParticleBuffer");
+
+            const mesh = createSphere(engine, { diameter: 0.3, segments: 8 });
+            setThinInstances(mesh, instanceMatrices, particleCount);
+
+            const mat = createShaderMaterial({
+                name: "ParticleMaterial",
+                vertexSource: `
+                    struct VertexOutput {
+                        @builtin(position) position: vec4<f32>,
+                        @location(0) lifeRatio: f32,
+                        @location(1) normal: vec3<f32>,
+                    };
+
+                    @vertex
+                    fn mainVertex(
+                        input: VertexInput,
+                        @builtin(instance_index) instanceIndex: u32
+                    ) -> VertexOutput {
+                        let dataIndex = instanceIndex * 2u;
+                        let positionLife = particleBuffer[dataIndex];
+                        let particlePosition = positionLife.xyz;
+                        let lifeRatio = positionLife.w;
+                        let localPosition = input.position;
+                        let worldPosition = particlePosition + localPosition;
+                        var output: VertexOutput;
+                        output.position = shaderSystem.viewProjection * vec4<f32>(worldPosition, 1.0);
+                        output.lifeRatio = lifeRatio;
+                        output.normal = input.normal;
+                        return output;
+                    }
+                `,
+                fragmentSource: `
+                    struct FragmentInput {
+                        @location(0) lifeRatio: f32,
+                        @location(1) normal: vec3<f32>,
+                    };
+
+                    @fragment
+                    fn mainFragment(input: FragmentInput) -> @location(0) vec4<f32> {
+                        let life = input.lifeRatio;
+                        let startColor = vec3<f32>(0.1, 0.4, 1.0);
+                        let endColor = vec3<f32>(1.0, 0.2, 0.03);
+                        let color = mix(startColor, endColor, life);
+                        let normal = normalize(input.normal);
+                        let lightDirection = normalize(vec3<f32>(0.5, 1.0, 0.3));
+                        let diffuse = max(dot(normal, lightDirection), 0.0);
+                        let lighting = 0.45 + diffuse * 0.55;
+                        return vec4<f32>(color * lighting, 1.0);
+                    }
+                `,
+                attributes: ["position", "normal"],
+                uniforms: ["viewProjection"],
+                storageBuffers: [
+                    { name: "particleBuffer", type: "array<vec4<f32>>" },
+                ],
+                backFaceCulling: false,
+                depthWrite: true,
+            });
+
+            setShaderStorageBuffer(mat, "particleBuffer", storageBuffer);
+            mesh.material = mat;
+            addToScene(scene, mesh);
+
+            await registerScene(scene);
+            console.log("Scene registered");
+
+            status.style.display = "none";
+            await startEngine(engine);
+            console.log("Engine started — should see 100 colored spheres in a ring");
+        } catch (err) {
+            status.textContent = "Error: " + err.message;
+            status.style.color = "#ff6060";
+            console.error(err);
+        }
+    </script>
+</body>
+</html>

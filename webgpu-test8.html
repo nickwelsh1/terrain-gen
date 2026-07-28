@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Babylon Lite Large Scale Test</title>
+    <style>
+        body { margin: 0; background: #1a1a1a; color: #e0e0e0; }
+        #renderCanvas { display: block; width: 100vw; height: 100vh; touch-action: none; }
+        #status { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); }
+    </style>
+</head>
+<body>
+    <canvas id="renderCanvas"></canvas>
+    <div id="status">Loading...</div>
+    <script type="module">
+        import {
+            createEngine,
+            createSceneContext,
+            createDefaultCamera,
+            createHemisphericLight,
+            createGround,
+            createShaderMaterial,
+            createStorageBuffer,
+            attachControl,
+            addToScene,
+            registerScene,
+            startEngine,
+            setShaderStorageBuffer,
+        } from "@babylonjs/lite";
+
+        const canvas = document.getElementById("renderCanvas");
+        const status = document.getElementById("status");
+
+        const N = 256;
+        const GRID_CELLS = N * N;
+        const AREA_M = 2560;
+
+        try {
+            status.textContent = "Creating engine...";
+            const engine = await createEngine(canvas);
+            const scene = createSceneContext(engine);
+            scene.clearColor = { r: 0.1, g: 0.1, b: 0.15, a: 1.0 };
+
+            const camera = createDefaultCamera(scene);
+            camera.alpha = -Math.PI / 2;
+            camera.beta = Math.PI / 3;
+            camera.radius = AREA_M * 1.5;
+            // Set target to terrain center height
+            camera.target = { x: 0, y: 250, z: 0 };
+            attachControl(camera, canvas, scene);
+
+            addToScene(scene, createHemisphericLight([0, 1, 0], 1.0));
+
+            // Real-scale heights (0..500)
+            const heights = new Float32Array(GRID_CELLS);
+            for (let y = 0; y < N; y++) {
+                for (let x = 0; x < N; x++) {
+                    const dx = (x - N / 2) / N;
+                    const dy = (y - N / 2) / N;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+                    heights[y * N + x] = Math.sin(dist * 20) * 200 + 250;
+                }
+            }
+            const heightBuffer = createStorageBuffer(engine, heights, "heights");
+            console.log("Height buffer created");
+
+            const ground = createGround(engine, {
+                width: AREA_M,
+                height: AREA_M,
+                subdivisions: N - 1,
+            });
+
+            const mat = createShaderMaterial({
+                name: "largeScaleTest",
+                vertexSource: `
+                    const N_F : f32 = ${N}.0;
+                    const N_U : u32 = ${N}u;
+
+                    struct VertexOutput {
+                        @builtin(position) position: vec4f,
+                        @location(0) uv: vec2f,
+                        @location(1) height: f32,
+                    };
+
+                    @vertex
+                    fn mainVertex(input: VertexInput) -> VertexOutput {
+                        var out: VertexOutput;
+                        let gridX = input.uv.x * (N_F - 1.0);
+                        let gridY = (1.0 - input.uv.y) * (N_F - 1.0);
+                        let ix = u32(clamp(gridX, 0.0, N_F - 1.0));
+                        let iy = u32(clamp(gridY, 0.0, N_F - 1.0));
+                        let idx = iy * N_U + ix;
+                        let h = heights[idx];
+                        let worldPos = vec3f(input.position.x, h, input.position.z);
+                        out.position = shaderSystem.viewProjection * vec4f(worldPos, 1.0);
+                        out.uv = input.uv;
+                        out.height = h;
+                        return out;
+                    }
+                `,
+                fragmentSource: `
+                    struct FragmentInput {
+                        @builtin(position) position: vec4f,
+                        @location(0) uv: vec2f,
+                        @location(1) height: f32,
+                    };
+
+                    @fragment
+                    fn mainFragment(input: FragmentInput) -> @location(0) vec4f {
+                        let h = clamp(input.height / 500.0, 0.0, 1.0);
+                        return vec4f(h, h, h, 1.0);
+                    }
+                `,
+                attributes: ["position", "uv"],
+                uniforms: ["viewProjection"],
+                storageBuffers: [
+                    { name: "heights", type: "array<f32>" },
+                ],
+            });
+
+            setShaderStorageBuffer(mat, "heights", heightBuffer);
+
+            ground.material = mat;
+            addToScene(scene, ground);
+
+            await registerScene(scene);
+            console.log("Scene registered — area:", AREA_M, "radius:", AREA_M * 1.5, "target y: 250");
+
+            status.style.display = "none";
+            await startEngine(engine);
+            console.log("Engine started");
+        } catch (err) {
+            status.textContent = "Error: " + err.message;
+            status.style.color = "#ff6060";
+            console.error(err);
+        }
+    </script>
+</body>
+</html>

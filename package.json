@@ -5,15 +5,18 @@
     "type": "module",
     "devDependencies": {
         "happy-dom": "^20.11.1",
+        "vite": "^8.1.5",
         "vitest": "^4.1.10"
     },
     "scripts": {
-        "dev": "live-server .",
+        "dev": "vite",
+        "dev:legacy": "live-server .",
         "test": "vitest run",
         "test:ui": "vitest --ui",
         "lint": "biome lint --write ."
     },
     "dependencies": {
+        "@babylonjs/lite": "^2.0.0",
         "fastnoise-lite": "^1.1.1",
         "simplex-noise": "^4.0.3"
     }

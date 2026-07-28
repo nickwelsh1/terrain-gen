@@ -83,6 +83,11 @@
             gap: 12px;
         }
 
+        #webgpu-link:hover {
+            background: rgba(80, 255, 158, 0.12) !important;
+            border-color: var(--accent) !important;
+        }
+
         #zoom-control {
             display: flex;
             align-items: center;
@@ -424,6 +429,9 @@
 <body>
     <div id="top-bar">
         <a id="launch-link" href="tempterrain.html">Terrain Visualizer →</a>
+        <a id="webgpu-link" href="webgpu.html"
+           style="color:var(--accent);text-decoration:none;font-size:0.8rem;padding:8px 14px;border:1px solid rgba(80,255,158,0.3);border-radius:6px;background:rgba(30,30,30,0.8);transition:all 0.25s ease;">WebGPU
+            Erosion Simulator →</a>
         <div id="zoom-control">
             <label>Zoom</label>
             <input type="range" id="displayZoom" min="0.5" max="5.0" step="0.1" value="1.0">

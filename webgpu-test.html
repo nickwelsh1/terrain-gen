@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Babylon Lite Minimal Test</title>
+    <style>
+        body { margin: 0; background: #1a1a1a; color: #e0e0e0; }
+        #renderCanvas { display: block; width: 100vw; height: 100vh; touch-action: none; }
+        #status { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); }
+    </style>
+</head>
+<body>
+    <canvas id="renderCanvas"></canvas>
+    <div id="status">Loading...</div>
+    <script type="module">
+        import {
+            createEngine,
+            createSceneContext,
+            createArcRotateCamera,
+            createHemisphericLight,
+            createGround,
+            createShaderMaterial,
+            attachControl,
+            addToScene,
+            registerScene,
+            startEngine,
+            setShaderUniform,
+        } from "@babylonjs/lite";
+
+        const canvas = document.getElementById("renderCanvas");
+        const status = document.getElementById("status");
+
+        try {
+            status.textContent = "Creating engine...";
+            const engine = await createEngine(canvas);
+            console.log("Engine created");
+
+            const scene = createSceneContext(engine);
+            scene.clearColor = { r: 0.1, g: 0.1, b: 0.15, a: 1.0 };
+            console.log("Scene created");
+
+            // Camera — looking at center from above
+            const camera = createArcRotateCamera(
+                -Math.PI / 2,
+                Math.PI / 3,
+                10,
+                { x: 0, y: 0, z: 0 },
+            );
+            scene.camera = camera;
+            attachControl(camera, canvas, scene);
+            console.log("Camera created");
+
+            // Light
+            addToScene(scene, createHemisphericLight([0, 1, 0], 1.0));
+            console.log("Light added");
+
+            // Simple ground mesh
+            const ground = createGround(engine, { width: 4, height: 4, subdivisions: 1 });
+            console.log("Ground created");
+
+            // Minimal shader — just outputs solid green
+            const mat = createShaderMaterial({
+                name: "testMat",
+                vertexSource: `
+                    struct VertexOutput {
+                        @builtin(position) position: vec4f,
+                        @location(0) uv: vec2f,
+                    };
+                    @vertex
+                    fn mainVertex(input: VertexInput) -> VertexOutput {
+                        var out: VertexOutput;
+                        out.position = scene.viewProjection * shaderSystem.world * vec4f(input.position, 1.0);
+                        out.uv = input.uv;
+                        return out;
+                    }
+                `,
+                fragmentSource: `
+                    struct FragmentInput {
+                        @builtin(position) position: vec4f,
+                        @location(0) uv: vec2f,
+                    };
+                    @fragment
+                    fn mainFragment(input: FragmentInput) -> @location(0) vec4f {
+                        return vec4f(0.3, 0.8, 0.2, 1.0);
+                    }
+                `,
+                attributes: ["position", "uv"],
+                uniforms: ["world"],
+            });
+            console.log("Material created");
+
+            ground.material = mat;
+            addToScene(scene, ground);
+            console.log("Ground added to scene");
+
+            await registerScene(scene);
+            console.log("Scene registered");
+
+            status.style.display = "none";
+            await startEngine(engine);
+            console.log("Engine started");
+        } catch (err) {
+            status.textContent = "Error: " + err.message;
+            status.style.color = "#ff6060";
+            console.error(err);
+        }
+    </script>
+</body>
+</html>

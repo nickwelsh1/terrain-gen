@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebGPU Terrain Erosion Simulator</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #1a1a1a;
+            color: #e0e0e0;
+            font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+            overflow: hidden;
+        }
+
+        #renderCanvas {
+            display: block;
+            width: 100vw;
+            height: 100vh;
+            touch-action: none;
+        }
+
+        #status {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 1rem;
+            text-align: center;
+            color: #e0e0e0;
+            z-index: 50;
+        }
+
+        #back-link {
+            position: fixed;
+            top: 16px;
+            left: 16px;
+            color: #50ff9e;
+            font-size: 0.8rem;
+            text-decoration: none;
+            padding: 8px 14px;
+            border: 1px solid rgba(80, 255, 158, 0.3);
+            border-radius: 6px;
+            background: rgba(30, 30, 30, 0.8);
+            transition: all 0.25s ease;
+            z-index: 200;
+        }
+
+        #back-link:hover {
+            background: rgba(80, 255, 158, 0.12);
+            border-color: #50ff9e;
+        }
+    </style>
+</head>
+
+<body>
+    <a href="./index.html" id="back-link">← Back to 2D Heightmap</a>
+    <canvas id="renderCanvas"></canvas>
+    <div id="status">Initializing WebGPU...</div>
+    <script type="module" src="./src/webgpu/app.js"></script>
+</body>
+
+</html>

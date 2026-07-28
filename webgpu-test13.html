@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Babylon Lite Real Pipeline Test</title>
+    <style>
+        body { margin: 0; background: #1a1a1a; color: #e0e0e0; }
+        #renderCanvas { display: block; width: 100vw; height: 100vh; touch-action: none; }
+        #status { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); }
+    </style>
+</head>
+<body>
+    <canvas id="renderCanvas"></canvas>
+    <div id="status">Loading...</div>
+    <script type="module">
+        import {
+            createEngine,
+            createSceneContext,
+            createDefaultCamera,
+            createHemisphericLight,
+            createGround,
+            createShaderMaterial,
+            createStorageBuffer,
+            attachControl,
+            addToScene,
+            registerScene,
+            startEngine,
+            setShaderStorageBuffer,
+        } from "@babylonjs/lite";
+
+        // Import the real pipeline and render shader
+        const { TerrainPipeline } = await import("./src/webgpu/pipeline.js");
+        const { DEFAULT_PARAMS, N, SCENE_AREA, SCENE_MAX_HEIGHT, FIXED_POINT_SCALE } = await import("./src/webgpu/constants.js");
+        const { RENDER_VERTEX_SOURCE, RENDER_FRAGMENT_SOURCE } = await import("./src/webgpu/shaders/render.wgsl.js");
+
+        const canvas = document.getElementById("renderCanvas");
+        const status = document.getElementById("status");
+
+        try {
+            status.textContent = "Creating engine...";
+            const engine = await createEngine(canvas);
+            const scene = createSceneContext(engine);
+            scene.clearColor = { r: 0.1, g: 0.1, b: 0.15, a: 1.0 };
+
+            // Run the real compute pipeline
+            status.textContent = "Initializing pipeline...";
+            const pipeline = new TerrainPipeline(engine);
+            await pipeline.init();
+            console.log("Pipeline initialized");
+
+            status.textContent = "Generating terrain...";
+            pipeline.updateUniforms(DEFAULT_PARAMS);
+            pipeline.generateMaps();
+            pipeline.computeAnalysis();
+            console.log("Terrain generated");
+
+            // Now read back a few values to verify compute actually wrote data
+            const sbs = pipeline.getStorageBuffers();
+            // We can't readback from StorageBuffer easily, but let's check the _data
+            console.log("erodedHeight _data sample:", 
+                new Int32Array(sbs.erodedHeight._data.buffer, 0, 4));
+
+            // Set up camera
+            const camera = createDefaultCamera(scene);
+            camera.alpha = -Math.PI / 2;
+            camera.beta = Math.PI / 3;
+            camera.radius = SCENE_AREA * 1.5;
+            camera.target = { x: 0, y: SCENE_MAX_HEIGHT * 0.3, z: 0 };
+            attachControl(camera, canvas, scene);
+
+            addToScene(scene, createHemisphericLight([0, 1, 0], 1.0));
+
+            const ground = createGround(engine, {
+                width: SCENE_AREA,
+                height: SCENE_AREA,
+                subdivisions: N - 1,
+            });
+
+            const mat = createShaderMaterial({
+                name: "terrainRender",
+                vertexSource: RENDER_VERTEX_SOURCE,
+                fragmentSource: RENDER_FRAGMENT_SOURCE,
+                attributes: ["position", "uv"],
+                uniforms: ["viewProjection", { name: "renderMode", type: "u32" }],
+                storageBuffers: [
+                    { name: "heights", type: "array<i32>" },
+                    { name: "hardness", type: "array<i32>" },
+                    { name: "normals", type: "array<u32>" },
+                    { name: "slopes", type: "array<u32>" },
+                ],
+                backFaceCulling: false,
+                depthWrite: true,
+            });
+
+            setShaderStorageBuffer(mat, "heights", sbs.erodedHeight);
+            setShaderStorageBuffer(mat, "hardness", sbs.hardness);
+            setShaderStorageBuffer(mat, "normals", sbs.normals);
+            setShaderStorageBuffer(mat, "slopes", sbs.slopes);
+
+            ground.material = mat;
+            addToScene(scene, ground);
+
+            await registerScene(scene);
+            console.log("Scene registered");
+
+            status.style.display = "none";
+            await startEngine(engine);
+            console.log("Engine started");
+        } catch (err) {
+            status.textContent = "Error: " + err.message;
+            status.style.color = "#ff6060";
+            console.error(err);
+        }
+    </script>
+</body>
+</html>
