@@ -2,13 +2,14 @@
 // Writes fixed-point heights (meters * 10000) to the height buffer.
 // One workgroup processes a tile of the grid.
 
-import { N, FIXED_POINT_SCALE, MAX_HEIGHT_M, MAX_FIXED_POINT } from "../constants.js";
+import { N, FIXED_POINT_SCALE, MAX_HEIGHT_M, MAX_FIXED_POINT, HEIGHT_CURVE } from "../constants.js";
 
 export const HEIGHTMAP_SHADER = /* wgsl */`
 const N : u32 = ${N}u;
 const FIXED_SCALE : f32 = ${FIXED_POINT_SCALE}.0;
 const MAX_HEIGHT : f32 = ${MAX_HEIGHT_M}.0;
 const MAX_FIXED : i32 = ${MAX_FIXED_POINT};
+const HEIGHT_CURVE : f32 = ${HEIGHT_CURVE.toFixed(3)};
 
 @group(0) @binding(0) var<uniform> params: SimParams;
 @group(0) @binding(1) var<storage, read_write> heights: array<i32>;
@@ -139,6 +140,12 @@ fn generateHeightmap(@builtin(global_invocation_id) gid: vec3u) {
     let edge = min(edgeX, edgeY);
     let falloff = smoothstep(0.0, 0.15, edge);
     h = h * falloff;
+
+    // Height curve — the raw noise averages around mid-range, which left the
+    // whole landscape floating high above y = 0. Raising it to a power pulls the
+    // common (low/mid) elevations down toward the base plane while leaving the
+    // peaks at full height.
+    h = pow(clamp(h, 0.0, 1.0), HEIGHT_CURVE);
 
     // Map to height range [0, baseHeight] meters (clamped to the global max)
     let relief = clamp(params.baseHeight, 0.0, MAX_HEIGHT);

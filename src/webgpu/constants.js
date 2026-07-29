@@ -26,6 +26,10 @@ export const AREA_KM = AREA_M / 1000;
 export const MIN_HEIGHT_M = 10;
 export const MAX_HEIGHT_M = 1500;
 export const HEIGHT_RANGE_M = MAX_HEIGHT_M - MIN_HEIGHT_M;
+// Exponent applied to the normalized heightmap. Raw noise averages ~0.5, which
+// left the terrain sitting halfway up the height range; 2.585 maps 0.5 to 0.167,
+// i.e. roughly a third of its former elevation, while peaks stay at full height.
+export const HEIGHT_CURVE = 2.585;
 
 // Scene scale: Babylon Lite camera/projection works best with small units.
 // All render-side dimensions are scaled down by this factor (100:1).
