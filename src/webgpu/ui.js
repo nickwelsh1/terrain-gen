@@ -187,6 +187,19 @@ export function createUI(container, callbacks) {
             border-color: #50ff9e;
             box-shadow: 0 0 0 2px rgba(80, 255, 158, 0.4);
         }
+        /* Mobile: render keeps the top 45vh, panel fills the bottom 55vh */
+        @media (max-width: 768px) {
+            #webgpu-ui {
+                top: 45vh;
+                right: 0;
+                left: 0;
+                bottom: 0;
+                width: auto;
+                max-height: none;
+                padding: 12px 14px;
+                border-radius: 12px 12px 0 0;
+            }
+        }
         #webgpu-ui .pass-toggle {
             cursor: pointer;
         }

@@ -134,6 +134,47 @@
             border: 1px solid rgba(255, 255, 255, 0.1);
         }
 
+        /* Mobile: stack render on top (45vh) and control panel below (55vh) */
+        @media (max-width: 768px) {
+            body {
+                display: block;
+                min-height: 100vh;
+            }
+
+            #canvas-container {
+                position: fixed;
+                top: 0;
+                left: 0;
+                right: 0;
+                height: 45vh;
+                padding: 56px 8px 8px;
+            }
+
+            #ui-panel {
+                top: 45vh;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                width: auto;
+                max-height: none;
+                padding: 14px;
+                border-radius: 12px 12px 0 0;
+                border-left: none;
+                border-right: none;
+                border-bottom: none;
+            }
+
+            #top-bar {
+                top: 8px;
+                left: 8px;
+                gap: 8px;
+            }
+
+            #zoom-control input[type="range"] {
+                width: 70px;
+            }
+        }
+
         #ui-panel::-webkit-scrollbar {
             width: 8px;
         }
@@ -1058,14 +1099,17 @@
         // Auto-fit canvas to available space on first load
         function autoFitZoom() {
             const container = document.getElementById('canvas-container');
+            // On mobile the panel sits below the render, so no horizontal allowance
+            const isMobile = window.matchMedia('(max-width: 768px)').matches;
             // Account for the fixed UI panel on the right (~340px total)
-            const panelWidth = 340;
+            const panelWidth = isMobile ? 0 : 340;
             const availW = container.clientWidth - panelWidth - 20;
-            const availH = container.clientHeight - 20;
+            const availH = container.clientHeight - (isMobile ? 72 : 20);
             const fitW = availW / W;
             const fitH = availH / H;
             const fit = Math.min(fitW, fitH);
-            const z = Math.max(0.5, Math.min(5.0, Math.round(fit * 10) / 10));
+            const minZoom = isMobile ? 0.1 : 0.5;
+            const z = Math.max(minZoom, Math.min(5.0, Math.round(fit * 10) / 10));
             settings.displayZoom = z;
             const el = document.getElementById('displayZoom');
             const valEl = document.getElementById('displayZoom-val');

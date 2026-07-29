@@ -56,6 +56,24 @@
             background: rgba(80, 255, 158, 0.12);
             border-color: #50ff9e;
         }
+
+        /* Mobile: render occupies the top 45% of the screen, panel takes the rest */
+        @media (max-width: 768px) {
+            #renderCanvas {
+                height: 45vh;
+            }
+
+            #status {
+                top: 22.5vh;
+            }
+
+            #back-link {
+                top: 8px;
+                left: 8px;
+                font-size: 0.75rem;
+                padding: 6px 10px;
+            }
+        }
     </style>
 </head>
 
@@ -64,6 +82,7 @@
     <canvas id="renderCanvas"></canvas>
     <div id="status">Initializing WebGPU...</div>
     <script type="module" src="./src/webgpu/app.js"></script>
+
 </body>
 
 </html>
