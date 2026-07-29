@@ -162,6 +162,7 @@ export class TerrainPipeline {
         view.setFloat32(20, this.params.stepCount, true);
         view.setUint32(24, this.params.passFlags, true);
         view.setFloat32(28, this.params.seed, true);
+        view.setFloat32(32, this.params.baseHeight, true);
         this.device.queue.writeBuffer(this.uniformBuffer, 0, data);
     }
 

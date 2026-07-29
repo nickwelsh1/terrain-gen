@@ -7,7 +7,7 @@ import { N, FIXED_POINT_SCALE, CELL_SPACING_M } from "../constants.js";
 export const ANALYSIS_SHADER = /* wgsl */`
 const N : u32 = ${N}u;
 const FIXED_SCALE : f32 = ${FIXED_POINT_SCALE}.0;
-const CELL_M : f32 = ${CELL_SPACING_M}.0;
+const CELL_M : f32 = ${CELL_SPACING_M.toFixed(4)};
 
 @group(0) @binding(0) var<storage, read> heights: array<i32>;
 @group(0) @binding(1) var<storage, read_write> normals: array<u32>;  // packed rgba8unorm

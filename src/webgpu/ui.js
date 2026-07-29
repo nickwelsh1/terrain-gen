@@ -15,6 +15,9 @@ import {
     AREA_KM,
     MAX_HEIGHT_M,
     CELL_SPACING_M,
+    N,
+    GRID_SIZES,
+    GRID_SIZE_STORAGE_KEY,
 } from "./constants.js";
 
 export function createUI(container, callbacks) {
@@ -32,9 +35,29 @@ export function createUI(container, callbacks) {
     panel.innerHTML = `
             <div class="ui-section">
                 <h3>Scale Info</h3>
+                <div class="info-line">Grid: ${N} × ${N}</div>
                 <div class="info-line">Area: ${AREA_KM} km × ${AREA_KM} km</div>
                 <div class="info-line">Height: 0–${MAX_HEIGHT_M} m</div>
                 <div class="info-line">Cell: ${CELL_SPACING_M} m</div>
+            </div>
+
+            <div class="ui-section">
+                <h3>Terrain Detail</h3>
+                <div class="btn-group">
+                    ${GRID_SIZES.map(
+        (size) =>
+            `<button class="grid-size-btn${size === N ? " active" : ""}" data-size="${size}">${size}</button>`,
+    ).join("")}
+                </div>
+                <div class="info-line">Changing resolution reloads the simulator.</div>
+            </div>
+
+            <div class="ui-section">
+                <h3>Base Noise</h3>
+                <label>Base height (m)
+                    <input type="range" id="baseHeight" min="25" max="${MAX_HEIGHT_M}" step="5" value="${DEFAULT_PARAMS.baseHeight}">
+                    <span class="value" id="baseHeightVal">${DEFAULT_PARAMS.baseHeight}</span>
+                </label>
             </div>
 
             <div class="ui-section">
@@ -183,6 +206,21 @@ export function createUI(container, callbacks) {
             background: rgba(80, 255, 158, 0.25);
             border-color: #50ff9e;
         }
+        #webgpu-ui .btn-group {
+            display: flex;
+            gap: 6px;
+            margin-bottom: 6px;
+        }
+        #webgpu-ui .btn-group button {
+            flex: 1;
+            margin: 0;
+            padding: 6px 0;
+        }
+        #webgpu-ui .grid-size-btn.active {
+            background: rgba(80, 255, 158, 0.35);
+            border-color: #50ff9e;
+            font-weight: 600;
+        }
         #webgpu-ui #regenerateBtn.connected {
             border-color: #50ff9e;
             box-shadow: 0 0 0 2px rgba(80, 255, 158, 0.4);
@@ -224,6 +262,26 @@ export function createUI(container, callbacks) {
             onParamChange({ [name]: val });
         });
     }
+
+    // Base noise height — regenerate so the new relief is visible immediately
+    const baseHeightInput = document.getElementById("baseHeight");
+    const baseHeightVal = document.getElementById("baseHeightVal");
+    baseHeightInput.addEventListener("input", () => {
+        const val = parseFloat(baseHeightInput.value);
+        baseHeightVal.textContent = val;
+        onParamChange({ baseHeight: val });
+        onRegenerate();
+    });
+
+    // Terrain detail (grid resolution) — persisted, requires a reload
+    document.querySelectorAll(".grid-size-btn").forEach((btn) => {
+        btn.addEventListener("click", () => {
+            const size = parseInt(btn.dataset.size, 10);
+            if (size === N) return;
+            localStorage.setItem(GRID_SIZE_STORAGE_KEY, String(size));
+            window.location.reload();
+        });
+    });
 
     // Step count
     document.getElementById("stepCount").addEventListener("change", (e) => {

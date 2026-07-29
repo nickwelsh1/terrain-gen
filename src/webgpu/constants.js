@@ -1,15 +1,30 @@
 // Shared constants for the WebGPU erosion simulator.
 // All modules import from here — do not add runtime logic.
 
-// Grid dimensions
-export const N = 256;                  // grid cells per side
-export const CELL_SPACING_M = 10;      // meters between cells
-export const AREA_M = N * CELL_SPACING_M; // 2560 m = 2.56 km
-export const AREA_KM = AREA_M / 1000;  // 2.56
+// Grid dimensions — resolution is user-selectable and persisted between loads.
+// Shader sources bake N in as a WGSL const, so the choice is read once at load.
+export const GRID_SIZES = [256, 512, 1024];
+export const DEFAULT_GRID_SIZE = 256;
+export const GRID_SIZE_STORAGE_KEY = "terrain-gen.webgpu.gridSize";
+
+function readGridSize() {
+    if (typeof localStorage === "undefined") return DEFAULT_GRID_SIZE;
+    const stored = Number.parseInt(localStorage.getItem(GRID_SIZE_STORAGE_KEY), 10);
+    return GRID_SIZES.includes(stored) ? stored : DEFAULT_GRID_SIZE;
+}
+
+export const N = readGridSize();          // grid cells per side
+// The world extent is fixed: raising the resolution samples the same terrain
+// more finely instead of covering more ground. If AREA_M grew with N, the
+// terrain would widen while the height range stayed fixed, making the vertical
+// relief look progressively flatter.
+export const AREA_M = 2560;               // 2.56 km per side
+export const CELL_SPACING_M = AREA_M / N; // meters between cells
+export const AREA_KM = AREA_M / 1000;
 
 // Height range
-export const MIN_HEIGHT_M = 0;
-export const MAX_HEIGHT_M = 500;
+export const MIN_HEIGHT_M = 10;
+export const MAX_HEIGHT_M = 1500;
 export const HEIGHT_RANGE_M = MAX_HEIGHT_M - MIN_HEIGHT_M;
 
 // Scene scale: Babylon Lite camera/projection works best with small units.
@@ -36,10 +51,10 @@ export const DROPLET_STRUCT_BYTES = 24; // pos.xy (8) + dir.xy (8) + speed (4) +
 // Actually: vec2<f32> align=8, f32 align=4. Struct align = 8. Size = 28, round up to 8 → 32.
 export const DROPLET_BUFFER_BYTES = DROPLET_COUNT * 32;
 
-// Uniform buffer: simulation params (all f32, 16-byte aligned struct)
-// rainRate, erosionRate, depositionRate, evaporation, sedimentCapacity, stepCount, passFlags, seed
-// 8 × f32 = 32 bytes (aligned to 16)
-export const UNIFORM_BUFFER_BYTES = 32;
+// Uniform buffer: simulation params (all f32/u32, 16-byte aligned struct)
+// rainRate, erosionRate, depositionRate, evaporation, sedimentCapacity, stepCount, passFlags, seed, baseHeight
+// 9 × 4 = 36 bytes, rounded up to a multiple of 16
+export const UNIFORM_BUFFER_BYTES = 48;
 
 // Pass toggle bitmask values
 export const PASS_HEIGHTMAP = 1;
@@ -64,5 +79,6 @@ export const DEFAULT_PARAMS = {
     stepCount: 100,          // number of erosion steps per "Erode" click
     passFlags: PASS_HEIGHTMAP | PASS_HARDNESS | PASS_NORMALS | PASS_EROSION | PASS_DEPOSITION,
     seed: 42,
+    baseHeight: MAX_HEIGHT_M, // metres of relief in the generated base noise
     renderMode: RENDER_LIT,
 };

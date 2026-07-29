@@ -29,6 +29,7 @@ struct SimParams {
     stepCount: f32,
     passFlags: u32,
     seed: f32,
+    baseHeight: f32,
 };
 
 struct Droplet {

@@ -22,6 +22,7 @@ struct SimParams {
     stepCount: f32,
     passFlags: u32,
     seed: f32,
+    baseHeight: f32,
 };
 
 // Hash-based pseudo-random for deterministic generation
@@ -139,8 +140,9 @@ fn generateHeightmap(@builtin(global_invocation_id) gid: vec3u) {
     let falloff = smoothstep(0.0, 0.15, edge);
     h = h * falloff;
 
-    // Map to height range [0, MAX_HEIGHT] meters
-    h = clamp(h * MAX_HEIGHT, 0.0, MAX_HEIGHT);
+    // Map to height range [0, baseHeight] meters (clamped to the global max)
+    let relief = clamp(params.baseHeight, 0.0, MAX_HEIGHT);
+    h = clamp(h * relief, 0.0, MAX_HEIGHT);
 
     // Convert to fixed-point
     let fixed = i32(h * FIXED_SCALE);
