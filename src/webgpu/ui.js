@@ -183,6 +183,10 @@ export function createUI(container, callbacks) {
             background: rgba(80, 255, 158, 0.25);
             border-color: #50ff9e;
         }
+        #webgpu-ui #regenerateBtn.connected {
+            border-color: #50ff9e;
+            box-shadow: 0 0 0 2px rgba(80, 255, 158, 0.4);
+        }
         #webgpu-ui .pass-toggle {
             cursor: pointer;
         }
@@ -213,9 +217,24 @@ export function createUI(container, callbacks) {
         onParamChange({ stepCount: parseInt(e.target.value, 10) });
     });
 
+    const seedInput = document.getElementById("seed");
+    const regenerateBtn = document.getElementById("regenerateBtn");
+
     // Seed
-    document.getElementById("seed").addEventListener("change", (e) => {
+    seedInput.addEventListener("change", (e) => {
         onParamChange({ seed: parseFloat(e.target.value) });
+    });
+    seedInput.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") {
+            e.preventDefault();
+            regenerateBtn.click();
+        }
+    });
+    seedInput.addEventListener("focus", () => {
+        regenerateBtn.classList.add("connected");
+    });
+    seedInput.addEventListener("blur", () => {
+        regenerateBtn.classList.remove("connected");
     });
 
     // Erode button

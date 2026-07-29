@@ -14,7 +14,7 @@ Procedural terrain generation engine that produces Dolomites-style mountain land
 
 ### Run the terrain visualizer
 
-Open `tempterrain.html` in any modern browser. The terrain generates automatically and you can adjust parameters via the UI panel.
+Open `examples/tempterrain.html` in any modern browser. The terrain generates automatically and you can adjust parameters via the UI panel.
 
 ### Run tests
 
@@ -43,7 +43,7 @@ pnpm lint
 ```
 src/noise.js        — Perlin-like noise with domain warping (Noise class)
 src/terrain.js      — Heightmap init, erosion, slopes, render, settings binding
-tempterrain.html    — Standalone browser app (inline JS mirrors src/)
+examples/tempterrain.html — Standalone browser app (inline JS mirrors src/)
 test/unit/          — Unit tests for noise and terrain modules
 test/integration/   — UI/canvas integration tests
 test/setup.js       — Global test setup (Noise instance, default settings)
@@ -70,6 +70,6 @@ The generation pipeline runs in four stages:
 
 ## Notes
 
-- `tempterrain.html` is a standalone file with inline JS that duplicates `src/` logic. Changes to `src/` may need to be mirrored in the HTML file.
+- `examples/tempterrain.html` is a standalone file with inline JS that duplicates `src/` logic. Changes to `src/` may need to be mirrored in the HTML file.
 - Noise generation is non-deterministic — the permutation table is randomly generated on each `Noise` construction.
 - Erosion uses `Math.random`, so results vary between runs.

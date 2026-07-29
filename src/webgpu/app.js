@@ -6,6 +6,7 @@ import { TerrainPipeline } from "./pipeline.js";
 import { createRenderer } from "./renderer.js";
 import { createUI } from "./ui.js";
 import { DEFAULT_PARAMS } from "./constants.js";
+import { createEngine } from "@babylonjs/lite";
 
 export async function main() {
     const canvas = document.getElementById("renderCanvas");
@@ -20,7 +21,6 @@ export async function main() {
     }
 
     // 2. Create Babylon Lite engine (wraps the GPUDevice + canvas context)
-    const { createEngine } = await import("@babylonjs/lite");
     const engine = await createEngine(canvas);
 
     // 3. Create and initialize the terrain pipeline (uses engine._device for compute)

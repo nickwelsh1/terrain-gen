@@ -5,7 +5,7 @@
 Procedural terrain generation engine that produces Dolomites-style mountain landscapes. Renders to a canvas via pixel buffers using layered noise, hydraulic erosion, slope calculation, and biome-based coloring.
 
 There are two independent generators:
-- **Legacy Dolomites biome renderer** (`src/terrain.js` + `src/noise.js`, used by `tempterrain.html`) — colored biome output described below.
+- **Legacy Dolomites biome renderer** (`src/terrain.js` + `src/noise.js`, used by `examples/tempterrain.html`) — colored biome output described below.
 - **Natural mountain heightmap** (`src/fastnoise-terrain.js`, used by `index.html`) — a FastNoiseLite-based B&W elevation pipeline described in "FastNoiseLite Heightmap Pipeline".
 
 ## Architecture
@@ -69,7 +69,7 @@ The legacy terrain pipeline runs in this order:
 
 ## Key Constraints
 
-- **`tempterrain.html` imports from `src/`** — it imports `Noise` from `./src/noise.js` but still duplicates terrain generation logic (`initHeightmap`, `simulateErosion`, `calculateSlopes`, `render`) inline. Changes to `src/terrain.js` may need to be mirrored in the HTML file.
-- **`tempterrain.html` requires HTTP** — ES module imports require serving over HTTP (e.g. `pnpm dev`). Opening via `file://` will fail with CORS errors.
+- **`examples/tempterrain.html` imports from `src/`** — it imports `Noise` from `../src/noise.js` but still duplicates terrain generation logic (`initHeightmap`, `simulateErosion`, `calculateSlopes`, `render`) inline. Changes to `src/terrain.js` may need to be mirrored in the HTML file.
+- **`examples/tempterrain.html` requires HTTP** — ES module imports require serving over HTTP (e.g. `pnpm dev`). Opening via `file://` will fail with CORS errors.
 - **No build step** — the project runs directly in the browser or via Vitest. No bundler, no transpilation.
 - **Package manager**: pnpm (lockfile is `pnpm-lock.yaml`)

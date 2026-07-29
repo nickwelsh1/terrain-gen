@@ -38,7 +38,7 @@ describe('UI Integration Tests', () => {
             // Render to pixel array
             const pixels = terrain.render(eroded, slopes, mockNoise, settings);
 
-            // Transfer to canvas (simulating what tempterrain.html does)
+            // Transfer to canvas (simulating what examples/tempterrain.html does)
             const ctx = canvas.getContext('2d');
             if (ctx && ctx.putImageData) {
                 for (let y = 0; y < 64; y++) {

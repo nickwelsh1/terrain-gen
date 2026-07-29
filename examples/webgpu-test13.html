@@ -1,15 +1,33 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Babylon Lite Real Pipeline Test</title>
     <style>
-        body { margin: 0; background: #1a1a1a; color: #e0e0e0; }
-        #renderCanvas { display: block; width: 100vw; height: 100vh; touch-action: none; }
-        #status { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); }
+        body {
+            margin: 0;
+            background: #1a1a1a;
+            color: #e0e0e0;
+        }
+
+        #renderCanvas {
+            display: block;
+            width: 100vw;
+            height: 100vh;
+            touch-action: none;
+        }
+
+        #status {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
     </style>
 </head>
+
 <body>
     <canvas id="renderCanvas"></canvas>
     <div id="status">Loading...</div>
@@ -30,9 +48,9 @@
         } from "@babylonjs/lite";
 
         // Import the real pipeline and render shader
-        const { TerrainPipeline } = await import("./src/webgpu/pipeline.js");
-        const { DEFAULT_PARAMS, N, SCENE_AREA, SCENE_MAX_HEIGHT, FIXED_POINT_SCALE } = await import("./src/webgpu/constants.js");
-        const { RENDER_VERTEX_SOURCE, RENDER_FRAGMENT_SOURCE } = await import("./src/webgpu/shaders/render.wgsl.js");
+        const { TerrainPipeline } = await import("../src/webgpu/pipeline.js");
+        const { DEFAULT_PARAMS, N, SCENE_AREA, SCENE_MAX_HEIGHT, FIXED_POINT_SCALE } = await import("../src/webgpu/constants.js");
+        const { RENDER_VERTEX_SOURCE, RENDER_FRAGMENT_SOURCE } = await import("../src/webgpu/shaders/render.wgsl.js");
 
         const canvas = document.getElementById("renderCanvas");
         const status = document.getElementById("status");
@@ -58,7 +76,7 @@
             // Now read back a few values to verify compute actually wrote data
             const sbs = pipeline.getStorageBuffers();
             // We can't readback from StorageBuffer easily, but let's check the _data
-            console.log("erodedHeight _data sample:", 
+            console.log("erodedHeight _data sample:",
                 new Int32Array(sbs.erodedHeight._data.buffer, 0, 4));
 
             // Set up camera
@@ -113,5 +131,7 @@
             console.error(err);
         }
     </script>
+
 </body>
+
 </html>
