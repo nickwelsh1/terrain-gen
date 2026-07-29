@@ -6,6 +6,7 @@ import {
     createDefaultCamera,
     createHemisphericLight,
     createGround,
+    createMeshFromData,
     createShaderMaterial,
     attachControl,
     addToScene,
@@ -18,6 +19,8 @@ import {
 import { N, SCENE_AREA, SCENE_MAX_HEIGHT } from "./constants.js";
 import { RENDER_VERTEX_SOURCE as VS_SRC } from "./shaders/render.wgsl.js";
 import { RENDER_FRAGMENT_SOURCE as FS_SRC } from "./shaders/render.wgsl.js";
+import { WALL_VERTEX_SOURCE, WALL_FRAGMENT_SOURCE } from "./shaders/wall.wgsl.js";
+import { buildSkirtGeometry } from "./skirt.js";
 
 export async function createRenderer(canvas, pipeline, engine) {
     const scene = createSceneContext(engine);
@@ -63,12 +66,39 @@ export async function createRenderer(canvas, pipeline, engine) {
     ground.material = renderMaterial;
     addToScene(scene, ground);
 
-    // Bind storage buffers to the material
+    // Side walls + bottom cap — makes the tile a solid slice of ground.
+    // Top wall vertices follow the terrain surface, read from the same buffer.
+    const skirt = buildSkirtGeometry();
+    const walls = createMeshFromData(
+        engine,
+        "terrainWalls",
+        skirt.positions,
+        skirt.normals,
+        skirt.indices,
+        skirt.uvs,
+    );
+
+    const wallMaterial = createShaderMaterial({
+        name: "terrainWalls",
+        vertexSource: WALL_VERTEX_SOURCE,
+        fragmentSource: WALL_FRAGMENT_SOURCE,
+        attributes: ["position", "normal", "uv"],
+        uniforms: ["viewProjection"],
+        storageBuffers: [{ name: "heights", type: "array<i32>" }],
+        backFaceCulling: false,
+        depthWrite: true,
+    });
+
+    walls.material = wallMaterial;
+    addToScene(scene, walls);
+
+    // Bind storage buffers to the materials
     const sbs = pipeline.getStorageBuffers();
     setShaderStorageBuffer(renderMaterial, "heights", sbs.erodedHeight);
     setShaderStorageBuffer(renderMaterial, "hardness", sbs.hardness);
     setShaderStorageBuffer(renderMaterial, "normals", sbs.normals);
     setShaderStorageBuffer(renderMaterial, "slopes", sbs.slopes);
+    setShaderStorageBuffer(wallMaterial, "heights", sbs.erodedHeight);
 
     // Set initial render mode
     setShaderUniform(renderMaterial, "renderMode", 0);
@@ -81,7 +111,9 @@ export async function createRenderer(canvas, pipeline, engine) {
         scene,
         camera,
         ground,
+        walls,
         renderMaterial,
+        wallMaterial,
         setRenderMode(mode) {
             setShaderUniform(renderMaterial, "renderMode", mode);
         },

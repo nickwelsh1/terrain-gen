@@ -134,18 +134,14 @@ fn generateHeightmap(@builtin(global_invocation_id) gid: vec3u) {
     let warpY = fbm(nx * 2.0, ny * 2.0 + 50.0, seed + 19.0) * 0.3;
     h = h + fbm(nx + warpX, ny + warpY, seed + 23.0) * 0.15;
     
-    // Edge falloff — lower terrain toward borders
-    let edgeX = min(f32(x), f32(N - 1u - x)) / f32(N) * 2.0;
-    let edgeY = min(f32(y), f32(N - 1u - y)) / f32(N) * 2.0;
-    let edge = min(edgeX, edgeY);
-    let falloff = smoothstep(0.0, 0.15, edge);
-    h = h * falloff;
-
     // Height curve — the raw noise averages around mid-range, which left the
     // whole landscape floating high above y = 0. Raising it to a power pulls the
     // common (low/mid) elevations down toward the base plane while leaving the
     // peaks at full height.
     h = pow(clamp(h, 0.0, 1.0), HEIGHT_CURVE);
+
+    // No border falloff: the heightmap runs to the edges so the result reads as
+    // a clean slice cut out of the landscape rather than a fading island.
 
     // Map to height range [0, baseHeight] meters (clamped to the global max)
     let relief = clamp(params.baseHeight, 0.0, MAX_HEIGHT);

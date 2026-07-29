@@ -179,11 +179,11 @@ fn simulateDroplets(@builtin(global_invocation_id) gid: vec3u) {
         // Move droplet
         d.pos = d.pos + d.dir;
         
-        // Check bounds — drop remaining sediment (capped) and stop
+        // Check bounds — the droplet leaves the tile and carries its sediment
+        // away with it. Depositing here instead built a raised rim along the
+        // border, since every escaping droplet unloaded in the same edge cells.
         if (d.pos.x < 0.0 || d.pos.x >= N_F || d.pos.y < 0.0 || d.pos.y >= N_F) {
-            let amount = min(d.sediment, MAX_STEP_CHANGE);
-            addHeightBilinear(oldPos, amount);
-            d.sediment = d.sediment - amount;
+            d.sediment = 0.0;
             break;
         }
         

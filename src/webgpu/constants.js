@@ -37,6 +37,11 @@ export const SCENE_SCALE = 0.01;
 export const SCENE_AREA = AREA_M * SCENE_SCALE;
 export const SCENE_MAX_HEIGHT = MAX_HEIGHT_M * SCENE_SCALE;
 
+// Depth of bedrock below y = 0 that the side walls extend to, so the tile looks
+// like a solid slice of ground rather than a shell with open edges.
+export const BASE_DEPTH_M = 150;
+export const SCENE_BASE_DEPTH = BASE_DEPTH_M * SCENE_SCALE;
+
 // Fixed-point encoding: float_meters * FIXED_POINT_SCALE → i32
 export const FIXED_POINT_SCALE = 10000;
 export const MAX_FIXED_POINT = MAX_HEIGHT_M * FIXED_POINT_SCALE; // 5,000,000
@@ -82,10 +87,10 @@ export const DEFAULT_PARAMS = {
     depositionRate: 0.3,     // deposition strength (fraction of excess/step)
     evaporation: 0.05,       // fraction of remaining water lost per step
     sedimentCapacity: 0.5,   // capacity multiplier (m³ per unit slope·speed·water)
-    stepCount: 100,          // droplet batches per "Erode" click
+    stepCount: 10,           // droplet batches per "Erode" click
     passFlags: PASS_HEIGHTMAP | PASS_HARDNESS | PASS_NORMALS | PASS_EROSION | PASS_DEPOSITION,
     seed: 42,
-    baseHeight: MAX_HEIGHT_M, // metres of relief in the generated base noise
+    baseHeight: 800,          // metres of relief in the generated base noise
     batchSeed: 0,            // varies per erosion batch so droplets take new paths
     renderMode: RENDER_LIT,
 };
