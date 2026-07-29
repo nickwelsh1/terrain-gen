@@ -44,6 +44,7 @@ export const HARDNESS_BUFFER_BYTES = GRID_CELLS * 4;    // i32 per cell
 
 // Droplet simulation
 export const DROPLET_COUNT = 10000;
+export const DROPLET_LIFETIME = 64;    // simulation steps per droplet
 export const WORKGROUP_SIZE = 64;
 export const DROPLET_WORKGROUPS = Math.ceil(DROPLET_COUNT / WORKGROUP_SIZE); // 157
 export const DROPLET_STRUCT_BYTES = 24; // pos.xy (8) + dir.xy (8) + speed (4) + water (4) + sediment (4) = 28, padded to 28
@@ -52,8 +53,9 @@ export const DROPLET_STRUCT_BYTES = 24; // pos.xy (8) + dir.xy (8) + speed (4) +
 export const DROPLET_BUFFER_BYTES = DROPLET_COUNT * 32;
 
 // Uniform buffer: simulation params (all f32/u32, 16-byte aligned struct)
-// rainRate, erosionRate, depositionRate, evaporation, sedimentCapacity, stepCount, passFlags, seed, baseHeight
-// 9 × 4 = 36 bytes, rounded up to a multiple of 16
+// rainRate, erosionRate, depositionRate, evaporation, sedimentCapacity, stepCount,
+// passFlags, seed, baseHeight, batchSeed
+// 10 × 4 = 40 bytes, rounded up to a multiple of 16
 export const UNIFORM_BUFFER_BYTES = 48;
 
 // Pass toggle bitmask values
@@ -71,14 +73,15 @@ export const RENDER_EROSION_HEATMAP = 3;
 
 // Default simulation parameters (real-world units)
 export const DEFAULT_PARAMS = {
-    rainRate: 2.0,           // litres per step
-    erosionRate: 0.5,        // mm per step
-    depositionRate: 0.01,    // m³ per step
-    evaporation: 0.05,       // litres per step
-    sedimentCapacity: 0.5,   // m³
-    stepCount: 100,          // number of erosion steps per "Erode" click
+    rainRate: 2.0,           // litres of water a droplet starts with
+    erosionRate: 0.5,        // erosion strength (fraction of spare capacity/step)
+    depositionRate: 0.3,     // deposition strength (fraction of excess/step)
+    evaporation: 0.05,       // fraction of remaining water lost per step
+    sedimentCapacity: 0.5,   // capacity multiplier (m³ per unit slope·speed·water)
+    stepCount: 100,          // droplet batches per "Erode" click
     passFlags: PASS_HEIGHTMAP | PASS_HARDNESS | PASS_NORMALS | PASS_EROSION | PASS_DEPOSITION,
     seed: 42,
     baseHeight: MAX_HEIGHT_M, // metres of relief in the generated base noise
+    batchSeed: 0,            // varies per erosion batch so droplets take new paths
     renderMode: RENDER_LIT,
 };

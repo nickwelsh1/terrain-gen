@@ -62,23 +62,23 @@ export function createUI(container, callbacks) {
 
             <div class="ui-section">
                 <h3>Simulation Parameters</h3>
-                <label>Rain rate (L/step)
+                <label>Water per droplet (L)
                     <input type="range" id="rainRate" min="0.1" max="10" step="0.1" value="${DEFAULT_PARAMS.rainRate}">
                     <span class="value" id="rainRateVal">${DEFAULT_PARAMS.rainRate}</span>
                 </label>
-                <label>Erosion rate (mm/step)
+                <label>Erosion strength
                     <input type="range" id="erosionRate" min="0.1" max="5" step="0.1" value="${DEFAULT_PARAMS.erosionRate}">
                     <span class="value" id="erosionRateVal">${DEFAULT_PARAMS.erosionRate}</span>
                 </label>
-                <label>Deposition rate (m³/step)
-                    <input type="range" id="depositionRate" min="0.001" max="0.1" step="0.001" value="${DEFAULT_PARAMS.depositionRate}">
+                <label>Deposition strength
+                    <input type="range" id="depositionRate" min="0.01" max="1" step="0.01" value="${DEFAULT_PARAMS.depositionRate}">
                     <span class="value" id="depositionRateVal">${DEFAULT_PARAMS.depositionRate}</span>
                 </label>
-                <label>Evaporation (L/step)
+                <label>Evaporation (per step)
                     <input type="range" id="evaporation" min="0.01" max="0.5" step="0.01" value="${DEFAULT_PARAMS.evaporation}">
                     <span class="value" id="evaporationVal">${DEFAULT_PARAMS.evaporation}</span>
                 </label>
-                <label>Sediment capacity (m³)
+                <label>Sediment capacity
                     <input type="range" id="sedimentCapacity" min="0.1" max="2" step="0.1" value="${DEFAULT_PARAMS.sedimentCapacity}">
                     <span class="value" id="sedimentCapacityVal">${DEFAULT_PARAMS.sedimentCapacity}</span>
                 </label>

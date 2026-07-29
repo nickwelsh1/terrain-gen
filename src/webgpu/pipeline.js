@@ -163,6 +163,7 @@ export class TerrainPipeline {
         view.setUint32(24, this.params.passFlags, true);
         view.setFloat32(28, this.params.seed, true);
         view.setFloat32(32, this.params.baseHeight, true);
+        view.setFloat32(36, this.params.batchSeed, true);
         this.device.queue.writeBuffer(this.uniformBuffer, 0, data);
     }
 
@@ -202,25 +203,25 @@ export class TerrainPipeline {
         this.device.queue.submit([encoder.finish()]);
     }
 
-    runErosion(steps) {
-        const encoder = this.device.createCommandEncoder();
+    // `batches` batches of DROPLET_COUNT droplets. Each batch is submitted
+    // separately with a new batchSeed: droplets are seeded from the uniform, so
+    // batching inside one submission would replay the exact same droplet paths
+    // and carve the same tracks over and over.
+    runErosion(batches) {
+        for (let i = 0; i < batches; i++) {
+            this.updateUniforms({ batchSeed: this.params.batchSeed + 1 });
 
-        for (var i = 0; i < steps; i++) {
+            const encoder = this.device.createCommandEncoder();
             const pass = encoder.beginComputePass();
             pass.setPipeline(this.pipelines.erosion);
             pass.setBindGroup(0, this.bindGroups.erosion);
             pass.dispatchWorkgroups(DROPLET_WORKGROUPS);
             pass.end();
+            this.device.queue.submit([encoder.finish()]);
         }
 
         // Recompute analysis after erosion
-        const analysisPass = encoder.beginComputePass();
-        analysisPass.setPipeline(this.pipelines.analysis);
-        analysisPass.setBindGroup(0, this.bindGroups.analysis);
-        analysisPass.dispatchWorkgroups(Math.ceil(N / 8), Math.ceil(N / 8));
-        analysisPass.end();
-
-        this.device.queue.submit([encoder.finish()]);
+        this.computeAnalysis();
     }
 
     resetToBase() {

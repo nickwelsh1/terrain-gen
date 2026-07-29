@@ -5,15 +5,25 @@
 import {
     N,
     FIXED_POINT_SCALE,
+    MAX_FIXED_POINT,
+    CELL_SPACING_M,
     DROPLET_COUNT,
     WORKGROUP_SIZE,
+    DROPLET_LIFETIME,
 } from "../constants.js";
 
 export const EROSION_SHADER = /* wgsl */`
 const N : u32 = ${N}u;
 const N_F : f32 = ${N}.0;
 const FIXED_SCALE : f32 = ${FIXED_POINT_SCALE}.0;
+const MAX_FIXED : i32 = ${MAX_FIXED_POINT};
 const DROPLET_COUNT : u32 = ${DROPLET_COUNT}u;
+const LIFETIME : u32 = ${DROPLET_LIFETIME}u;
+const CELL_M : f32 = ${CELL_SPACING_M.toFixed(4)};
+// Largest height change a single droplet step may apply. Tied to cell spacing so
+// a step can never invert the local slope, which is what produced spikes on
+// coarse grids where one cell spans a large drop.
+const MAX_STEP_CHANGE : f32 = ${(CELL_SPACING_M * 0.25).toFixed(4)};
 
 @group(0) @binding(0) var<uniform> params: SimParams;
 @group(0) @binding(1) var<storage, read_write> heights: array<atomic<i32>>;
@@ -30,6 +40,7 @@ struct SimParams {
     passFlags: u32,
     seed: f32,
     baseHeight: f32,
+    batchSeed: f32,
 };
 
 struct Droplet {
@@ -47,33 +58,46 @@ fn hash(idx: u32, seed: f32) -> f32 {
     return f32(v) / 4294967295.0;
 }
 
+// Clamp a sample position to the interior so the 2x2 bilinear footprint is
+// always valid. Coordinates are clamped as floats first: u32(negative) is
+// undefined behaviour in WGSL and produced garbage gradients along the edges.
+fn cellOf(p: vec2f) -> vec2u {
+    let c = clamp(p, vec2f(0.0, 0.0), vec2f(N_F - 2.0, N_F - 2.0));
+    return vec2u(u32(c.x), u32(c.y));
+}
+
+fn fracOf(p: vec2f, cell: vec2u) -> vec2f {
+    let c = clamp(p, vec2f(0.0, 0.0), vec2f(N_F - 2.0, N_F - 2.0));
+    return clamp(c - vec2f(f32(cell.x), f32(cell.y)), vec2f(0.0, 0.0), vec2f(1.0, 1.0));
+}
+
 fn heightAt(x: f32, y: f32) -> f32 {
     // Bilinear interpolation of 4 neighboring cells
-    let ix = clamp(u32(x), 0u, N - 2u);
-    let iy = clamp(u32(y), 0u, N - 2u);
-    let fx = clamp(x - f32(ix), 0.0, 1.0);
-    let fy = clamp(y - f32(iy), 0.0, 1.0);
+    let cell = cellOf(vec2f(x, y));
+    let f = fracOf(vec2f(x, y), cell);
+    let ix = cell.x;
+    let iy = cell.y;
     
     let h00 = f32(atomicLoad(&heights[iy * N + ix])) / FIXED_SCALE;
     let h10 = f32(atomicLoad(&heights[iy * N + ix + 1u])) / FIXED_SCALE;
     let h01 = f32(atomicLoad(&heights[(iy + 1u) * N + ix])) / FIXED_SCALE;
     let h11 = f32(atomicLoad(&heights[(iy + 1u) * N + ix + 1u])) / FIXED_SCALE;
     
-    return mix(mix(h00, h10, fx), mix(h01, h11, fx), fy);
+    return mix(mix(h00, h10, f.x), mix(h01, h11, f.x), f.y);
 }
 
 fn hardnessAt(x: f32, y: f32) -> f32 {
-    let ix = clamp(u32(x), 0u, N - 2u);
-    let iy = clamp(u32(y), 0u, N - 2u);
-    let fx = clamp(x - f32(ix), 0.0, 1.0);
-    let fy = clamp(y - f32(iy), 0.0, 1.0);
+    let cell = cellOf(vec2f(x, y));
+    let f = fracOf(vec2f(x, y), cell);
+    let ix = cell.x;
+    let iy = cell.y;
     
     let h00 = f32(hardness[iy * N + ix]) / FIXED_SCALE;
     let h10 = f32(hardness[iy * N + ix + 1u]) / FIXED_SCALE;
     let h01 = f32(hardness[(iy + 1u) * N + ix]) / FIXED_SCALE;
     let h11 = f32(hardness[(iy + 1u) * N + ix + 1u]) / FIXED_SCALE;
     
-    return mix(mix(h00, h10, fx), mix(h01, h11, fx), fy);
+    return mix(mix(h00, h10, f.x), mix(h01, h11, f.x), f.y);
 }
 
 fn gradientAt(x: f32, y: f32) -> vec2f {
@@ -84,8 +108,29 @@ fn gradientAt(x: f32, y: f32) -> vec2f {
     return vec2f(hR - hL, hD - hU) * 0.5;
 }
 
-fn clampFixed(v: i32) -> i32 {
-    return clamp(v, 0, i32(${(500 * FIXED_POINT_SCALE).toString()}));
+// Apply a signed height change atomically, then re-clamp into [0, MAX_FIXED].
+// atomicAdd is required here: the previous load/store pair silently dropped
+// concurrent droplet contributions to the same cell.
+fn addFixed(idx: u32, delta: i32) {
+    if (delta == 0) { return; }
+    atomicAdd(&heights[idx], delta);
+    atomicMax(&heights[idx], 0);
+    atomicMin(&heights[idx], MAX_FIXED);
+}
+
+// Distribute a height change (in meters) over the 2x2 bilinear footprint.
+fn addHeightBilinear(p: vec2f, amountM: f32) {
+    if (amountM == 0.0) { return; }
+    let cell = cellOf(p);
+    let f = fracOf(p, cell);
+    let ix = cell.x;
+    let iy = cell.y;
+    let amt = amountM * FIXED_SCALE;
+    
+    addFixed(iy * N + ix, i32(amt * (1.0 - f.x) * (1.0 - f.y)));
+    addFixed(iy * N + ix + 1u, i32(amt * f.x * (1.0 - f.y)));
+    addFixed((iy + 1u) * N + ix, i32(amt * (1.0 - f.x) * f.y));
+    addFixed((iy + 1u) * N + ix + 1u, i32(amt * f.x * f.y));
 }
 
 @compute @workgroup_size(${WORKGROUP_SIZE})
@@ -93,9 +138,11 @@ fn simulateDroplets(@builtin(global_invocation_id) gid: vec3u) {
     let id = gid.x;
     if (id >= DROPLET_COUNT) { return; }
     
-    // Initialize droplet at random position
-    let rx = hash(id * 2u, params.seed);
-    let ry = hash(id * 2u + 1u, params.seed);
+    // Initialize droplet at random position. batchSeed varies per dispatch so
+    // repeated batches trace new paths instead of re-eroding identical tracks.
+    let dropSeed = params.seed + params.batchSeed * 7.13;
+    let rx = hash(id * 2u, dropSeed);
+    let ry = hash(id * 2u + 1u, dropSeed);
     
     var d: Droplet;
     d.pos = vec2f(rx * N_F, ry * N_F);
@@ -104,112 +151,89 @@ fn simulateDroplets(@builtin(global_invocation_id) gid: vec3u) {
     d.water = params.rainRate;
     d.sediment = 0.0;
     
-    let maxSteps = u32(params.stepCount);
-    let erosionMm = params.erosionRate;        // mm per step
-    let depositionM3 = params.depositionRate;   // m³ per step
-    let evapL = params.evaporation;             // L per step
-    let capacityM3 = params.sedimentCapacity;   // m³
+    // Rates act as per-step fractions of the capacity difference, which keeps
+    // erosion bounded: a droplet can never remove more than it can carry, and
+    // whatever it carries is deposited again further downhill.
+    let erodeFrac = clamp(params.erosionRate * 0.1, 0.0, 1.0);
+    let depositFrac = clamp(params.depositionRate, 0.0, 1.0);
+    let evapFrac = clamp(params.evaporation, 0.0, 1.0);
+    let capacityFactor = params.sedimentCapacity;
     let inertia = 0.05;
     let gravity = 4.0;
     let minWater = 0.01;
+    let minCapacity = 0.001;
     
-    for (var step: u32 = 0u; step < maxSteps; step = step + 1u) {
+    for (var step: u32 = 0u; step < LIFETIME; step = step + 1u) {
         if (d.water < minWater) { break; }
         
-        let oldHeight = heightAt(d.pos.x, d.pos.y);
-        let grad = gradientAt(d.pos.x, d.pos.y);
+        let oldPos = d.pos;
+        let oldHeight = heightAt(oldPos.x, oldPos.y);
+        let grad = gradientAt(oldPos.x, oldPos.y);
         
         // Update direction with inertia
         d.dir = d.dir * inertia - grad * (1.0 - inertia);
         let dirLen = length(d.dir);
-        if (dirLen > 0.001) {
-            d.dir = d.dir / dirLen;
-        }
-        
-        // Update speed from gravity
-        d.speed = d.speed * inertia + (1.0 - inertia) * gravity * length(grad);
-        d.speed = max(d.speed, 0.0);
+        if (dirLen < 0.001) { break; }  // stuck in a flat spot
+        d.dir = d.dir / dirLen;
         
         // Move droplet
-        let oldPos = d.pos;
         d.pos = d.pos + d.dir;
         
-        // Check bounds — kill droplet if it leaves the grid
+        // Check bounds — drop remaining sediment (capped) and stop
         if (d.pos.x < 0.0 || d.pos.x >= N_F || d.pos.y < 0.0 || d.pos.y >= N_F) {
-            // Deposit remaining sediment at old position
-            if (d.sediment > 0.0) {
-                let depositM = d.sediment;  // meters of deposition
-                let depositFixed = i32(depositM * FIXED_SCALE);
-                let cellIdx = u32(clamp(oldPos.y, 0.0, N_F - 1.0)) * N + u32(clamp(oldPos.x, 0.0, N_F - 1.0));
-                let oldVal = atomicLoad(&heights[cellIdx]);
-                atomicStore(&heights[cellIdx], clampFixed(oldVal + depositFixed));
-            }
+            let amount = min(d.sediment, MAX_STEP_CHANGE);
+            addHeightBilinear(oldPos, amount);
+            d.sediment = d.sediment - amount;
             break;
         }
         
         let newHeight = heightAt(d.pos.x, d.pos.y);
         let deltaHeight = newHeight - oldHeight;
         
-        // Sediment capacity based on speed, water, and slope
-        let capacity = max(0.0, d.speed * d.water * max(0.0, -deltaHeight) * capacityM3);
+        // Work in dimensionless slope (rise over run), not raw metres. A metre
+        // drop means something very different at 10 m spacing than at 2.5 m, and
+        // using it directly made capacity (and therefore sediment load) scale
+        // with cell size — huge loads on coarse grids, dumped as spikes.
+        let slope = -deltaHeight / CELL_M;
         
-        if (deltaHeight < 0.0) {
-            // Downhill — erode material
-            // Erosion scaled by slope, hardness (inverse), and erosion rate
-            let slope = max(0.0, -deltaHeight);
-            let hard = hardnessAt(d.pos.x, d.pos.y);
-            let erodeAmount = erosionMm * 0.1 * slope * (1.0 - hard * 0.8);  // cm → m
-            let actualErode = min(erodeAmount, d.water * 0.1);  // limited by water
-            
-            // Erode from old position (bilinear: distribute to 4 cells)
-            let ix = u32(clamp(oldPos.x, 0.0, N_F - 1.0));
-            let iy = u32(clamp(oldPos.y, 0.0, N_F - 1.0));
-            let fx = clamp(oldPos.x - f32(ix), 0.0, 1.0);
-            let fy = clamp(oldPos.y - f32(iy), 0.0, 1.0);
-            
-            let erodeFixed = i32(actualErode * FIXED_SCALE);
-            let w00 = i32((1.0 - fx) * (1.0 - fy) * f32(erodeFixed));
-            let w10 = i32(fx * (1.0 - fy) * f32(erodeFixed));
-            let w01 = i32((1.0 - fx) * fy * f32(erodeFixed));
-            let w11 = i32(fx * fy * f32(erodeFixed));
-            
-            atomicStore(&heights[iy * N + ix], clampFixed(atomicLoad(&heights[iy * N + ix]) - w00));
-            atomicStore(&heights[iy * N + ix + 1u], clampFixed(atomicLoad(&heights[iy * N + ix + 1u]) - w10));
-            atomicStore(&heights[(iy + 1u) * N + ix], clampFixed(atomicLoad(&heights[(iy + 1u) * N + ix]) - w01));
-            atomicStore(&heights[(iy + 1u) * N + ix + 1u], clampFixed(atomicLoad(&heights[(iy + 1u) * N + ix + 1u]) - w11));
-            
-            d.sediment = d.sediment + actualErode;
-        } else {
-            // Uphill or flat — deposit sediment
-            if (d.sediment > 0.0) {
-                let excess = d.sediment - capacity;
-                if (excess > 0.0) {
-                    let depositAmount = min(excess, depositionM3);
-                    d.sediment = d.sediment - depositAmount;
-                    
-                    // Deposit at new position (bilinear)
-                    let ix = u32(clamp(d.pos.x, 0.0, N_F - 1.0));
-                    let iy = u32(clamp(d.pos.y, 0.0, N_F - 1.0));
-                    let fx = clamp(d.pos.x - f32(ix), 0.0, 1.0);
-                    let fy = clamp(d.pos.y - f32(iy), 0.0, 1.0);
-                    
-                    let depositFixed = i32(depositAmount * FIXED_SCALE);
-                    let w00 = i32((1.0 - fx) * (1.0 - fy) * f32(depositFixed));
-                    let w10 = i32(fx * (1.0 - fy) * f32(depositFixed));
-                    let w01 = i32((1.0 - fx) * fy * f32(depositFixed));
-                    let w11 = i32(fx * fy * f32(depositFixed));
-                    
-                    atomicStore(&heights[iy * N + ix], clampFixed(atomicLoad(&heights[iy * N + ix]) + w00));
-                    atomicStore(&heights[iy * N + ix + 1u], clampFixed(atomicLoad(&heights[iy * N + ix + 1u]) + w10));
-                    atomicStore(&heights[(iy + 1u) * N + ix], clampFixed(atomicLoad(&heights[(iy + 1u) * N + ix]) + w01));
-                    atomicStore(&heights[(iy + 1u) * N + ix + 1u], clampFixed(atomicLoad(&heights[(iy + 1u) * N + ix + 1u]) + w11));
-                }
+        // How much sediment this droplet can carry at its current speed
+        let capacity = max(slope * d.speed * d.water * capacityFactor, minCapacity);
+        
+        if (d.sediment > capacity || deltaHeight > 0.0) {
+            // Over capacity, or moving uphill — deposit.
+            // Uphill deposition is capped by deltaHeight so a droplet only fills
+            // the pit it is sitting in rather than building a spike.
+            var amount = (d.sediment - capacity) * depositFrac;
+            if (deltaHeight > 0.0) {
+                amount = min(deltaHeight, d.sediment);
             }
+            amount = clamp(amount, 0.0, MAX_STEP_CHANGE);
+            d.sediment = d.sediment - amount;
+            addHeightBilinear(oldPos, amount);
+        } else {
+            // Under capacity and heading downhill — erode, but never more than
+            // the remaining capacity, half the drop to the next cell, or the
+            // per-step limit.
+            let hard = hardnessAt(oldPos.x, oldPos.y);
+            let softness = clamp(1.0 - hard * 0.8, 0.0, 1.0);
+            let wanted = (capacity - d.sediment) * erodeFrac * softness;
+            let eroded = clamp(min(wanted, -deltaHeight * 0.5), 0.0, MAX_STEP_CHANGE);
+            d.sediment = d.sediment + eroded;
+            addHeightBilinear(oldPos, -eroded);
         }
         
-        // Evaporate water
-        d.water = d.water - evapL;
-        d.water = max(d.water, 0.0);
+        // Speed from the slope it just descended; water evaporates as a fraction
+        d.speed = sqrt(max(d.speed * d.speed + slope * gravity, 0.0));
+        d.water = d.water * (1.0 - evapFrac);
+    }
+    
+    // Any sediment still in transit is returned to the terrain, so a run does
+    // not remove net mass from the landscape. Capped like any other step so a
+    // dying droplet cannot drop its whole load into one cell as a spike.
+    if (d.sediment > 0.0) {
+        let amount = min(d.sediment, MAX_STEP_CHANGE);
+        addHeightBilinear(d.pos, amount);
+        d.sediment = d.sediment - amount;
     }
     
     // Write final droplet state back (for potential debugging/visualization)
