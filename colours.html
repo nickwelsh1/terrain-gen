@@ -1,0 +1,1264 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Colour Palette Extractor</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        :root {
+            color-scheme: dark;
+            --accent: #eb9e34;
+            --accent-hover: #f5b75a;
+        }
+
+        .thumb-scroll::-webkit-scrollbar {
+            height: 6px;
+        }
+
+        .thumb-scroll::-webkit-scrollbar-thumb {
+            background: #444;
+            border-radius: 4px;
+        }
+
+        .palette-scroll::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .palette-scroll::-webkit-scrollbar-thumb {
+            background: #444;
+            border-radius: 4px;
+        }
+
+        .point-marker {
+            cursor: grab;
+        }
+
+        .point-marker:active {
+            cursor: grabbing;
+        }
+
+        .line-handle {
+            cursor: move;
+        }
+
+        #overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            pointer-events: none;
+        }
+
+        #overlay .point-marker,
+        #overlay .line-handle {
+            pointer-events: all;
+        }
+
+        dialog::backdrop {
+            background: rgba(0, 0, 0, 0.6);
+        }
+
+        .drop-zone.dragover {
+            background: rgba(235, 158, 52, 0.2);
+            border-color: var(--accent);
+        }
+
+        [contenteditable]:focus {
+            outline: 1px solid var(--accent);
+            border-radius: 2px;
+        }
+
+        .active-swatch {
+            flex: 1 1 0;
+            min-width: 0;
+        }
+    </style>
+</head>
+
+<body class="bg-neutral-950 text-neutral-100 h-screen overflow-hidden flex flex-col font-sans">
+    <header
+            class="shrink-0 border-b border-neutral-800 bg-neutral-900 px-4 py-3 flex flex-wrap gap-3 items-center justify-between z-10">
+        <div class="flex items-center gap-3 min-w-0">
+            <i data-lucide="palette" class="w-5 h-5" style="color:var(--accent)"></i>
+            <h1 class="font-semibold text-base truncate">Colour Palette Extractor</h1>
+        </div>
+        <div class="flex flex-wrap gap-2 items-center text-sm">
+            <label
+                   class="flex items-center gap-1.5 px-2 py-1.5 bg-neutral-800 rounded hover:bg-neutral-700 cursor-pointer">
+                <i data-lucide="upload" class="w-4 h-4"></i>
+                <span>Upload</span>
+                <input id="fileInput" type="file" multiple accept="image/*" class="hidden" />
+            </label>
+            <button id="clearAll"
+                    class="flex items-center gap-1.5 px-2 py-1.5 bg-neutral-800 rounded hover:bg-neutral-700">
+                <i data-lucide="trash-2" class="w-4 h-4"></i>
+                <span>Clear all</span>
+            </button>
+            <div class="flex flex-col gap-1">
+                <label class="text-neutral-400 text-xs" for="outputFormat">Format</label>
+                <select id="outputFormat" class="px-2 py-1 bg-neutral-800 rounded border border-neutral-700 text-sm">
+                    <option value="hex" selected>HEX</option>
+                    <option value="rgb">RGB</option>
+                    <option value="oklch">OKLCH</option>
+                    <option value="lch">LCH</option>
+                </select>
+            </div>
+            <button id="exportBtn"
+                    class="flex items-center gap-1.5 px-2 py-1.5 bg-neutral-800 rounded hover:bg-neutral-700">
+                <i data-lucide="download" class="w-4 h-4"></i>
+                <span>Export</span>
+            </button>
+            <label
+                   class="flex items-center gap-1.5 px-2 py-1.5 bg-neutral-800 rounded hover:bg-neutral-700 cursor-pointer">
+                <i data-lucide="file-up" class="w-4 h-4"></i>
+                <span>Import</span>
+                <input id="importInput" type="file" accept="application/json,.json" class="hidden" />
+            </label>
+            <button id="pasteImportBtn"
+                    class="flex items-center gap-1.5 px-2 py-1.5 bg-neutral-800 rounded hover:bg-neutral-700"
+                    title="Import from clipboard">
+                <i data-lucide="clipboard" class="w-4 h-4"></i>
+            </button>
+        </div>
+    </header>
+
+    <main class="flex-1 flex flex-col lg:flex-row min-h-0">
+        <section class="flex-1 flex flex-col min-h-0 min-w-0">
+            <div id="thumbStrip"
+                 class="thumb-scroll flex gap-2 p-2 overflow-x-auto bg-neutral-900 border-b border-neutral-800 shrink-0 min-h-[88px]">
+            </div>
+
+            <div id="dropZone"
+                 class="drop-zone relative flex-1 bg-black overflow-hidden flex items-center justify-center p-4 m-4 rounded-lg border-2 border-dashed border-neutral-700">
+                <div id="emptyState" class="text-center text-neutral-400 p-8">
+                    <i data-lucide="image-plus" class="w-12 h-12 mx-auto mb-3 opacity-50"></i>
+                    <p class="text-lg">Drag & drop images here</p>
+                    <p class="text-sm mt-1">or click Upload to select files</p>
+                </div>
+                <div id="viewer" class="relative w-full h-full hidden">
+                    <img id="mainImage" class="w-full h-full object-contain select-none" alt="Selected" />
+                    <svg id="overlay" xmlns="http://www.w3.org/2000/svg"></svg>
+                </div>
+            </div>
+
+            <div id="controls" class="shrink-0 bg-neutral-900 border-t border-neutral-800 p-4">
+                <div class="flex flex-wrap gap-3 items-end text-sm">
+                    <div class="flex flex-col gap-1">
+                        <label class="text-neutral-400 text-xs">Colours</label>
+                        <input id="colorCount" type="number" min="1" max="100" value="5"
+                               class="w-16 px-2 py-1.5 bg-neutral-800 rounded border border-neutral-700 text-right" />
+                    </div>
+                    <div class="flex flex-col gap-1">
+                        <label class="text-neutral-400 text-xs">Method</label>
+                        <div class="flex gap-2 items-center">
+                            <select id="method" class="px-2 py-1.5 bg-neutral-800 rounded border border-neutral-700">
+                                <option value="diagonal/">Diagonal /</option>
+                                <option value="diagonal\">Diagonal \</option>
+                                <option value="horizontal">Horizontal</option>
+                                <option value="vertical">Vertical</option>
+                                <option value="spaced">Spaced grid</option>
+                                <option value="line">Line</option>
+                                <option value="grid">Grid points</option>
+                                <option value="harmony">Harmony</option>
+                            </select>
+                            <button id="randomBtn"
+                                    class="px-2 py-1.5 bg-neutral-700 rounded hover:bg-neutral-600 text-sm whitespace-nowrap">Random</button>
+                        </div>
+                    </div>
+                    <div class="flex flex-col gap-1 max-w-xs">
+                        <div id="methodDesc" class="text-xs text-neutral-400 leading-tight"></div>
+                    </div>
+                    <div id="harmonyBox" class="flex flex-col gap-1 hidden">
+                        <label class="text-neutral-400 text-xs">Harmony</label>
+                        <select id="harmony" class="px-2 py-1.5 bg-neutral-800 rounded border border-neutral-700">
+                            <option value="analogous">Analogous</option>
+                            <option value="triadic">Triadic</option>
+                            <option value="split-complementary">Split-Complementary</option>
+                            <option value="tetradic">Tetradic</option>
+                            <option value="monochromatic">Monochromatic</option>
+                        </select>
+                    </div>
+                    <div id="harmonyDesc" class="text-xs text-neutral-400 max-w-xs leading-tight hidden"></div>
+                    <div class="flex items-center gap-3 ml-auto flex-wrap">
+                        <label class="flex items-center gap-1.5 cursor-pointer select-none">
+                            <input id="useKMeans" type="checkbox" class="accent-[var(--accent)]" checked />
+                            <span class="text-neutral-300">K-Means</span>
+                        </label>
+                        <label class="flex items-center gap-1.5 cursor-pointer select-none">
+                            <input id="blur" type="checkbox" class="accent-[var(--accent)]" />
+                            <span class="text-neutral-300">Blur</span>
+                        </label>
+                        <label class="flex items-center gap-1.5 cursor-pointer select-none">
+                            <input id="invert" type="checkbox" class="accent-[var(--accent)]" />
+                            <span class="text-neutral-300">Invert</span>
+                        </label>
+                    </div>
+                </div>
+                <div class="flex gap-3 items-center mt-3 text-xs text-neutral-400" id="blurRadiusBox"
+                     style="display:none;">
+                    <label>Blur radius: <input id="blurRadius" type="range" min="0" max="20" value="5"
+                               class="mx-1 accent-[var(--accent)]" /> <span id="blurVal">5</span>px</label>
+                </div>
+            </div>
+
+            <div id="activePalette" class="shrink-0 bg-neutral-900 border-t border-neutral-800 p-4 hidden">
+                <div class="flex items-center justify-between mb-2">
+                    <h2 class="font-semibold text-sm flex items-center gap-2"><i data-lucide="eye" class="w-4 h-4"></i>
+                        Active palette</h2>
+                    <button id="addActiveBtn" class="text-xs px-2 py-1 rounded font-medium"
+                            style="background:var(--accent);color:#111">Add palette</button>
+                </div>
+                <div id="activeSwatches" class="flex w-full h-24 mb-2"></div>
+                <div id="activeValues" class="text-xs font-mono text-neutral-300 break-words"></div>
+            </div>
+        </section>
+
+        <aside class="w-full lg:w-96 bg-neutral-900 border-l border-neutral-800 flex flex-col min-h-0 shrink-0">
+            <div class="p-3 border-b border-neutral-800 flex items-center justify-between">
+                <h2 class="font-semibold text-sm flex items-center gap-2"><i data-lucide="swatch-book"
+                       class="w-4 h-4"></i> Palettes</h2>
+            </div>
+            <div id="paletteList" class="palette-scroll flex-1 overflow-y-auto p-3 space-y-3"></div>
+        </aside>
+    </main>
+
+    <dialog id="jsonDialog"
+            class="bg-neutral-900 text-neutral-100 rounded-lg border border-neutral-700 p-0 shadow-xl backdrop:bg-black/60 w-full max-w-2xl">
+        <div class="p-4 border-b border-neutral-800 flex items-center justify-between">
+            <h3 class="font-semibold">Palette JSON</h3>
+            <button id="closeJsonDialog" class="p-1 hover:bg-neutral-800 rounded"><i data-lucide="x"
+                   class="w-4 h-4"></i></button>
+        </div>
+        <div class="p-4">
+            <textarea id="jsonOutput"
+                      class="w-full h-64 p-3 bg-neutral-950 border border-neutral-700 rounded font-mono text-xs"
+                      readonly></textarea>
+            <div class="mt-3 flex justify-end gap-2">
+                <button id="copyJson"
+                        class="px-3 py-1.5 bg-neutral-800 hover:bg-neutral-700 rounded text-sm">Copy</button>
+                <button id="downloadJson" class="px-3 py-1.5 rounded text-sm"
+                        style="background:var(--accent);color:#111">Download</button>
+            </div>
+        </div>
+    </dialog>
+
+    <script type="module">
+        import * as culori from 'https://cdn.jsdelivr.net/npm/culori@latest/+esm';
+
+        const DB_NAME = 'colors-tool-db';
+        const DB_STORE = 'images';
+        const LS_KEY = 'colors-tool-state';
+
+        const METHODS = {
+            'diagonal/': 'Linear diagonal forward slash (bottom-left to top-right)',
+            'diagonal\\': 'Linear diagonal backslash (top-left to bottom-right)',
+            'horizontal': 'Linear horizontal (mid left to mid right)',
+            'vertical': 'Linear vertical (top mid to bottom mid)',
+            'random': 'Random points across the image',
+            'spaced': 'Centred 3-row pattern that expands with colour count',
+            'line': 'Click the image to set the start and end points of a straight line',
+            'grid': 'Automatic grid of points based on the colour count',
+            'harmony': 'Generate colour harmony from a base colour'
+        };
+
+        const HARMONIES = {
+            analogous: { label: 'Analogous', desc: 'Three to five colours sitting next to each other on the wheel. Highly harmonious, calming, and naturally cohesive.' },
+            triadic: { label: 'Triadic', desc: 'Three colours spaced evenly around the wheel, forming an equilateral triangle. Vibrant, high-contrast, and energetic.' },
+            'split-complementary': { label: 'Split-Complementary', desc: 'A base colour paired with the two colours adjacent to its direct complement. High contrast with less tension and more variety.' },
+            tetradic: { label: 'Tetradic', desc: 'Four colours arranged into two complementary pairs, forming a rectangle. Rich, colourful, and dynamic (best with one dominant colour).' },
+            monochromatic: { label: 'Monochromatic', desc: 'Variations of a single base hue using tints, shades, and tones. Clean, elegant, and deeply unified.' }
+        };
+
+        let images = [];
+        let settings = {
+            colorCount: 5,
+            outputFormat: 'hex',
+            method: 'diagonal/',
+            harmony: 'analogous',
+            useKMeans: true,
+            blur: false,
+            blurRadius: 5,
+            invert: false
+        };
+        let selectedImageId = null;
+        let activePalette = null;
+        let line = { start: null, end: null, dragging: null };
+        let dragMarker = null;
+
+        const els = {
+            fileInput: document.getElementById('fileInput'),
+            clearAll: document.getElementById('clearAll'),
+            exportBtn: document.getElementById('exportBtn'),
+            importInput: document.getElementById('importInput'),
+            pasteImportBtn: document.getElementById('pasteImportBtn'),
+            thumbStrip: document.getElementById('thumbStrip'),
+            dropZone: document.getElementById('dropZone'),
+            emptyState: document.getElementById('emptyState'),
+            viewer: document.getElementById('viewer'),
+            mainImage: document.getElementById('mainImage'),
+            overlay: document.getElementById('overlay'),
+            controls: document.getElementById('controls'),
+            colorCount: document.getElementById('colorCount'),
+            outputFormat: document.getElementById('outputFormat'),
+            method: document.getElementById('method'),
+            randomBtn: document.getElementById('randomBtn'),
+            methodDesc: document.getElementById('methodDesc'),
+            harmonyBox: document.getElementById('harmonyBox'),
+            harmony: document.getElementById('harmony'),
+            harmonyDesc: document.getElementById('harmonyDesc'),
+            useKMeans: document.getElementById('useKMeans'),
+            blur: document.getElementById('blur'),
+            invert: document.getElementById('invert'),
+            blurRadiusBox: document.getElementById('blurRadiusBox'),
+            blurRadius: document.getElementById('blurRadius'),
+            blurVal: document.getElementById('blurVal'),
+            activePalette: document.getElementById('activePalette'),
+            activeSwatches: document.getElementById('activeSwatches'),
+            activeValues: document.getElementById('activeValues'),
+            addActiveBtn: document.getElementById('addActiveBtn'),
+            paletteList: document.getElementById('paletteList'),
+            jsonDialog: document.getElementById('jsonDialog'),
+            jsonOutput: document.getElementById('jsonOutput'),
+            closeJsonDialog: document.getElementById('closeJsonDialog'),
+            copyJson: document.getElementById('copyJson'),
+            downloadJson: document.getElementById('downloadJson')
+        };
+
+        function uid() { return Math.random().toString(36).slice(2) + Date.now().toString(36); }
+        function clamp(n, min, max) { return Math.max(min, Math.min(max, n)); }
+
+        async function openDb() {
+            return new Promise((resolve, reject) => {
+                const req = indexedDB.open(DB_NAME, 1);
+                req.onupgradeneeded = (e) => {
+                    const db = e.target.result;
+                    if (!db.objectStoreNames.contains(DB_STORE)) db.createObjectStore(DB_STORE);
+                };
+                req.onsuccess = () => resolve(req.result);
+                req.onerror = () => reject(req.error);
+            });
+        }
+        const dbPromise = openDb();
+
+        async function dbGetAll() {
+            const db = await dbPromise;
+            return new Promise((resolve, reject) => {
+                const tx = db.transaction(DB_STORE, 'readonly');
+                const store = tx.objectStore(DB_STORE);
+                const req = store.getAll();
+                const keys = store.getAllKeys();
+                Promise.all([req, keys]).then(([values, ks]) => resolve(Object.fromEntries(ks.map((k, i) => [k, values[i]])))).catch(reject);
+            });
+        }
+
+        async function dbPut(id, blob) {
+            const db = await dbPromise;
+            return new Promise((resolve, reject) => {
+                const tx = db.transaction(DB_STORE, 'readwrite');
+                tx.objectStore(DB_STORE).put(blob, id);
+                tx.oncomplete = resolve;
+                tx.onerror = () => reject(tx.error);
+            });
+        }
+
+        async function dbDelete(id) {
+            const db = await dbPromise;
+            return new Promise((resolve, reject) => {
+                const tx = db.transaction(DB_STORE, 'readwrite');
+                tx.objectStore(DB_STORE).delete(id);
+                tx.oncomplete = resolve;
+                tx.onerror = () => reject(tx.error);
+            });
+        }
+
+        function saveState() {
+            const payload = {
+                images: images.map(im => ({
+                    id: im.id,
+                    name: im.name,
+                    width: im.width,
+                    height: im.height,
+                    palettes: im.palettes,
+                    selectedPaletteId: im.selectedPaletteId
+                })),
+                settings,
+                selectedImageId
+            };
+            localStorage.setItem(LS_KEY, JSON.stringify(payload));
+        }
+
+        async function loadState() {
+            const raw = localStorage.getItem(LS_KEY);
+            if (!raw) return;
+            try {
+                const payload = JSON.parse(raw);
+                Object.assign(settings, payload.settings || {});
+                selectedImageId = payload.selectedImageId || null;
+                const blobs = await dbGetAll();
+                images = (payload.images || []).map(im => ({
+                    ...im,
+                    blob: blobs[im.id],
+                    url: blobs[im.id] ? URL.createObjectURL(blobs[im.id]) : null
+                }));
+            } catch (e) { console.error('load failed', e); }
+        }
+
+        function bindSettings() {
+            els.colorCount.value = settings.colorCount;
+            els.outputFormat.value = settings.outputFormat;
+            els.method.value = settings.method;
+            if (els.method.value !== settings.method) { settings.method = 'diagonal/'; els.method.value = 'diagonal/'; }
+            els.harmony.value = settings.harmony;
+            els.useKMeans.checked = settings.useKMeans;
+            els.blur.checked = settings.blur;
+            els.blurRadius.value = settings.blurRadius;
+            els.blurVal.textContent = settings.blurRadius;
+            els.invert.checked = settings.invert;
+            toggleControls();
+        }
+
+        function rgbToColor(r, g, b, a = 255) {
+            return { mode: 'rgb', r: r / 255, g: g / 255, b: b / 255, alpha: a / 255 };
+        }
+
+        function formatColor(color, fmt) {
+            if (fmt === 'hex') return culori.formatHex(color) || '#000000';
+            if (fmt === 'rgb') return culori.formatRgb(color) || 'rgb(0, 0, 0)';
+            if (fmt === 'oklch') {
+                const c = culori.oklch(color);
+                const l = clamp(c.l * 100, 0, 100).toFixed(1);
+                const ch = c.c === undefined || c.c === 0 ? 0 : c.c;
+                const h = c.h === undefined ? 0 : c.h;
+                return `oklch(${l}% ${ch.toFixed(3)} ${h.toFixed(1)})`;
+            }
+            if (fmt === 'lch') {
+                const c = culori.lch(color);
+                const l = clamp(c.l, 0, 100).toFixed(1);
+                const ch = c.c === undefined || c.c === 0 ? 0 : c.c;
+                const h = c.h === undefined ? 0 : c.h;
+                return `lch(${l}% ${ch.toFixed(3)} ${h.toFixed(1)})`;
+            }
+            return culori.formatHex(color) || '#000000';
+        }
+
+        function getContrastText(color) {
+            const l = culori.wcagLuminance ? culori.wcagLuminance(color) : (0.2126 * color.r + 0.7152 * color.g + 0.0722 * color.b);
+            return l > 0.5 ? '#000' : '#fff';
+        }
+
+        function kmeans(pixels, k, iters = 10) {
+            if (!pixels.length || k <= 0) return [];
+            const centers = [];
+            for (let i = 0; i < k; i++) centers.push(pixels[Math.floor(Math.random() * pixels.length)]);
+            for (let it = 0; it < iters; it++) {
+                const sums = Array(k).fill(0).map(() => [0, 0, 0, 0]);
+                for (const p of pixels) {
+                    let best = 0, bestD = Infinity;
+                    for (let i = 0; i < k; i++) {
+                        const d = (p[0] - centers[i][0]) ** 2 + (p[1] - centers[i][1]) ** 2 + (p[2] - centers[i][2]) ** 2;
+                        if (d < bestD) { bestD = d; best = i; }
+                    }
+                    for (let c = 0; c < 3; c++) sums[best][c] += p[c];
+                    sums[best][3]++;
+                }
+                for (let i = 0; i < k; i++) {
+                    if (sums[i][3]) centers[i] = [sums[i][0] / sums[i][3], sums[i][1] / sums[i][3], sums[i][2] / sums[i][3]];
+                }
+            }
+            return centers.map(c => rgbToColor(c[0], c[1], c[2]));
+        }
+
+        function getFilteredCanvas(img, blur, blurRadius, invert) {
+            const canvas = document.createElement('canvas');
+            canvas.width = img.naturalWidth;
+            canvas.height = img.naturalHeight;
+            const ctx = canvas.getContext('2d', { willReadFrequently: true });
+            const filters = [];
+            if (blur) filters.push(`blur(${blurRadius}px)`);
+            if (invert) filters.push('invert(1)');
+            ctx.filter = filters.join(' ');
+            ctx.drawImage(img, 0, 0);
+            return { canvas, ctx };
+        }
+
+        function sampleColors(img, points, useK, count) {
+            const { canvas, ctx } = getFilteredCanvas(img, settings.blur, settings.blurRadius, settings.invert);
+            const w = canvas.width, h = canvas.height;
+            if (useK) {
+                const pixels = [];
+                for (const { x, y } of points) {
+                    const sx = Math.floor(clamp(x, 0, 1) * (w - 1));
+                    const sy = Math.floor(clamp(y, 0, 1) * (h - 1));
+                    const data = ctx.getImageData(sx, sy, 1, 1).data;
+                    pixels.push([data[0], data[1], data[2]]);
+                }
+                const k = clamp(count, 1, points.length);
+                const centers = kmeans(pixels, k, 15);
+                return centers.map((c, i) => ({ color: c, point: points[Math.min(i, points.length - 1)] }));
+            } else {
+                return points.map(({ x, y }) => {
+                    const sx = Math.floor(clamp(x, 0, 1) * (w - 1));
+                    const sy = Math.floor(clamp(y, 0, 1) * (h - 1));
+                    const data = ctx.getImageData(sx, sy, 1, 1).data;
+                    return { color: rgbToColor(data[0], data[1], data[2]), point: { x, y } };
+                });
+            }
+        }
+
+        function sampleArea(img, x, y, radius, k) {
+            const { canvas, ctx } = getFilteredCanvas(img, settings.blur, settings.blurRadius, settings.invert);
+            const w = canvas.width, h = canvas.height;
+            const cx = Math.floor(clamp(x, 0, 1) * (w - 1));
+            const cy = Math.floor(clamp(y, 0, 1) * (h - 1));
+            const r = Math.floor(radius);
+            const x0 = clamp(cx - r, 0, w - 1);
+            const y0 = clamp(cy - r, 0, h - 1);
+            const x1 = clamp(cx + r, 0, w - 1);
+            const y1 = clamp(cy + r, 0, h - 1);
+            const pixels = [];
+            for (let py = y0; py <= y1; py += 2) {
+                for (let px = x0; px <= x1; px += 2) {
+                    const data = ctx.getImageData(px, py, 1, 1).data;
+                    pixels.push([data[0], data[1], data[2]]);
+                }
+            }
+            if (!pixels.length) return sampleSingleColor(x, y).color;
+            const centers = kmeans(pixels, clamp(k, 1, pixels.length), 10);
+            return centers[0];
+        }
+
+        function sampleSingleColor(x, y) {
+            const { canvas, ctx } = getFilteredCanvas(els.mainImage, settings.blur, settings.blurRadius, settings.invert);
+            const w = canvas.width, h = canvas.height;
+            const sx = Math.floor(clamp(x, 0, 1) * (w - 1));
+            const sy = Math.floor(clamp(y, 0, 1) * (h - 1));
+            const data = ctx.getImageData(sx, sy, 1, 1).data;
+            return { color: rgbToColor(data[0], data[1], data[2]) };
+        }
+
+        function getPointOffset(px, py, w, h) {
+            const r = 18;
+            const candidates = [[1, -1], [-1, -1], [1, 1], [-1, 1]];
+            let best = candidates[0];
+            let bestDist = -Infinity;
+            for (const [sx, sy] of candidates) {
+                const cx = px + sx * (r + 10);
+                const cy = py + sy * (r + 10);
+                const dist = Math.min(cx, w - cx, cy, h - cy);
+                if (dist > bestDist) { bestDist = dist; best = [sx, sy]; }
+            }
+            return { x: best[0] * (r + 10), y: best[1] * (r + 10) };
+        }
+
+        function generatePoints(method, count, w, h) {
+            const pts = [];
+            const n = clamp(count, 1, 100);
+            if (method === 'diagonal/') {
+                for (let i = 0; i < n; i++) {
+                    const t = n === 1 ? 0.5 : i / (n - 1);
+                    pts.push({ x: t, y: 1 - t });
+                }
+            } else if (method === 'diagonal\\') {
+                for (let i = 0; i < n; i++) {
+                    const t = n === 1 ? 0.5 : i / (n - 1);
+                    pts.push({ x: t, y: t });
+                }
+            } else if (method === 'horizontal') {
+                for (let i = 0; i < n; i++) pts.push({ x: n === 1 ? 0.5 : i / (n - 1), y: 0.5 });
+            } else if (method === 'vertical') {
+                for (let i = 0; i < n; i++) pts.push({ x: 0.5, y: n === 1 ? 0.5 : i / (n - 1) });
+            } else if (method === 'random') {
+                for (let i = 0; i < n; i++) pts.push({ x: Math.random(), y: Math.random() });
+            } else if (method === 'spaced') {
+                if (n === 1) {
+                    pts.push({ x: 0.5, y: 0.5 });
+                } else if (n < 4) {
+                    for (let i = 0; i < n; i++) {
+                        const x = n === 1 ? 0.5 : 0.25 + i * 0.5 / (n - 1);
+                        pts.push({ x, y: 0.5 });
+                    }
+                } else {
+                    const side = Math.ceil(n / 3);
+                    const rows = [side, n - side * 2, side];
+                    const ys = [0.25, 0.5, 0.75];
+                    for (let r = 0; r < 3; r++) {
+                        const k = rows[r];
+                        for (let i = 0; i < k; i++) {
+                            const x = k === 1 ? 0.5 : 0.25 + i * 0.5 / (k - 1);
+                            pts.push({ x, y: ys[r] });
+                        }
+                    }
+                }
+            } else if (method === 'grid') {
+                const cols = Math.ceil(Math.sqrt(n));
+                const rows = Math.ceil(n / cols);
+                for (let i = 0; i < n; i++) {
+                    const c = i % cols;
+                    const r = Math.floor(i / cols);
+                    pts.push({ x: (c + 0.5) / cols, y: (r + 0.5) / rows });
+                }
+            } else if (method === 'line') {
+                if (line.start && line.end) {
+                    for (let i = 0; i < n; i++) {
+                        const t = n === 1 ? 0.5 : i / (n - 1);
+                        pts.push({ x: line.start.x + (line.end.x - line.start.x) * t, y: line.start.y + (line.end.y - line.start.y) * t });
+                    }
+                }
+            }
+            return pts.map(p => {
+                const off = getPointOffset(p.x * w, p.y * h, w, h);
+                return { x: p.x, y: p.y, ox: off.x / w, oy: off.y / h };
+            });
+        }
+
+        function generateHarmony(baseColor, type, n) {
+            const c = culori.oklch(baseColor);
+            const h0 = c.h || 0;
+            const colors = [];
+            if (type === 'analogous') {
+                const step = 30;
+                const count = clamp(n, 3, 5);
+                const start = h0 - ((count - 1) * step) / 2;
+                for (let i = 0; i < count; i++) colors.push(culori.rgb({ ...c, h: (start + i * step + 360) % 360 }));
+            } else if (type === 'triadic') {
+                for (let i = 0; i < 3; i++) colors.push(culori.rgb({ ...c, h: (h0 + i * 120) % 360 }));
+            } else if (type === 'split-complementary') {
+                colors.push(culori.rgb(c));
+                colors.push(culori.rgb({ ...c, h: (h0 + 150) % 360 }));
+                colors.push(culori.rgb({ ...c, h: (h0 + 210) % 360 }));
+            } else if (type === 'tetradic') {
+                for (let i = 0; i < 4; i++) colors.push(culori.rgb({ ...c, h: (h0 + i * 90) % 360 }));
+            } else if (type === 'monochromatic') {
+                const count = clamp(n, 3, 100);
+                for (let i = 0; i < count; i++) {
+                    const t = i / (count - 1);
+                    const l = 0.1 + t * 0.8;
+                    colors.push(culori.rgb({ ...c, l }));
+                }
+            }
+            return colors.slice(0, n || colors.length).map(color => ({ color, point: { x: 0.5, y: 0.5 } }));
+        }
+
+        function generateActivePalette(overrideMethod = null) {
+            const im = getSelectedImage();
+            if (!im || !els.mainImage.naturalWidth) return null;
+            const w = els.mainImage.naturalWidth, h = els.mainImage.naturalHeight;
+            let data = [];
+            const method = overrideMethod || settings.method;
+            if (method === 'harmony') {
+                const base = im.palettes.length && im.palettes[0].colors.length
+                    ? im.palettes[0].colors[0].color
+                    : { mode: 'rgb', r: 0.5, g: 0.5, b: 0.5 };
+                data = generateHarmony(base, settings.harmony, settings.colorCount);
+            } else if (method === 'line' && (!line.start || !line.end)) {
+                return null;
+            } else {
+                const pts = generatePoints(method, settings.colorCount, w, h);
+                if (pts.length) data = sampleColors(els.mainImage, pts, settings.useKMeans, settings.colorCount);
+            }
+            return data.length ? {
+                id: null,
+                name: 'Active palette',
+                colorCount: data.length,
+                method: method,
+                harmony: method === 'harmony' ? settings.harmony : 'none',
+                colors: data,
+                points: data.map(d => d.point)
+            } : null;
+        }
+
+        function createPalette(name, data, method = settings.method) {
+            return {
+                id: uid(),
+                name,
+                colorCount: data.length,
+                method,
+                harmony: method === 'harmony' ? settings.harmony : 'none',
+                colors: data.map(d => ({ color: d.color })),
+                points: data.map(d => d.point)
+            };
+        }
+
+        function getSelectedImage() { return images.find(i => i.id === selectedImageId); }
+        function getSelectedPalette(im) { return im.palettes.find(p => p.id === im.selectedPaletteId); }
+
+        async function handleFiles(files) {
+            const list = Array.from(files);
+            for (const file of list) {
+                const blob = new Blob([file], { type: file.type });
+                const url = URL.createObjectURL(blob);
+                const img = new Image();
+                img.src = url;
+                await new Promise((res, rej) => { img.onload = res; img.onerror = rej; });
+                if (images.some(i => i.name === file.name && i.width === img.naturalWidth && i.height === img.naturalHeight)) {
+                    URL.revokeObjectURL(url);
+                    continue;
+                }
+                const id = uid();
+                const image = { id, name: file.name, width: img.naturalWidth, height: img.naturalHeight, blob, url, palettes: [], selectedPaletteId: null };
+                images.push(image);
+                await dbPut(id, blob);
+            }
+            if (images.length && !selectedImageId) selectedImageId = images[0].id;
+            saveState();
+            renderThumbs();
+            selectImage(selectedImageId);
+        }
+
+        function renderThumbs() {
+            els.thumbStrip.innerHTML = '';
+            for (const im of images) {
+                const div = document.createElement('div');
+                div.className = `relative shrink-0 w-20 h-20 rounded border-2 cursor-pointer overflow-hidden ${im.id === selectedImageId ? 'border-[var(--accent)]' : 'border-neutral-700'}`;
+                div.innerHTML = `<img src="${im.url}" class="w-full h-full object-cover" />`;
+                const btn = document.createElement('button');
+                btn.className = 'absolute top-0.5 right-0.5 p-0.5 bg-black/70 hover:bg-red-600 rounded text-white';
+                btn.innerHTML = `<i data-lucide="x" class="w-3 h-3"></i>`;
+                btn.onclick = (e) => { e.stopPropagation(); removeImage(im.id); };
+                div.appendChild(btn);
+                div.onclick = () => selectImage(im.id);
+                els.thumbStrip.appendChild(div);
+            }
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+        }
+
+        function selectImage(id) {
+            selectedImageId = id;
+            const im = getSelectedImage();
+            saveState();
+            renderThumbs();
+            if (!im) {
+                els.viewer.classList.add('hidden');
+                els.emptyState.classList.remove('hidden');
+                els.activePalette.classList.add('hidden');
+                els.paletteList.innerHTML = '';
+                return;
+            }
+            els.emptyState.classList.add('hidden');
+            els.viewer.classList.remove('hidden');
+            els.activePalette.classList.remove('hidden');
+            els.mainImage.addEventListener('load', () => { updateImageFilter(); updateActivePalette(); }, { once: true });
+            els.mainImage.src = im.url;
+            if (els.mainImage.complete && els.mainImage.naturalWidth) {
+                updateImageFilter();
+                updateActivePalette();
+            }
+            renderPalettes();
+        }
+
+        function updateImageFilter() {
+            const filters = [];
+            if (settings.blur) filters.push(`blur(${settings.blurRadius}px)`);
+            if (settings.invert) filters.push('invert(1)');
+            els.mainImage.style.filter = filters.join(' ');
+        }
+
+        function updateActivePalette(overrideMethod = null) {
+            activePalette = generateActivePalette(overrideMethod);
+            renderActivePalette();
+            renderOverlay();
+            saveState();
+        }
+
+        function renderActivePalette() {
+            if (!activePalette || !activePalette.colors.length) {
+                els.activeSwatches.innerHTML = '';
+                els.activeValues.textContent = '';
+                return;
+            }
+            els.activeSwatches.innerHTML = activePalette.colors.map((c, i) => {
+                const hex = formatColor(c.color, 'hex');
+                const text = getContrastText(c.color);
+                return `<div class="active-swatch h-full flex flex-col justify-end" style="background:${hex};color:${text}">
+                    <span class="text-[10px] text-center pb-1 font-mono" style="text-shadow:0 0 2px #000">${i + 1}</span>
+                </div>`;
+            }).join('');
+            els.activeValues.textContent = activePalette.colors.map(c => formatColor(c.color, settings.outputFormat)).join(', ');
+        }
+
+        function renderOverlay() {
+            const im = getSelectedImage();
+            const svg = els.overlay;
+            svg.innerHTML = '';
+            const viewerRect = els.viewer.getBoundingClientRect();
+            const imgRect = els.mainImage.getBoundingClientRect();
+            const left = imgRect.left - viewerRect.left;
+            const top = imgRect.top - viewerRect.top;
+            const w = imgRect.width, h = imgRect.height;
+            svg.setAttribute('viewBox', `0 0 ${w} ${h}`);
+            svg.style.left = `${left}px`;
+            svg.style.top = `${top}px`;
+            svg.style.width = `${w}px`;
+            svg.style.height = `${h}px`;
+
+            if (settings.method === 'line' && line.start && !line.end) {
+                const x = line.start.x * w, y = line.start.y * h;
+                const c = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                c.setAttribute('cx', x); c.setAttribute('cy', y); c.setAttribute('r', 10);
+                c.setAttribute('fill', 'white'); c.setAttribute('stroke', 'var(--accent)'); c.setAttribute('stroke-width', 2);
+                c.setAttribute('class', 'line-handle');
+                svg.appendChild(c);
+                const t = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                t.setAttribute('x', x); t.setAttribute('y', y - 16); t.setAttribute('fill', 'white'); t.setAttribute('font-size', '12'); t.setAttribute('text-anchor', 'middle');
+                t.textContent = 'Click to set end point';
+                svg.appendChild(t);
+            }
+
+            if (!activePalette || !activePalette.colors.length) return;
+
+            if (activePalette.method === 'line') {
+                const pts = activePalette.points;
+                if (pts && pts[0] && pts[pts.length - 1]) {
+                    const p1 = pts[0], p2 = pts[pts.length - 1];
+                    const x1 = p1.x * w, y1 = p1.y * h, x2 = p2.x * w, y2 = p2.y * h;
+                    svg.insertAdjacentHTML('beforeend', `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="white" stroke-width="2" stroke-dasharray="4 2"/>`);
+                    [[x1, y1, 'start'], [x2, y2, 'end']].forEach(([x, y, k]) => {
+                        const c = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                        c.setAttribute('cx', x); c.setAttribute('cy', y); c.setAttribute('r', 10);
+                        c.setAttribute('fill', 'white'); c.setAttribute('stroke', 'var(--accent)'); c.setAttribute('stroke-width', 2);
+                        c.setAttribute('class', 'line-handle');
+                        c.onpointerdown = (e) => { line.dragging = k; e.target.setPointerCapture(e.pointerId); };
+                        c.onpointermove = (e) => { if (line.dragging === k) { const pt = svgPoint(e); const start = line.dragging === 'start' ? { x: pt.x / w, y: pt.y / h } : line.start; const end = line.dragging === 'end' ? { x: pt.x / w, y: pt.y / h } : line.end; updateLine(start, end); } };
+                        c.onpointerup = () => { line.dragging = null; };
+                        svg.appendChild(c);
+                    });
+                }
+            }
+
+            activePalette.colors.forEach((col, i) => {
+                const p = activePalette.points[i] || { x: 0.5, y: 0.5 };
+                const px = p.x * w, py = p.y * h;
+                const ox = (p.ox ?? 0) * w, oy = (p.oy ?? 0) * h;
+                const cx = px + ox, cy = py + oy;
+                const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+                g.setAttribute('class', 'point-marker');
+                g.setAttribute('data-idx', i);
+                const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                circle.setAttribute('cx', cx); circle.setAttribute('cy', cy); circle.setAttribute('r', settings.useKMeans ? 20 : 14);
+                circle.setAttribute('fill', formatColor(col.color, 'hex'));
+                circle.setAttribute('stroke', getContrastText(col.color)); circle.setAttribute('stroke-width', 2);
+                g.appendChild(circle);
+                if (!settings.useKMeans) {
+                    const poly = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+                    const ang = Math.atan2(-oy, -ox);
+                    const perp = ang + Math.PI / 2;
+                    const tip = `${px},${py}`;
+                    const base = `${cx + Math.cos(perp) * 6},${cy + Math.sin(perp) * 6} ${cx - Math.cos(perp) * 6},${cy - Math.sin(perp) * 6}`;
+                    poly.setAttribute('points', `${base} ${tip}`);
+                    poly.setAttribute('fill', 'white');
+                    g.appendChild(poly);
+                }
+                g.onpointerdown = (e) => { e.preventDefault(); const pt = svgPoint(e); dragMarker = { idx: i, start: pt, orig: { x: p.x, y: p.y } }; g.setPointerCapture(e.pointerId); };
+                g.onpointermove = (e) => { if (dragMarker && dragMarker.idx === i) moveMarker(i, e); };
+                g.onpointerup = () => { if (settings.useKMeans && dragMarker && dragMarker.idx === i) updateKMeansMarker(i); dragMarker = null; };
+                svg.appendChild(g);
+            });
+        }
+
+        function svgPoint(evt) {
+            const rect = els.overlay.getBoundingClientRect();
+            return { x: evt.clientX - rect.left, y: evt.clientY - rect.top };
+        }
+
+        function moveMarker(idx, evt) {
+            if (!dragMarker) return;
+            const im = getSelectedImage();
+            if (!im || !activePalette) return;
+            const pt = svgPoint(evt);
+            const start = dragMarker.start;
+            const rect = els.mainImage.getBoundingClientRect();
+            const w = rect.width, h = rect.height;
+            const dx = (pt.x - start.x) / w;
+            const dy = (pt.y - start.y) / h;
+            activePalette.points[idx].x = clamp(dragMarker.orig.x + dx, 0, 1);
+            activePalette.points[idx].y = clamp(dragMarker.orig.y + dy, 0, 1);
+            if (settings.method === 'line') {
+                const linePts = activePalette.points;
+                const first = linePts[0], last = linePts[linePts.length - 1];
+                if (idx === 0) line.start = { x: first.x, y: first.y };
+                if (idx === linePts.length - 1) line.end = { x: last.x, y: last.y };
+            }
+            if (!settings.useKMeans) {
+                const s = sampleSingleColor(activePalette.points[idx].x, activePalette.points[idx].y);
+                activePalette.colors[idx].color = s.color;
+            }
+            renderOverlay();
+            renderActivePalette();
+        }
+
+        function updateKMeansMarker(idx) {
+            if (!activePalette) return;
+            activePalette.colors[idx].color = sampleArea(els.mainImage, activePalette.points[idx].x, activePalette.points[idx].y, 32, 1);
+            renderOverlay();
+            renderActivePalette();
+            saveState();
+        }
+
+        function updateLine(start, end) {
+            if (!activePalette || activePalette.method !== 'line') return;
+            line.start = start;
+            line.end = end;
+            const rect = els.mainImage.getBoundingClientRect();
+            const w = rect.width, h = rect.height;
+            const pts = generatePoints('line', activePalette.colorCount, w, h);
+            activePalette.points = pts;
+            activePalette.colors = sampleColors(els.mainImage, pts, settings.useKMeans, activePalette.colorCount);
+            renderOverlay();
+            renderActivePalette();
+            saveState();
+        }
+
+        function addActivePalette() {
+            const im = getSelectedImage();
+            if (!im || !activePalette || !activePalette.colors.length) return;
+            const pal = createPalette('Palette ' + (im.palettes.length + 1), activePalette.colors.map((c, i) => ({ color: c.color, point: activePalette.points[i] })), activePalette.method);
+            im.palettes.push(pal);
+            im.selectedPaletteId = pal.id;
+            saveState();
+            renderPalettes();
+            showToast('Palette added');
+        }
+
+        function selectPalette(im, id) {
+            im.selectedPaletteId = id;
+            const pal = getSelectedPalette(im);
+            if (pal) {
+                activePalette = {
+                    id: null,
+                    name: pal.name,
+                    colorCount: pal.colors.length,
+                    method: pal.method,
+                    harmony: pal.harmony,
+                    colors: pal.colors.map(c => ({ color: c.color })),
+                    points: pal.points.map(p => ({ ...p }))
+                };
+                renderActivePalette();
+                renderOverlay();
+            }
+            saveState();
+            renderPalettes();
+        }
+
+        function removePalette(im, id) {
+            im.palettes = im.palettes.filter(p => p.id !== id);
+            if (im.selectedPaletteId === id) {
+                im.selectedPaletteId = im.palettes[0]?.id || null;
+                if (im.palettes[0]) selectPalette(im, im.palettes[0].id);
+                else updateActivePalette();
+            }
+            saveState();
+            renderPalettes();
+        }
+
+        function removeColor(im, pal, idx) {
+            pal.colors.splice(idx, 1);
+            pal.points.splice(idx, 1);
+            pal.colorCount = pal.colors.length;
+            saveState();
+            renderPalettes();
+            if (pal.id === im.selectedPaletteId) {
+                activePalette = {
+                    id: null,
+                    name: pal.name,
+                    colorCount: pal.colors.length,
+                    method: pal.method,
+                    harmony: pal.harmony,
+                    colors: pal.colors.map(c => ({ color: c.color })),
+                    points: pal.points.map(p => ({ ...p }))
+                };
+                renderActivePalette();
+                renderOverlay();
+            }
+        }
+
+        function sortPalette(pal, key) {
+            if (key === 'random') {
+                for (let i = pal.colors.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [pal.colors[i], pal.colors[j]] = [pal.colors[j], pal.colors[i]];
+                    [pal.points[i], pal.points[j]] = [pal.points[j], pal.points[i]];
+                }
+            } else {
+                const mapped = pal.colors.map((c, i) => ({ c, i }));
+                mapped.sort((a, b) => {
+                    const ca = a.c.color, cb = b.c.color;
+                    if (key === 'lightness') return (culori.oklch(ca).l - culori.oklch(cb).l) || 0;
+                    if (key === 'chroma') return (culori.oklch(ca).c - culori.oklch(cb).c) || 0;
+                    if (key === 'hue') {
+                        const ha = culori.oklch(ca).h || 0, hb = culori.oklch(cb).h || 0;
+                        return ha - hb;
+                    }
+                    if (key === 'saturation') {
+                        return (culori.hsl(ca).s - culori.hsl(cb).s) || 0;
+                    }
+                    return 0;
+                });
+                const newColors = mapped.map(m => pal.colors[m.i]);
+                const newPoints = mapped.map(m => pal.points[m.i]);
+                pal.colors = newColors;
+                pal.points = newPoints;
+            }
+            saveState();
+            renderPalettes();
+            if (getSelectedPalette(getSelectedImage()) === pal) {
+                activePalette = {
+                    id: null,
+                    name: pal.name,
+                    colorCount: pal.colors.length,
+                    method: pal.method,
+                    harmony: pal.harmony,
+                    colors: pal.colors.map(c => ({ color: c.color })),
+                    points: pal.points.map(p => ({ ...p }))
+                };
+                renderActivePalette();
+                renderOverlay();
+            }
+        }
+
+        function renderPalettes() {
+            const im = getSelectedImage();
+            if (!im) { els.paletteList.innerHTML = ''; return; }
+            els.paletteList.innerHTML = '';
+            for (const pal of im.palettes) {
+                const card = document.createElement('div');
+                card.className = `p-3 rounded border ${pal.id === im.selectedPaletteId ? 'border-[var(--accent)] bg-neutral-800' : 'border-neutral-700 bg-neutral-800'} cursor-pointer`;
+                card.onclick = (e) => { if (e.target.closest('button, input, [draggable]')) return; selectPalette(im, pal.id); };
+
+                const grad = pal.colors.map(c => formatColor(c.color, 'hex')).join(',');
+                const swatches = pal.colors.map((c, i) => {
+                    const hex = formatColor(c.color, 'hex');
+                    return `<div class="group relative h-12 border border-neutral-600 shrink-0" style="background:${hex};flex:1 1 0" draggable="true" data-idx="${i}" data-pid="${pal.id}">
+                        <button class="remove-color absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-500 text-white hidden group-hover:flex items-center justify-center text-[10px]" style="z-index:1">×</button>
+                    </div>`;
+                }).join('');
+
+                card.innerHTML = `
+                    <div class="flex items-center justify-between mb-2">
+                        <span contenteditable="true" class="font-semibold text-sm editable-name">${pal.name}</span>
+                        <div class="flex gap-1">
+                            <button class="copy-list p-1 hover:bg-neutral-700 rounded" title="Copy colour list"><i data-lucide="copy" class="w-3.5 h-3.5"></i></button>
+                            <button class="delete-pal p-1 hover:bg-red-900/50 rounded" title="Delete palette"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
+                        </div>
+                    </div>
+                    <div class="h-4 rounded mb-2" style="background: linear-gradient(90deg, ${grad})"></div>
+                    <div class="swatch-row flex w-full mb-2">${swatches}</div>
+                    <div class="flex flex-wrap gap-1 text-[10px] text-neutral-400 mb-2">
+                        <span class="self-center mr-1">Sort:</span>
+                        <button class="sort-l sort-btn px-1.5 py-0.5 bg-neutral-700 rounded hover:bg-neutral-600">L</button>
+                        <button class="sort-h sort-btn px-1.5 py-0.5 bg-neutral-700 rounded hover:bg-neutral-600">H</button>
+                        <button class="sort-s sort-btn px-1.5 py-0.5 bg-neutral-700 rounded hover:bg-neutral-600">S</button>
+                        <button class="sort-c sort-btn px-1.5 py-0.5 bg-neutral-700 rounded hover:bg-neutral-600">C</button>
+                        <button class="sort-r sort-btn px-1.5 py-0.5 bg-neutral-700 rounded hover:bg-neutral-600"><span class="sm:hidden">R</span><span class="hidden sm:inline">Random</span></button>
+                    </div>
+                `;
+
+                card.querySelector('.editable-name').onblur = (e) => { pal.name = e.target.textContent.trim(); saveState(); };
+                card.querySelector('.editable-name').onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); e.target.blur(); } };
+                card.querySelector('.copy-list').onclick = () => copyList(pal);
+                card.querySelector('.delete-pal').onclick = () => removePalette(im, pal.id);
+                card.querySelector('.sort-l').onclick = () => sortPalette(pal, 'lightness');
+                card.querySelector('.sort-h').onclick = () => sortPalette(pal, 'hue');
+                card.querySelector('.sort-s').onclick = () => sortPalette(pal, 'saturation');
+                card.querySelector('.sort-c').onclick = () => sortPalette(pal, 'chroma');
+                card.querySelector('.sort-r').onclick = () => sortPalette(pal, 'random');
+                card.querySelectorAll('.remove-color').forEach((b, idx) => b.onclick = (e) => { e.stopPropagation(); removeColor(im, pal, idx); });
+                card.querySelectorAll('.swatch-row > div[draggable]').forEach(el => {
+                    el.ondragstart = (e) => { e.dataTransfer.setData('text/plain', `${pal.id},${el.dataset.idx}`); };
+                    el.ondragover = (e) => { e.preventDefault(); };
+                    el.ondrop = (e) => {
+                        e.preventDefault();
+                        const [fromPid, fromIdx] = e.dataTransfer.getData('text/plain').split(',');
+                        const toIdx = +el.dataset.idx;
+                        const fromP = im.palettes.find(p => p.id === fromPid);
+                        if (!fromP) return;
+                        const col = fromP.colors.splice(+fromIdx, 1)[0];
+                        const pt = fromP.points.splice(+fromIdx, 1)[0];
+                        const targetP = im.palettes.find(p => p.id === el.dataset.pid);
+                        targetP.points.splice(toIdx, 0, pt);
+                        targetP.colors.splice(toIdx, 0, col);
+                        targetP.colorCount = targetP.colors.length;
+                        fromP.colorCount = fromP.colors.length;
+                        saveState();
+                        renderPalettes();
+                        renderOverlay();
+                    };
+                });
+                els.paletteList.appendChild(card);
+            }
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+        }
+
+        function copyList(pal) {
+            const list = pal.colors.map(c => formatColor(c.color, settings.outputFormat)).join(', ');
+            navigator.clipboard.writeText(list);
+            showToast('Colour list copied');
+        }
+
+        function showToast(msg) {
+            const t = document.createElement('div');
+            t.className = 'fixed bottom-4 right-4 px-3 py-2 rounded shadow-lg text-sm z-50 font-medium';
+            t.style.background = 'var(--accent)';
+            t.style.color = '#111';
+            t.textContent = msg;
+            document.body.appendChild(t);
+            setTimeout(() => t.remove(), 2000);
+        }
+
+        function removeImage(id) {
+            const im = images.find(i => i.id === id);
+            if (im && im.url) URL.revokeObjectURL(im.url);
+            images = images.filter(i => i.id !== id);
+            dbDelete(id);
+            if (selectedImageId === id) {
+                selectedImageId = images.length ? images[images.length - 1].id : null;
+            }
+            saveState();
+            renderThumbs();
+            selectImage(selectedImageId);
+        }
+
+        function removeAllImages() {
+            for (const im of images) { if (im.url) URL.revokeObjectURL(im.url); dbDelete(im.id); }
+            images = [];
+            selectedImageId = null;
+            saveState();
+            renderThumbs();
+            selectImage(null);
+        }
+
+        function exportJson() {
+            const data = images.map(im => ({
+                imageName: im.name,
+                palettes: im.palettes.map(p => ({
+                    name: p.name,
+                    method: p.method,
+                    colors: p.colors.map(c => formatColor(c.color, settings.outputFormat))
+                }))
+            }));
+            const str = JSON.stringify(data, null, 2);
+            els.jsonOutput.value = str;
+            els.jsonDialog.showModal();
+        }
+
+        function importJson(str, append = true) {
+            try {
+                const data = JSON.parse(str);
+                const im = getSelectedImage();
+                if (!im) { showToast('Select an image first'); return; }
+                const palettes = (data.palettes || data || []);
+                for (const p of palettes) {
+                    const pal = {
+                        id: uid(),
+                        name: p.name || 'Imported palette',
+                        method: p.method || 'diagonal/',
+                        colorCount: (p.colors || []).length,
+                        colors: (p.colors || []).map(s => {
+                            const color = culori.parse(s) || { mode: 'rgb', r: 0, g: 0, b: 0 };
+                            return { color };
+                        }),
+                        points: (p.colors || []).map(() => ({ x: 0.5, y: 0.5 })),
+                        harmony: 'none'
+                    };
+                    im.palettes.push(pal);
+                }
+                saveState();
+                renderPalettes();
+                showToast('Imported');
+            } catch (e) { showToast('Invalid JSON'); }
+        }
+
+        function onFileImport(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            const r = new FileReader();
+            r.onload = () => { importJson(r.result); };
+            r.readAsText(file);
+        }
+
+        function toggleControls() {
+            const isHarmony = settings.method === 'harmony';
+            els.harmonyBox.classList.toggle('hidden', !isHarmony);
+            els.harmonyDesc.classList.toggle('hidden', !isHarmony);
+            if (isHarmony) {
+                const h = HARMONIES[settings.harmony];
+                els.harmonyDesc.textContent = `${h.label}: ${h.desc}`;
+            }
+            els.methodDesc.textContent = METHODS[settings.method];
+            els.useKMeans.disabled = isHarmony;
+            els.blur.disabled = isHarmony;
+            els.invert.disabled = isHarmony;
+            els.blurRadiusBox.style.display = settings.blur ? 'flex' : 'none';
+        }
+
+        function onImageClick(e) {
+            const im = getSelectedImage();
+            if (!im || settings.method !== 'line') return;
+            const rect = els.mainImage.getBoundingClientRect();
+            const x = clamp(e.clientX - rect.left, 0, rect.width) / rect.width;
+            const y = clamp(e.clientY - rect.top, 0, rect.height) / rect.height;
+            if (!line.start) { line.start = { x, y }; renderOverlay(); }
+            else if (!line.end) { line.end = { x, y }; updateActivePalette(); }
+            else { line.start = { x, y }; line.end = null; renderOverlay(); }
+        }
+
+        function setupEvents() {
+            els.fileInput.onchange = (e) => { if (e.target.files.length) handleFiles(e.target.files); e.target.value = ''; };
+            els.clearAll.onclick = removeAllImages;
+            els.exportBtn.onclick = exportJson;
+            els.importInput.onchange = onFileImport;
+            els.pasteImportBtn.onclick = async () => { try { const t = await navigator.clipboard.readText(); importJson(t); } catch { showToast('Could not read clipboard'); } };
+            els.addActiveBtn.onclick = addActivePalette;
+            els.colorCount.oninput = () => { settings.colorCount = +els.colorCount.value; updateActivePalette(); };
+            els.outputFormat.onchange = () => { settings.outputFormat = els.outputFormat.value; saveState(); renderActivePalette(); renderPalettes(); };
+            els.method.onchange = () => { settings.method = els.method.value; line.start = null; line.end = null; updateActivePalette(); };
+            els.randomBtn.onclick = () => { line.start = null; line.end = null; updateActivePalette('random'); };
+            els.harmony.onchange = () => { settings.harmony = els.harmony.value; updateActivePalette(); };
+            els.useKMeans.onchange = () => { settings.useKMeans = els.useKMeans.checked; updateActivePalette(); };
+            els.blur.onchange = () => { settings.blur = els.blur.checked; saveState(); updateImageFilter(); updateActivePalette(); };
+            els.blurRadius.oninput = () => { settings.blurRadius = +els.blurRadius.value; els.blurVal.textContent = settings.blurRadius; saveState(); updateImageFilter(); updateActivePalette(); };
+            els.invert.onchange = () => { settings.invert = els.invert.checked; saveState(); updateImageFilter(); updateActivePalette(); };
+
+            const dz = els.dropZone;
+            dz.ondragover = (e) => { e.preventDefault(); dz.classList.add('dragover'); };
+            dz.ondragleave = () => dz.classList.remove('dragover');
+            dz.ondrop = (e) => {
+                e.preventDefault();
+                dz.classList.remove('dragover');
+                const url = e.dataTransfer.getData('text/uri-list');
+                if (url && images.some(i => i.url === url)) { showToast('Image already loaded'); return; }
+                if (e.dataTransfer.files.length) handleFiles(e.dataTransfer.files);
+            };
+
+            els.mainImage.onclick = onImageClick;
+
+            els.closeJsonDialog.onclick = () => els.jsonDialog.close();
+            els.copyJson.onclick = () => { navigator.clipboard.writeText(els.jsonOutput.value); showToast('Copied'); };
+            els.downloadJson.onclick = () => {
+                const blob = new Blob([els.jsonOutput.value], { type: 'application/json' });
+                const a = document.createElement('a');
+                a.href = URL.createObjectURL(blob);
+                a.download = 'palettes.json';
+                a.click();
+            };
+
+            window.addEventListener('beforeunload', saveState);
+        }
+
+        async function init() {
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+            await loadState();
+            bindSettings();
+            setupEvents();
+            window.addEventListener('resize', () => { if (selectedImageId) { renderOverlay(); renderActivePalette(); } });
+            renderThumbs();
+            selectImage(selectedImageId);
+        }
+
+        init();
+    </script>
+
+</body>
+
+</html>

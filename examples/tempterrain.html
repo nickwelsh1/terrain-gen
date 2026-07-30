@@ -88,6 +88,7 @@
             width: 100%;
             background: transparent;
             -webkit-appearance: none;
+            appearance: none;
             height: 24px;
             position: relative;
         }
@@ -199,6 +200,12 @@
 </head>
 
 <body>
+
+    <div id="top-bar" style="position: fixed; top: 16px; left: 16px; z-index: 200;">
+        <a href="../index.html"
+           style="color:var(--accent);text-decoration:none;font-size:0.8rem;padding:8px 14px;border:1px solid rgba(80,255,158,0.3);border-radius:6px;background:rgba(30,30,30,0.8);transition:all 0.25s ease;">←
+            Mountain Heightmap</a>
+    </div>
 
     <div id="canvas-container">
         <canvas id="terrain"></canvas>
