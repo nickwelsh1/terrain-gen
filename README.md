@@ -36,6 +36,15 @@ pnpm test:ui
 pnpm lint
 ```
 
+### more scripts
+
+For building and deploying:
+
+```bash
+pnpm build
+npx wrangler pages deploy dist --project-name terrain-gen
+```
+
 > Note: Biome must be installed as a dev dependency (`pnpm add -D @biomejs/biome`).
 
 ## Project Structure

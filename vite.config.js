@@ -9,6 +9,10 @@ export default defineConfig({
             input: {
                 main: "index.html",
                 webgpu: "webgpu.html",
+                color: "color.html",
+                colors: "colors.html",
+                colours: "colours.html",
+                terrain: "examples/tempterrain.html",
             },
         },
     },
