@@ -1,0 +1,68 @@
+* {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #1a1a1a;
+            color: #e0e0e0;
+            font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+            overflow: hidden;
+        }
+
+        #renderCanvas {
+            display: block;
+            width: 100vw;
+            height: 100vh;
+            touch-action: none;
+        }
+
+        #status {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 1rem;
+            text-align: center;
+            color: #e0e0e0;
+            z-index: 50;
+        }
+
+        #back-link {
+            position: fixed;
+            top: 16px;
+            left: 16px;
+            color: #50ff9e;
+            font-size: 0.8rem;
+            text-decoration: none;
+            padding: 8px 14px;
+            border: 1px solid rgba(80, 255, 158, 0.3);
+            border-radius: 6px;
+            background: rgba(30, 30, 30, 0.8);
+            transition: all 0.25s ease;
+            z-index: 200;
+        }
+
+        #back-link:hover {
+            background: rgba(80, 255, 158, 0.12);
+            border-color: #50ff9e;
+        }
+
+        /* Mobile: render occupies the top 45% of the screen, panel takes the rest */
+        @media (max-width: 768px) {
+            #renderCanvas {
+                height: 45vh;
+            }
+
+            #status {
+                top: 22.5vh;
+            }
+
+            #back-link {
+                top: 8px;
+                left: 8px;
+                font-size: 0.75rem;
+                padding: 6px 10px;
+            }
+        }
