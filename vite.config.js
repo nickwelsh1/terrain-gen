@@ -12,6 +12,7 @@ export default defineConfig({
                 color: "color.html",
                 colors: "colors.html",
                 colours: "colours.html",
+                noisegallery: "noisegallery.html",
                 terrain: "examples/tempterrain.html",
             },
         },

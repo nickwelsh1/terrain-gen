@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Noise Gallery</title>
+    <script type="importmap">
+    {
+        "imports": {
+            "fastnoise-lite": "/node_modules/fastnoise-lite/FastNoiseLite.js"
+        }
+    }
+    </script>
+    <link rel="stylesheet" href="/styles/noisegallery.css">
+    <script type="module" src="/src/noise-gallery.js"></script>
+</head>
+
+<body>
+    <header id="top-bar">
+        <a id="back-link" href="/index.html">← Mountain Heightmap</a>
+        <a id="webgpu-link" href="/webgpu.html">WebGPU Erosion →</a>
+        <a id="colors-link" href="/colours.html">Color Palettes →</a>
+    </header>
+
+    <main>
+        <div id="intro">
+            <h1>Noise Gallery</h1>
+            <p>Live B&W reference for the noise types used by this terrain engine. Use the cards to compare base types,
+                fractal combinations, and custom WebGPU-style noise.</p>
+        </div>
+
+        <div id="global-controls">
+            <div class="control-group">
+                <label for="sort-select">Sort</label>
+                <select id="sort-select">
+                    <option value="noise">Noise type</option>
+                    <option value="alphabetical">Alphabetical</option>
+                    <option value="complexity">Complexity</option>
+                </select>
+            </div>
+            <div class="control-group">
+                <label for="seed-input">Seed</label>
+                <input id="seed-input" type="number" value="1337" min="0" max="999999">
+            </div>
+            <div class="control-group search">
+                <label for="search-input">Search</label>
+                <input id="search-input" type="text" placeholder="e.g. dunes, fault, fBm">
+            </div>
+        </div>
+
+        <div id="gallery-grid"></div>
+    </main>
+
+</body>
+
+</html>
