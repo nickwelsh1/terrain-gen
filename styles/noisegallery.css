@@ -190,11 +190,35 @@ main {
     text-transform: capitalize;
 }
 
-.card .meta .family.gradient { background: rgba(80, 170, 255, 0.2); color: #aaddff; }
-.card .meta .family.cellular { background: rgba(255, 120, 120, 0.2); color: #ffaaaa; }
-.card .meta .family.value { background: rgba(255, 200, 80, 0.2); color: #ffe6aa; }
-.card .meta .family.fractal { background: rgba(180, 120, 255, 0.2); color: #d8bfff; }
-.card .meta .family.custom { background: rgba(80, 255, 158, 0.15); color: var(--accent); }
+.card .meta .family.gradient {
+    background: rgba(80, 170, 255, 0.2);
+    color: #aaddff;
+}
+
+.card .meta .family.cellular {
+    background: rgba(255, 120, 120, 0.2);
+    color: #ffaaaa;
+}
+
+.card .meta .family.value {
+    background: rgba(255, 200, 80, 0.2);
+    color: #ffe6aa;
+}
+
+.card .meta .family.fractal {
+    background: rgba(180, 120, 255, 0.2);
+    color: #d8bfff;
+}
+
+.card .meta .family.custom {
+    background: rgba(80, 255, 158, 0.15);
+    color: var(--accent);
+}
+
+.card .meta .family.wave {
+    background: rgba(255, 100, 200, 0.2);
+    color: #ffaad8;
+}
 
 .card .description {
     margin: 0;
