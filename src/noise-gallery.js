@@ -503,6 +503,7 @@ const CARDS = [
         id: 'cellular-faults',
         title: 'Cellular Fault Lines',
         library: 'fastnoise-lite',
+        customType: 'cellularFaults',
         baseType: T.NoiseType.Cellular,
         fractalType: T.FractalType.None,
         returnType: T.CellularReturnType.Distance,
@@ -511,8 +512,8 @@ const CARDS = [
         family: 'cellular',
         complexity: 'Medium',
         tags: ['iron oxide', 'faults', 'cracks'],
-        description: 'Cellular distance thresholded to thin bright edges. Large dark cells with white fault boundaries.',
-        params: { frequency: 0.015, threshold: 0.7, waveFreq: 4 },
+        description: 'Cellular distance with power-curve contrast. Large dark cells with sharp white fault boundaries.',
+        params: { frequency: 0.015, contrast: 1.0 },
         modifierType: 'threshold',
     },
     {
@@ -525,7 +526,7 @@ const CARDS = [
         complexity: 'Medium',
         tags: ['iron oxide', 'bands', 'strata'],
         description: 'Sawtooth wave bands with only the bright top kept. Sharp, straight-ish mineral layers.',
-        params: { frequency: 0.02, lineWidth: 0.15, waviness: 0.6, angle: 30 },
+        params: { frequency: 0.100, lineWidth: 0.36, waviness: 1.90, angle: 30, spacingVar: 1.30 },
         modifierType: 'sawtoothCrests',
     },
 ];
@@ -608,10 +609,8 @@ function renderFastNoise(ctx, width, height, card, seed, frequency, state) {
 
             if (card.customType === 'cellularFaults' && card.returnType === T.CellularReturnType.Distance) {
                 const d = v + 1;
-                const waveFreq = (state.waveFreq ?? card.params.waveFreq ?? 4) * Math.PI * 2;
-                const wave = (Math.sin(d * waveFreq) + 1) * 0.5;
-                const threshold = state.modifier ?? state.threshold ?? card.params.threshold ?? 0.7;
-                t = wave > threshold ? (wave - threshold) / (1 - threshold) : 0;
+                const contrast = state.modifier ?? card.params.contrast ?? 1.0;
+                t = Math.pow(d, contrast);
             } else if (isCellular) {
                 // FastNoiseLite cellular return values are shifted by -1.
                 switch (card.returnType) {
@@ -742,8 +741,10 @@ function renderCustom(ctx, width, height, card, seed, frequency, state) {
                 const p = rotateCoord(x0, y0, c, s);
                 const uu = p.x * 6.0;
                 const ww = p.y;
-                const warp = (fbm(uu * 0.05, ww * 0.05, seed + 1) - 0.5) * waviness * 3.0;
-                const phase = uu + warp;
+                const spacingVal = state.spacingVar ?? card.params.spacingVar ?? 0.5;
+                const spacingMod = 1 + (fbm(uu * 0.03, ww * 0.03, seed + 3) - 0.5) * spacingVal;
+                const warp = (fbm(uu * 0.05, ww * 0.05, seed + 1) - 0.5) * waviness * 8.0;
+                const phase = uu * spacingMod + warp;
                 const wave = waveSawtooth(phase);
                 const cutoff = 1 - lineWidth;
                 let cval = (wave - cutoff) / lineWidth;
@@ -947,7 +948,7 @@ function createCard(card) {
         const wSlider = document.createElement('input');
         wSlider.type = 'range';
         wSlider.min = 0;
-        wSlider.max = 3;
+        wSlider.max = 10;
         wSlider.step = 0.1;
         wSlider.value = wav;
         controls.appendChild(wWrap);
@@ -1003,7 +1004,7 @@ function createCard(card) {
             });
         }
     } else if (card.modifierType === 'sawtoothCrests') {
-        const lw = card.params.lineWidth ?? 0.15;
+        const lw = card.params.lineWidth ?? 0.36;
         const lwWrap = document.createElement('label');
         lwWrap.innerHTML = `<span>Line width</span><span class="val">${lw.toFixed(2)}</span>`;
         const lwSlider = document.createElement('input');
@@ -1015,17 +1016,29 @@ function createCard(card) {
         controls.appendChild(lwWrap);
         controls.appendChild(lwSlider);
 
-        const wav = card.params.waviness ?? 1.0;
+        const wav = card.params.waviness ?? 1.90;
         const wWrap = document.createElement('label');
         wWrap.innerHTML = `<span>Waviness</span><span class="val">${wav.toFixed(2)}</span>`;
         const wSlider = document.createElement('input');
         wSlider.type = 'range';
         wSlider.min = 0;
-        wSlider.max = 3;
+        wSlider.max = 10;
         wSlider.step = 0.1;
         wSlider.value = wav;
         controls.appendChild(wWrap);
         controls.appendChild(wSlider);
+
+        const sv = card.params.spacingVar ?? 1.30;
+        const svWrap = document.createElement('label');
+        svWrap.innerHTML = `<span>Spacing variability</span><span class="val">${sv.toFixed(2)}</span>`;
+        const svSlider = document.createElement('input');
+        svSlider.type = 'range';
+        svSlider.min = 0;
+        svSlider.max = 2;
+        svSlider.step = 0.1;
+        svSlider.value = sv;
+        controls.appendChild(svWrap);
+        controls.appendChild(svSlider);
 
         lwSlider.addEventListener('input', (e) => {
             state.lineWidth = parseFloat(e.target.value);
@@ -1037,36 +1050,23 @@ function createCard(card) {
             wWrap.querySelector('.val').textContent = state.waviness.toFixed(2);
             debouncedRender();
         });
-    } else if (card.modifierType === 'threshold') {
-        const threshold = card.params.threshold ?? 0.7;
-        modWrap = document.createElement('label');
-        modWrap.innerHTML = `<span>Line thinness</span><span class="val">${threshold.toFixed(2)}</span>`;
-        modifierSlider = document.createElement('input');
-        modifierSlider.type = 'range';
-        modifierSlider.min = 0.55;
-        modifierSlider.max = 0.95;
-        modifierSlider.step = 0.01;
-        modifierSlider.value = threshold;
-        controls.appendChild(modWrap);
-        controls.appendChild(modifierSlider);
-
-        const waveFreq = card.params.waveFreq ?? 4;
-        const wfWrap = document.createElement('label');
-        wfWrap.innerHTML = `<span>Wave frequency</span><span class="val">${waveFreq}</span>`;
-        const wfSlider = document.createElement('input');
-        wfSlider.type = 'range';
-        wfSlider.min = 1;
-        wfSlider.max = 10;
-        wfSlider.step = 1;
-        wfSlider.value = waveFreq;
-        controls.appendChild(wfWrap);
-        controls.appendChild(wfSlider);
-
-        wfSlider.addEventListener('input', (e) => {
-            state.waveFreq = parseFloat(e.target.value);
-            wfWrap.querySelector('.val').textContent = `${Math.round(state.waveFreq)}`;
+        svSlider.addEventListener('input', (e) => {
+            state.spacingVar = parseFloat(e.target.value);
+            svWrap.querySelector('.val').textContent = state.spacingVar.toFixed(2);
             debouncedRender();
         });
+    } else if (card.modifierType === 'threshold') {
+        const contrast = card.params.contrast ?? 1.0;
+        modWrap = document.createElement('label');
+        modWrap.innerHTML = `<span>Edge contrast</span><span class="val">${contrast.toFixed(2)}</span>`;
+        modifierSlider = document.createElement('input');
+        modifierSlider.type = 'range';
+        modifierSlider.min = 0.5;
+        modifierSlider.max = 3.0;
+        modifierSlider.step = 0.1;
+        modifierSlider.value = contrast;
+        controls.appendChild(modWrap);
+        controls.appendChild(modifierSlider);
     }
 
     root.appendChild(canvas);
@@ -1079,7 +1079,7 @@ function createCard(card) {
     const state = {
         seed: 1337,
         frequency: card.params.frequency,
-        modifier: card.params.octaves ?? card.params.crossAngle ?? card.params.waveFreq ?? card.params.threshold ?? 0.3,
+        modifier: card.params.octaves ?? card.params.crossAngle ?? card.params.waveFreq ?? card.params.threshold ?? card.params.contrast ?? 0.3,
         lineFrequency: card.params.lineFrequency,
         displacement: card.params.displacement,
         angle: card.params.angle,
@@ -1088,6 +1088,8 @@ function createCard(card) {
         waviness: card.params.waviness,
         threshold: card.params.threshold,
         waveFreq: card.params.waveFreq,
+        spacingVar: card.params.spacingVar,
+        contrast: card.params.contrast,
     };
 
     const rerender = () => renderCard(canvas, card, state);

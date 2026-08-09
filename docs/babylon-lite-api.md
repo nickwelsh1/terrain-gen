@@ -3,6 +3,16 @@
 Notes on the internal API surface, discovered from reading `index.d.ts` and the
 compiled `dist/index.js`. Focuses on what we need for the WebGPU erosion simulator.
 
+There are also excellent docs at the following URL's
+https://doc.babylonjs.com/lite/ 
+https://doc.babylonjs.com/lite/architecture/08-standard-material/
+https://doc.babylonjs.com/lite/architecture/24-shader-material/
+https://doc.babylonjs.com/lite/architecture/29-post-process/
+https://doc.babylonjs.com/lite/04-playground/
+https://doc.babylonjs.com/lite/02-feature-comparison/
+https://doc.babylonjs.com/lite/03-porting-guide/
+
+
 ## Core Lifecycle
 
 ```js
