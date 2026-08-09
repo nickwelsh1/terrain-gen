@@ -103,4 +103,15 @@ body {
         left: auto;
         right: 90px;
     }
+
+    #webgpu-ui,
+    #dunes-ui {
+        top: auto;
+        bottom: 0;
+        right: 0;
+        left: 0;
+        width: auto;
+        max-height: 50vh;
+        border-radius: 8px 8px 0 0;
+    }
 }

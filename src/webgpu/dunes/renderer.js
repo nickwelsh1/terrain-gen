@@ -15,42 +15,62 @@ import {
     setShaderStorageBuffer,
 } from "@babylonjs/lite";
 
-import { N, SCENE_AREA, SCENE_MAX_HEIGHT, RENDER_HEIGHTMAP, RENDER_LIT, RENDER_NORMALS } from "./constants.js";
+import { N, SCENE_AREA, SCENE_MAX_HEIGHT, SCENE_SCALE, FIXED_POINT_SCALE, MAX_HEIGHT_M, RENDER_HEIGHTMAP, RENDER_LIT, RENDER_NORMALS } from "./constants.js";
 
 // Vertex shader: displaces ground vertices based on height from storage buffer
 const DUNES_VERTEX_SOURCE = `
+const N_F : f32 = ${N}.0;
+const N_U : u32 = ${N}u;
+const FIXED_SCALE : f32 = ${FIXED_POINT_SCALE}.0;
+const SCENE_SCALE_F : f32 = ${SCENE_SCALE};
+
 struct VertexOutput {
     @builtin(position) position: vec4f,
     @location(0) uv: vec2f,
-    @location(1) height: f32,
+    @location(1) worldPos: vec3f,
+    @location(2) height: f32,
 };
 
 @vertex
 fn mainVertex(input: VertexInput) -> VertexOutput {
-    var out: VertexOutput;
+    var output: VertexOutput;
 
-    // Read height from storage buffer
-    let idx = u32(input.uv.x * f32(${N - 1}.0)) + u32(input.uv.y * f32(${N - 1}.0)) * ${N}u;
-    let heightFixed = heights[idx];
-    let height = f32(heightFixed) / 10000.0; // Convert from fixed-point
+    // Map UV to grid cell (following existing terrain pattern)
+    let gridX = input.uv.x * (N_F - 1.0);
+    let gridY = (1.0 - input.uv.y) * (N_F - 1.0);
+    let ix = u32(clamp(gridX, 0.0, N_F - 1.0));
+    let iy = u32(clamp(gridY, 0.0, N_F - 1.0));
+    let idx = iy * N_U + ix;
 
-    // Displace vertex position
-    let worldPos = shaderSystem.world * vec4f(input.position.x, height, input.position.z, 1.0);
-    out.position = scene.viewProjection * worldPos;
+    // Read height from storage buffer, convert to meters then to scene units
+    let heightMeters = f32(heights[idx]) / FIXED_SCALE;
+    let heightScene = heightMeters * SCENE_SCALE_F;
 
-    out.uv = input.uv;
-    out.height = height;
+    // Displace the ground plane vertex (ground mesh is already in scene units)
+    let worldPos = vec3f(input.position.x, heightScene, input.position.z);
 
-    return out;
+    output.position = shaderSystem.viewProjection * vec4f(worldPos, 1.0);
+    output.uv = input.uv;
+    output.worldPos = worldPos;
+    output.height = heightMeters;
+
+    return output;
 }
 `;
 
 // Fragment shader: renders dunes with sand coloring and lighting
 const DUNES_FRAGMENT_SOURCE = `
+const N_F : f32 = ${N}.0;
+const N_U : u32 = ${N}u;
+const FIXED_SCALE : f32 = ${FIXED_POINT_SCALE}.0;
+const SCENE_MAX_H : f32 = ${SCENE_MAX_HEIGHT};
+const MAX_HEIGHT_M : f32 = ${MAX_HEIGHT_M}.0;
+
 struct FragmentInput {
     @builtin(position) position: vec4f,
     @location(0) uv: vec2f,
-    @location(1) height: f32,
+    @location(1) worldPos: vec3f,
+    @location(2) height: f32,
 };
 
 @fragment
@@ -59,14 +79,14 @@ fn mainFragment(input: FragmentInput) -> @location(0) vec4f {
 
     // Heightmap mode (grayscale)
     if (renderMode == ${RENDER_HEIGHTMAP}u) {
-        let normalizedHeight = input.height / ${SCENE_MAX_HEIGHT.toFixed(3)};
+        let normalizedHeight = input.height / MAX_HEIGHT_M;
         return vec4f(vec3f(normalizedHeight), 1.0);
     }
 
     // Lit terrain mode (sand coloring)
     if (renderMode == ${RENDER_LIT}u) {
         // Simple sand color based on height
-        let normalizedHeight = clamp(input.height / ${SCENE_MAX_HEIGHT.toFixed(3)}, 0.0, 1.0);
+        let normalizedHeight = clamp(input.height / MAX_HEIGHT_M, 0.0, 1.0);
 
         // Sand color palette: from light yellow to darker orange
         let lightSand = vec3f(0.96, 0.87, 0.70);
@@ -86,9 +106,13 @@ fn mainFragment(input: FragmentInput) -> @location(0) vec4f {
     if (renderMode == ${RENDER_NORMALS}u) {
         // Compute normal from height gradient
         let eps = 0.01;
-        let idx = u32(input.uv.x * f32(${N - 1}.0)) + u32(input.uv.y * f32(${N - 1}.0)) * ${N}u;
+        let gridX = input.uv.x * (N_F - 1.0);
+        let gridY = (1.0 - input.uv.y) * (N_F - 1.0);
+        let ix = u32(clamp(gridX, 0.0, N_F - 1.0));
+        let iy = u32(clamp(gridY, 0.0, N_F - 1.0));
+        let idx = iy * N_U + ix;
 
-        let h_center = f32(heights[idx]) / 10000.0;
+        let h_center = f32(heights[idx]) / FIXED_SCALE;
 
         // Sample neighbors (with boundary checks)
         var h_right = h_center;
@@ -96,20 +120,17 @@ fn mainFragment(input: FragmentInput) -> @location(0) vec4f {
         var h_up = h_center;
         var h_down = h_center;
 
-        let x_idx = u32(input.uv.x * f32(${N - 1}.0));
-        let y_idx = u32(input.uv.y * f32(${N - 1}.0));
-
-        if (x_idx < ${N - 1}u) {
-            h_right = f32(heights[idx + 1u]) / 10000.0;
+        if (ix < N_U - 1u) {
+            h_right = f32(heights[idx + 1u]) / FIXED_SCALE;
         }
-        if (x_idx > 0u) {
-            h_left = f32(heights[idx - 1u]) / 10000.0;
+        if (ix > 0u) {
+            h_left = f32(heights[idx - 1u]) / FIXED_SCALE;
         }
-        if (y_idx < ${N - 1}u) {
-            h_up = f32(heights[idx + ${N}u]) / 10000.0;
+        if (iy < N_U - 1u) {
+            h_up = f32(heights[idx + N_U]) / FIXED_SCALE;
         }
-        if (y_idx > 0u) {
-            h_down = f32(heights[idx - ${N}u]) / 10000.0;
+        if (iy > 0u) {
+            h_down = f32(heights[idx - N_U]) / FIXED_SCALE;
         }
 
         let dx = (h_right - h_left) / (2.0 * eps);
@@ -120,7 +141,7 @@ fn mainFragment(input: FragmentInput) -> @location(0) vec4f {
     }
 
     // Default: heightmap
-    let normalizedHeight = clamp(input.height / ${SCENE_MAX_HEIGHT.toFixed(3)}, 0.0, 1.0);
+    let normalizedHeight = clamp(input.height / MAX_HEIGHT_M, 0.0, 1.0);
     return vec4f(vec3f(normalizedHeight), 1.0);
 }
 `;

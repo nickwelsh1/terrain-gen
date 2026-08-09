@@ -90,7 +90,7 @@ export const DEFAULT_PARAMS = {
     // Global parameters
     seed: 42,                     // 0-999999
     overallScale: 1.0,           // 0.5-2.0
-    heightScale: 1.0,            // 0.1-2.0
+    heightScale: 2.0,            // 0.1-5.0 (increased for more visible dunes)
 
     // Stage toggles (all enabled by default)
     passFlags: STAGE_BASE_WAVEFORM | STAGE_CREST_WARPING | STAGE_PROFILE_MODIFIER | STAGE_ANGLE_REPOSE | STAGE_MICRO_DETAIL,

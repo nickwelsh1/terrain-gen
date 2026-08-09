@@ -2,7 +2,7 @@
 // Writes fixed-point heights (meters * 10000) to the height buffer.
 // One workgroup processes a tile of the grid.
 
-import { N, FIXED_POINT_SCALE, MAX_HEIGHT_M, MAX_FIXED_POINT } from "../constants.js";
+import { N, FIXED_POINT_SCALE, MAX_HEIGHT_M, MAX_FIXED_POINT, SCENE_SCALE, SCENE_MAX_HEIGHT } from "../constants.js";
 
 export const DUNES_SHADER = /* wgsl */`
 const N : u32 = ${N}u;
@@ -126,7 +126,7 @@ fn computeGradient(h: f32, x: f32, y: f32, scale: f32, seed: f32) -> vec2f {
 
 // Stage 1: Base Waveform & Orientation
 // Generates parallel ridge lines perpendicular to wind direction
-fn stageBaseWaveform(uv: vec2f, windDirRad: f32) -> f32 {
+fn stageBaseWaveform(uv: vec2f, windDirRad: f32, noiseFreq: f32) -> f32 {
     // Rotate UV coordinates to align with wind direction
     let cos_w = cos(windDirRad);
     let sin_w = sin(windDirRad);
@@ -141,7 +141,7 @@ fn stageBaseWaveform(uv: vec2f, windDirRad: f32) -> f32 {
     let uv_stretched = vec2f(uv_wind.x / params.ridgeSpacing, uv_wind.y);
 
     // Generate ridged noise for parallel dune crests
-    let ridge = fbm(uv_stretched.x * 2.0, uv_stretched.y * 2.0, params.seed, 4);
+    let ridge = fbm(uv_stretched.x * noiseFreq * 0.5, uv_stretched.y * noiseFreq * 0.5, params.seed, 4);
     let ridged = 1.0 - abs(ridge * 2.0 - 1.0);
     let sharpened = pow(ridged, params.ridgeSharpness);
 
@@ -223,16 +223,17 @@ fn generateDunes(@builtin(global_invocation_id) gid: vec3u) {
     let idx = y * N + x;
 
     // Normalized coordinates
-    let uv = vec2f(f32(x) / f32(N), f32(y) / f32(N)) * params.overallScale;
+    let uv = vec2f(f32(x) / f32(N), f32(y) / f32(N));
+    let noiseFreq = 4.0 / params.overallScale; // Overall scale affects noise frequency
 
     // Start with base height from noise
-    var height = fbm(uv.x * 4.0, uv.y * 4.0, params.seed, 6);
+    var height = fbm(uv.x * noiseFreq, uv.y * noiseFreq, params.seed, 6);
     height = height * params.heightScale;
 
     // Stage 1: Base Waveform & Orientation
     if ((params.passFlags & STAGE_BASE_WAVEFORM) != 0u) {
         let windDirRad = params.windDirection * 3.14159 / 180.0;
-        let baseWave = stageBaseWaveform(uv, windDirRad);
+        let baseWave = stageBaseWaveform(uv, windDirRad, noiseFreq);
         height = height * 0.3 + baseWave * 0.7;
     }
 
@@ -244,18 +245,18 @@ fn generateDunes(@builtin(global_invocation_id) gid: vec3u) {
 
     // Recompute height with warped coordinates if warping is enabled
     if ((params.passFlags & STAGE_CREST_WARPING) != 0u) {
-        let warpedHeight = fbm(warpedUV.x * 4.0, warpedUV.y * 4.0, params.seed, 6);
+        let warpedHeight = fbm(warpedUV.x * noiseFreq, warpedUV.y * noiseFreq, params.seed, 6);
         height = warpedHeight * params.heightScale;
 
         if ((params.passFlags & STAGE_BASE_WAVEFORM) != 0u) {
             let windDirRad = params.windDirection * 3.14159 / 180.0;
-            let baseWave = stageBaseWaveform(warpedUV, windDirRad);
+            let baseWave = stageBaseWaveform(warpedUV, windDirRad, noiseFreq);
             height = height * 0.3 + baseWave * 0.7;
         }
     }
 
     // Compute gradient for subsequent stages
-    let gradient = computeGradient(height, uv.x, uv.y, 4.0, params.seed);
+    let gradient = computeGradient(height, uv.x, uv.y, noiseFreq, params.seed);
 
     // Stage 3: Directional Profile Modifier
     if ((params.passFlags & STAGE_PROFILE_MODIFIER) != 0u) {
@@ -276,7 +277,10 @@ fn generateDunes(@builtin(global_invocation_id) gid: vec3u) {
     }
 
     // Map to height range [0, MAX_HEIGHT] meters
-    height = clamp(height * MAX_HEIGHT, 0.0, MAX_HEIGHT);
+    // Dunes are typically lower than mountains, so we scale appropriately
+    // Use heightScale to control overall height range
+    let heightRange = 0.5 * MAX_HEIGHT * params.heightScale;
+    height = clamp(height * heightRange, 0.0, MAX_HEIGHT);
 
     // Convert to fixed-point
     let fixed = i32(height * FIXED_SCALE);

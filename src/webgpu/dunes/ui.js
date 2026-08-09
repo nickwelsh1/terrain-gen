@@ -131,7 +131,7 @@ export function createUI(container, callbacks) {
                     <span class="value" id="overallScaleVal">${DEFAULT_PARAMS.overallScale}</span>
                 </label>
                 <label>Height scale
-                    <input type="range" id="heightScale" min="0.1" max="2.0" step="0.1" value="${DEFAULT_PARAMS.heightScale}">
+                    <input type="range" id="heightScale" min="0.1" max="5.0" step="0.1" value="${DEFAULT_PARAMS.heightScale}">
                     <span class="value" id="heightScaleVal">${DEFAULT_PARAMS.heightScale}</span>
                 </label>
             </div>
@@ -244,19 +244,6 @@ export function createUI(container, callbacks) {
         #dunes-ui input[type="radio"] {
             width: auto;
             margin-right: 8px;
-        }
-
-        /* Mobile: panel takes full width at bottom */
-        @media (max-width: 768px) {
-            #dunes-ui {
-                top: auto;
-                bottom: 0;
-                right: 0;
-                left: 0;
-                width: auto;
-                max-height: 50vh;
-                border-radius: 8px 8px 0 0;
-            }
         }
     `;
     container.appendChild(style);
