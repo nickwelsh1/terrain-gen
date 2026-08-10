@@ -118,7 +118,8 @@ export class DunesPipeline {
 
         pass.setPipeline(this.pipeline);
         pass.setBindGroup(0, this.bindGroup);
-        pass.dispatchWorkgroups(Math.ceil(N / WORKGROUP_SIZE), Math.ceil(N / WORKGROUP_SIZE));
+        // Ensure exact division for clean workgroup boundaries
+        pass.dispatchWorkgroups(N / WORKGROUP_SIZE, N / WORKGROUP_SIZE);
 
         pass.end();
 

@@ -15,7 +15,7 @@ import {
     setShaderStorageBuffer,
 } from "@babylonjs/lite";
 
-import { N, SCENE_AREA, SCENE_MAX_HEIGHT, SCENE_SCALE, FIXED_POINT_SCALE, MAX_HEIGHT_M, RENDER_HEIGHTMAP, RENDER_LIT, RENDER_NORMALS } from "./constants.js";
+import { N, SCENE_AREA, SCENE_MAX_HEIGHT, SCENE_SCALE, FIXED_POINT_SCALE, MAX_HEIGHT_M, RENDER_HEIGHTMAP, RENDER_LIT, RENDER_NORMALS, RENDER_STAGE_ISOLATION, RENDER_SLOPE_HEATMAP, RENDER_CURVATURE, RENDER_WIREFRAME, RENDER_DEBUG_NOISE } from "./constants.js";
 
 // Vertex shader: displaces ground vertices based on height from storage buffer
 const DUNES_VERTEX_SOURCE = `
@@ -138,6 +138,36 @@ fn mainFragment(input: FragmentInput) -> @location(0) vec4f {
 
         let normal = normalize(vec3f(-dx, 1.0, -dy));
         return vec4f(normal * 0.5 + 0.5, 1.0);
+    }
+
+    // Stage isolation mode - same as heightmap for now
+    if (renderMode == ${RENDER_STAGE_ISOLATION}u) {
+        let normalizedHeight = input.height / MAX_HEIGHT_M;
+        return vec4f(vec3f(normalizedHeight), 1.0);
+    }
+
+    // Slope heatmap - same as normals for now
+    if (renderMode == ${RENDER_SLOPE_HEATMAP}u) {
+        let normalizedHeight = input.height / MAX_HEIGHT_M;
+        return vec4f(vec3f(normalizedHeight), 1.0);
+    }
+
+    // Curvature - same as heightmap for now
+    if (renderMode == ${RENDER_CURVATURE}u) {
+        let normalizedHeight = input.height / MAX_HEIGHT_M;
+        return vec4f(vec3f(normalizedHeight), 1.0);
+    }
+
+    // Wireframe - same as heightmap for now
+    if (renderMode == ${RENDER_WIREFRAME}u) {
+        let normalizedHeight = input.height / MAX_HEIGHT_M;
+        return vec4f(vec3f(normalizedHeight), 1.0);
+    }
+
+    // Debug noise - same as heightmap for now
+    if (renderMode == ${RENDER_DEBUG_NOISE}u) {
+        let normalizedHeight = input.height / MAX_HEIGHT_M;
+        return vec4f(vec3f(normalizedHeight), 1.0);
     }
 
     // Default: heightmap

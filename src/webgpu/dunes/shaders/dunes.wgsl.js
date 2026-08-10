@@ -115,13 +115,19 @@ fn fbm(x: f32, y: f32, seed: f32, octaves: i32) -> f32 {
 
 // Compute gradient (finite difference)
 fn computeGradient(h: f32, x: f32, y: f32, scale: f32, seed: f32) -> vec2f {
-    let eps = 0.01;
+    // Use a small fixed epsilon in UV space, then scale the result
+    // This avoids precision issues with very small/large epsilon values
+    let eps = 0.001; // Small fixed epsilon in UV space
     let h_plus_x = fbm((x + eps) * scale, y * scale, seed, 4);
     let h_minus_x = fbm((x - eps) * scale, y * scale, seed, 4);
     let h_plus_y = fbm(x * scale, (y + eps) * scale, seed, 4);
     let h_minus_y = fbm(x * scale, (y - eps) * scale, seed, 4);
 
-    return vec2f((h_plus_x - h_minus_x) / (2.0 * eps), (h_plus_y - h_minus_y) / (2.0 * eps));
+    // Scale the gradient result by the noise frequency
+    let gradX = (h_plus_x - h_minus_x) / (2.0 * eps) * scale;
+    let gradY = (h_plus_y - h_minus_y) / (2.0 * eps) * scale;
+
+    return vec2f(gradX, gradY);
 }
 
 // Stage 1: Base Waveform & Orientation
@@ -170,14 +176,15 @@ fn stageProfileModifier(height: f32, gradient: vec2f, windDirRad: f32) -> f32 {
     // Compute directional slope (dot product with wind direction)
     let directionalSlope = dot(gradient, windDir);
 
-    // Apply asymmetric power curves
-    if (directionalSlope > 0.0) {
-        // Windward side: gentle slope
-        return pow(height, params.windwardPower);
-    } else {
-        // Leeward side: steep slope
-        return pow(height, params.leewardPower);
-    }
+    // Normalize directional slope to [0,1] range for smooth blending
+    // Use a smooth transition zone to avoid hard edges
+    let slopeBlend = smoothstep(-0.1, 0.1, directionalSlope);
+
+    // Apply asymmetric power curves with smooth blending
+    let windwardHeight = pow(height, params.windwardPower);
+    let leewardHeight = pow(height, params.leewardPower);
+
+    return mix(leewardHeight, windwardHeight, slopeBlend);
 }
 
 // Stage 4: Angle of Repose & Talus Limiter

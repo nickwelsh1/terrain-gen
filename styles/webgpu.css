@@ -105,7 +105,8 @@ body {
     }
 
     #webgpu-ui,
-    #dunes-ui {
+    #dunes-ui,
+    #erosion-ui {
         top: auto;
         bottom: 0;
         right: 0;
