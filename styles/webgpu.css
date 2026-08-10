@@ -49,7 +49,8 @@ body {
     border-color: #50ff9e;
 }
 
-#noise-link {
+#noise-link,
+#terrain-link {
     position: fixed;
     top: 16px;
     left: 190px;
@@ -64,7 +65,12 @@ body {
     z-index: 200;
 }
 
-#noise-link:hover {
+#terrain-link {
+    left: 364px;
+}
+
+#noise-link:hover,
+#terrain-link:hover {
     background: rgba(80, 255, 158, 0.12);
     border-color: #50ff9e;
 }
@@ -79,10 +85,34 @@ body {
         top: 22.5vh;
     }
 
-    #back-link {
+    #back-link,
+    #noise-link,
+    #terrain-link {
         top: 8px;
         left: 8px;
         font-size: 0.75rem;
         padding: 6px 10px;
+    }
+
+    #noise-link {
+        left: auto;
+        right: 8px;
+    }
+
+    #terrain-link {
+        left: auto;
+        right: 90px;
+    }
+
+    #webgpu-ui,
+    #dunes-ui,
+    #erosion-ui {
+        top: auto;
+        bottom: 0;
+        right: 0;
+        left: 0;
+        width: auto;
+        max-height: 50vh;
+        border-radius: 8px 8px 0 0;
     }
 }
