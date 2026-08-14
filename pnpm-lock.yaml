@@ -9,8 +9,8 @@ importers:
   .:
     dependencies:
       '@babylonjs/lite':
-        specifier: ^2.0.0
-        version: 2.0.0
+        specifier: ^1.20.0
+        version: 1.20.0
       culori:
         specifier: ^4.0.2
         version: 4.0.2
@@ -33,9 +33,8 @@ importers:
 
 packages:
 
-  '@babylonjs/lite@2.0.0':
-    resolution: {integrity: sha512-sRO8voEoyw/GmAMzLEqJQ5YRDXd0hhSV1HkGPvRMlJHa83FXEODQZey+5ElAP188P12kgTmgQjRJR1wg0EhXGw==}
-    deprecated: Released in error; use @babylonjs/lite@^1.10.0.
+  '@babylonjs/lite@1.20.0':
+    resolution: {integrity: sha512-nOF5El2XHMZlZmVg7oSn8tuEWhKFRmXlaxOiqip8n5UvEqMo2cs2ryjqFP74BEaFNPFISEieuninod2s3rKreQ==}
     peerDependencies:
       '@babylonjs/havok': ^1.3.0
       '@webgpu/types': ^0.1.52
@@ -524,7 +523,7 @@ packages:
 
 snapshots:
 
-  '@babylonjs/lite@2.0.0': {}
+  '@babylonjs/lite@1.20.0': {}
 
   '@emnapi/core@1.11.1':
     dependencies:
