@@ -16,15 +16,14 @@
 </head>
 
 <body>
-    <div id="top-bar">
-        <a id="launch-link" href="../examples/tempterrain.html">Terrain Visualizer →</a>
-        <a id="webgpu-link" href="../webgpu.html"
-           style="color:var(--accent);text-decoration:none;font-size:0.8rem;padding:8px 14px;border:1px solid rgba(80,255,158,0.3);border-radius:6px;background:rgba(30,30,30,0.8);transition:all 0.25s ease;">WebGPU
+    <div class="top-bar" id="top-bar">
+        <a class="top-bar__button" id="launch-link" href="../examples/tempterrain.html">Terrain Visualizer →</a>
+        <a class="top-bar__button" id="webgpu-link" href="../webgpu.html">WebGPU
             Erosion Simulator →</a>
-        <a id="colors-link" href="../colours.html">Color Palettes →</a>
-        <a id="noise-link" href="../noisegallery.html">Noise Gallery →</a>
-        <a id="erodemountains-link" href="erodemountains.html">Erode Mountains →</a>
-        <a id="dunes-link" href="dunes.html">Dunes →</a>
+        <a class="top-bar__button" id="colors-link" href="../colours.html">Color Palettes →</a>
+        <a class="top-bar__button" id="noise-link" href="../noisegallery.html">Noise Gallery →</a>
+        <a class="top-bar__button" id="erodemountains-link" href="erodemountains.html">Erode Mountains →</a>
+        <a class="top-bar__button" id="dunes-link" href="dunes.html">Dunes →</a>
         <div id="zoom-control">
             <label>Zoom</label>
             <input type="range" id="displayZoom" min="0.5" max="5.0" step="0.1" value="1.0">

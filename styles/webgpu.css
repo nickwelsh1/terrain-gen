@@ -2,6 +2,15 @@
     box-sizing: border-box;
 }
 
+:root {
+    /* --bg: #1a1a1a;
+    --panel-bg: rgba(30, 30, 30, 0.95);
+    --text: #e0e0e0; */
+    --accent: #eb9e34;
+    /* --muted: #999;
+    --border: rgba(255, 255, 255, 0.1); */
+}
+
 body {
     margin: 0;
     padding: 0;
@@ -33,7 +42,7 @@ body {
     position: fixed;
     top: 16px;
     left: 16px;
-    color: #50ff9e;
+    color: var(--accent);
     font-size: 0.8rem;
     text-decoration: none;
     padding: 8px 14px;
@@ -46,7 +55,7 @@ body {
 
 #back-link:hover {
     background: rgba(80, 255, 158, 0.12);
-    border-color: #50ff9e;
+    border-color: var(--accent);
 }
 
 #noise-link,
@@ -54,7 +63,7 @@ body {
     position: fixed;
     top: 16px;
     left: 190px;
-    color: #50ff9e;
+    color: var(--accent);
     font-size: 0.8rem;
     text-decoration: none;
     padding: 8px 14px;
@@ -72,7 +81,7 @@ body {
 #noise-link:hover,
 #terrain-link:hover {
     background: rgba(80, 255, 158, 0.12);
-    border-color: #50ff9e;
+    border-color: var(--accent);
 }
 
 /* Mobile: render occupies the top 45% of the screen, panel takes the rest */
