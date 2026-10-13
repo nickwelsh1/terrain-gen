@@ -12,6 +12,7 @@
         }
     }
     </script>
+    <link rel="stylesheet" href="styles/shared.css">
     <link rel="stylesheet" href="styles/index.css">
 </head>
 
@@ -374,6 +375,7 @@
 
     <script type="module">
         import { generateTerrain, renderTerrain, DEFAULT_SETTINGS } from './src/fastnoise-terrain.js';
+        import { initSliderFill, updateSliderFill } from './src/slider-fill.js';
 
         const W = 512;
         const H = 512;
@@ -417,6 +419,7 @@
                 const valEl = document.getElementById(id + '-val');
                 if (!el) continue;
                 el.value = settings[id];
+                updateSliderFill(el);
                 if (valEl) valEl.textContent = fmt(id, settings[id]);
             }
             // Direction slider (radians -> degrees)
@@ -424,6 +427,7 @@
             const dirVal2 = document.getElementById('asymDirection-val');
             const dirDeg = Math.round(settings.asymDirection * 180 / Math.PI);
             dirEl2.value = dirDeg;
+            updateSliderFill(dirEl2);
             dirVal2.textContent = dirDeg + '°';
             for (const id of checkboxes) {
                 const el = document.getElementById(id);
@@ -583,6 +587,7 @@
             settings.seed = newSeed;
             const seedEl = document.getElementById('seed');
             seedEl.value = newSeed;
+            updateSliderFill(seedEl);
             document.getElementById('seed-val').textContent = newSeed;
             saveSettings();
             run();
@@ -650,7 +655,10 @@
             settings.displayZoom = z;
             const el = document.getElementById('displayZoom');
             const valEl = document.getElementById('displayZoom-val');
-            if (el) el.value = z;
+            if (el) {
+                el.value = z;
+                updateSliderFill(el);
+            }
             if (valEl) valEl.textContent = z.toFixed(1);
             updateCanvasSize();
         }
@@ -698,6 +706,7 @@
         if (settings.colorMode) {
             updateColorModeSelection();
         }
+        initSliderFill();
         run();
     </script>
 

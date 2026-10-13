@@ -265,62 +265,6 @@ main {
     font-family: monospace;
 }
 
-.card .controls input[type="range"] {
-    width: 100%;
-    background: transparent;
-    -webkit-appearance: none;
-    appearance: none;
-    height: 12px;
-    margin: 0;
-    --value: 50%;
-}
-
-.card .controls input[type="range"]::-webkit-slider-runnable-track {
-    width: 100%;
-    height: 3px;
-    /* background: #3a3a3a; */
-    background: linear-gradient(to right,
-                /* Left of thumb track */
-                #ccc, #ddd var(--value),
-                /* Right of thumb track */
-                #999 var(--value), #ccc 100%);
-    border-radius: 1.5px;
-}
-
-.card .controls input[type="range"]::-webkit-slider-thumb {
-    --thumb-color: var(--text);
-
-    -webkit-appearance: none;
-    appearance: none;
-    height: 20px;
-    width: 20px;
-/* 
-    1. First gradient: Draws the 2px vertical line (2px wide, 100% tall).
-    2. Second gradient: Paints a 2px thick accent ring (12px outer diameter) 
-       with a completely transparent hole in the exact middle.
-  */
-    background:
-            linear-gradient(var(--thumb-color), var(--thumb-color)) no-repeat top center / 2px 4px,
-            linear-gradient(var(--thumb-color), var(--thumb-color)) no-repeat bottom center / 2px 4px,
-            radial-gradient(circle, transparent 4px, var(--thumb-color) 4px, var(--thumb-color) 6px, transparent 6px) no-repeat center / 20px 20px;
-    /* Remove the previous border properties entirely */
-    border: none;
-    border-radius: 0;
-    /* Creates the 12px outline circle */
-    /* border: 2px solid var(--thumb-color); */
-    border-radius: 50%;
-    /* background: var(--thumb-color); */
-    /* margin-top: -4px; */
-    margin-top: -8px;
-    cursor: pointer;
-}
-
-.card .controls input[type="range"]:focus::-webkit-slider-thumb,
-.card .controls input[type="range"]:active::-webkit-slider-thumb {
-    /* Replace #ff5722 with whatever color you want for the active state */
-    --thumb-color: var(--accent);
-}
-
 @media (max-width: 599px) {
     main {
         padding-top: 100px;

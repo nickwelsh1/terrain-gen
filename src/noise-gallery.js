@@ -1,4 +1,5 @@
 import FastNoiseLite from 'fastnoise-lite';
+import { initSliderFill, updateSliderFill } from './slider-fill.js';
 
 const T = FastNoiseLite;
 const CANVAS_SIZE = 128;
@@ -1123,6 +1124,8 @@ function createCard(card) {
 
     renderCard(canvas, card, state);
 
+    root.querySelectorAll('input[type="range"]').forEach(updateSliderFill);
+
     return root;
 }
 
@@ -1221,4 +1224,5 @@ function initGallery() {
     }
 }
 
+initSliderFill();
 document.addEventListener('DOMContentLoaded', initGallery);
