@@ -4,9 +4,9 @@
     "description": "Terrain generation engine with test suite",
     "type": "module",
     "devDependencies": {
-        "happy-dom": "^20.11.1",
-        "vite": "^8.1.5",
-        "vitest": "^4.1.10"
+        "happy-dom": "^20.14.5",
+        "vite": "^8.3.0",
+        "vitest": "^4.1.11"
     },
     "scripts": {
         "dev": "vite",
@@ -18,7 +18,7 @@
         "lint": "biome lint --write ."
     },
     "dependencies": {
-        "@babylonjs/lite": "^2.0.0",
+        "@babylonjs/lite": "^1.30.0",
         "culori": "^4.0.2",
         "fastnoise-lite": "^1.1.1",
         "simplex-noise": "^4.0.3"

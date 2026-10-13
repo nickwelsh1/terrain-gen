@@ -5,9 +5,9 @@ Procedural terrain generation engine that produces Dolomites-style mountain land
 ## Tech Stack
 
 - **Language**: Vanilla JavaScript (ES modules, no TypeScript)
-- **Testing**: [Vitest](https://vitest.dev/)
-- **Linting**: [Biome](https://biomejs.dev/)
-- **Package Manager**: [pnpm](https://pnpm.io/)
+- **Testing**: [Vitest]
+- **Linting**: [Biome]
+- **Package Manager**: [pnpm]
 - **No build step** — runs directly in the browser or via Vitest
 
 ## Quick Start
