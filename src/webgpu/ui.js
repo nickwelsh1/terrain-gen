@@ -160,7 +160,7 @@ export function createUI(container, callbacks) {
         #webgpu-ui h3 {
             margin: 0 0 8px 0;
             font-size: 0.9rem;
-            color: #50ff9e;
+            color: #ea9e33;
         }
         #webgpu-ui .info-line {
             font-size: 0.8rem;
@@ -188,12 +188,12 @@ export function createUI(container, callbacks) {
         #webgpu-ui .value {
             min-width: 40px;
             text-align: right;
-            color: #50ff9e;
+            color: #ea9e33;
             font-size: 0.75rem;
         }
         #webgpu-ui button {
-            background: rgba(80, 255, 158, 0.15);
-            color: #50ff9e;
+            background: rgba(234, 158, 51, 0.15);
+            color: #ea9e33;
             border: 1px solid rgba(80, 255, 158, 0.3);
             border-radius: 6px;
             padding: 6px 14px;
@@ -203,8 +203,8 @@ export function createUI(container, callbacks) {
             transition: all 0.25s ease;
         }
         #webgpu-ui button:hover {
-            background: rgba(80, 255, 158, 0.25);
-            border-color: #50ff9e;
+            background: rgba(234, 158, 51, 0.25);
+            border-color: #ea9e33;
         }
         #webgpu-ui .btn-group {
             display: flex;
@@ -217,13 +217,13 @@ export function createUI(container, callbacks) {
             padding: 6px 0;
         }
         #webgpu-ui .grid-size-btn.active {
-            background: rgba(80, 255, 158, 0.35);
-            border-color: #50ff9e;
+            background: rgba(234, 158, 51, 0.35);
+            border-color: #ea9e33;
             font-weight: 600;
         }
         #webgpu-ui #regenerateBtn.connected {
-            border-color: #50ff9e;
-            box-shadow: 0 0 0 2px rgba(80, 255, 158, 0.4);
+            border-color: #ea9e33;
+            box-shadow: 0 0 0 2px rgba(234, 158, 51, 0.4);
         }
         /* Mobile: render keeps the top 45vh, panel fills the bottom 55vh */
         @media (max-width: 768px) {

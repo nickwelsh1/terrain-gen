@@ -5,6 +5,9 @@
     --accent: #eb9e34;
     --muted: #999;
     --border: rgba(255, 255, 255, 0.1);
+    --border-200: rgb(50, 50, 50);
+    --border-300: rgb(80, 80, 80);
+    --link-hoverbg: rgb(50, 50, 50);
 }
 
 * {
@@ -39,14 +42,14 @@ body {
     font-size: 0.8rem;
     text-decoration: none;
     padding: 8px 14px;
-    border: 1px solid rgba(80, 255, 158, 0.3);
+    border: 1px solid var(--border-300);
     border-radius: 6px;
     background: rgba(30, 30, 30, 0.8);
     transition: all 0.25s ease;
 }
 
 #top-bar a:hover {
-    background: rgba(80, 255, 158, 0.12);
+    background: var(--link-hoverbg);
     border-color: var(--accent);
 }
 
@@ -65,7 +68,7 @@ main {
     margin: 0 0 8px;
     text-transform: uppercase;
     letter-spacing: 2px;
-    color: #fff;
+    color: var(--text);
     font-weight: 300;
 }
 
@@ -150,7 +153,7 @@ main {
 }
 
 .card:hover {
-    border-color: rgba(80, 255, 158, 0.3);
+    border-color: var(--border-300);
 }
 
 .card canvas {
@@ -165,7 +168,7 @@ main {
 .card h3 {
     margin: 0;
     font-size: 0.85rem;
-    color: #fff;
+    color: var(--text);
     font-weight: 500;
     letter-spacing: 0.3px;
 }
@@ -178,7 +181,7 @@ main {
 }
 
 .card .meta .noise-type {
-    color: #fff;
+    color: var(--text);
     background: rgba(255, 255, 255, 0.1);
     padding: 2px 6px;
     border-radius: 4px;
@@ -237,7 +240,7 @@ main {
 .card .tags span {
     font-size: 0.6rem;
     color: var(--accent);
-    border: 1px solid rgba(80, 255, 158, 0.25);
+    border: 1px solid var(--border-200);
     border-radius: 4px;
     padding: 2px 6px;
 }
@@ -269,23 +272,53 @@ main {
     appearance: none;
     height: 12px;
     margin: 0;
+    --value: 50%;
 }
 
 .card .controls input[type="range"]::-webkit-slider-runnable-track {
     width: 100%;
     height: 3px;
-    background: #3a3a3a;
+    /* background: #3a3a3a; */
+    background: linear-gradient(to right,
+                /* Left of thumb track */
+                #ccc, #ddd var(--value),
+                /* Right of thumb track */
+                #999 var(--value), #ccc 100%);
     border-radius: 1.5px;
 }
 
 .card .controls input[type="range"]::-webkit-slider-thumb {
+    --thumb-color: var(--text);
+
     -webkit-appearance: none;
-    height: 12px;
-    width: 10px;
-    border-radius: 3px;
-    background: var(--accent);
-    margin-top: -4px;
+    appearance: none;
+    height: 20px;
+    width: 20px;
+/* 
+    1. First gradient: Draws the 2px vertical line (2px wide, 100% tall).
+    2. Second gradient: Paints a 2px thick accent ring (12px outer diameter) 
+       with a completely transparent hole in the exact middle.
+  */
+    background:
+            linear-gradient(var(--thumb-color), var(--thumb-color)) no-repeat top center / 2px 4px,
+            linear-gradient(var(--thumb-color), var(--thumb-color)) no-repeat bottom center / 2px 4px,
+            radial-gradient(circle, transparent 4px, var(--thumb-color) 4px, var(--thumb-color) 6px, transparent 6px) no-repeat center / 20px 20px;
+    /* Remove the previous border properties entirely */
+    border: none;
+    border-radius: 0;
+    /* Creates the 12px outline circle */
+    /* border: 2px solid var(--thumb-color); */
+    border-radius: 50%;
+    /* background: var(--thumb-color); */
+    /* margin-top: -4px; */
+    margin-top: -8px;
     cursor: pointer;
+}
+
+.card .controls input[type="range"]:focus::-webkit-slider-thumb,
+.card .controls input[type="range"]:active::-webkit-slider-thumb {
+    /* Replace #ff5722 with whatever color you want for the active state */
+    --thumb-color: var(--accent);
 }
 
 @media (max-width: 599px) {

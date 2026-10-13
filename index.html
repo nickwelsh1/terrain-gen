@@ -170,8 +170,7 @@
                 <input type="range" id="riverWidth" min="1" max="6" step="0.5" value="2.0">
             </div>
             <div class="control-group">
-                <label style="cursor:pointer"><input type="checkbox" id="preserveLakes" checked
-                           style="accent-color:var(--accent)"> Preserve Lakes</label>
+                <label class="checkbox-label"><input type="checkbox" id="preserveLakes" checked> Preserve Lakes</label>
             </div>
         </section>
 
@@ -240,8 +239,7 @@
                 <input type="range" id="ridgeMaskErosionResistance" min="0" max="1" step="0.05" value="0.7">
             </div>
             <div class="control-group">
-                <label style="cursor:pointer"><input type="checkbox" id="showRidgeMask"
-                           style="accent-color:var(--accent)">
+                <label class="checkbox-label"><input type="checkbox" id="showRidgeMask">
                     Show Mask Overlay</label>
             </div>
         </section>
@@ -260,8 +258,7 @@
                 <input type="range" id="slopeChannelSteepThresh" min="0" max="1" step="0.05" value="0.45">
             </div>
             <div class="control-group">
-                <label style="cursor:pointer"><input type="checkbox" id="showSlopeChannelMask"
-                           style="accent-color:var(--accent)">
+                <label class="checkbox-label"><input type="checkbox" id="showSlopeChannelMask">
                     Show Mask Overlay</label>
             </div>
             <div class="stats" id="slopeChannel-stats">Affected: 0.0% · Avg Δheight: 0.0</div>
@@ -284,8 +281,7 @@
                 <input type="range" id="basinDepoConcaveThresh" min="0" max="1" step="0.05" value="0.2">
             </div>
             <div class="control-group">
-                <label style="cursor:pointer"><input type="checkbox" id="showBasinDepositionMask"
-                           style="accent-color:var(--accent)">
+                <label class="checkbox-label"><input type="checkbox" id="showBasinDepositionMask">
                     Show Mask Overlay</label>
             </div>
             <div class="stats" id="basinDeposition-stats">Affected: 0.0% · Avg Δheight: 0.0</div>
@@ -334,53 +330,43 @@
                 <div class="color-mode-list" id="colorMode">
                     <label class="color-mode-item" data-value="grayscale">
                         <input type="radio" name="colorMode" value="grayscale">
-                        <div class="color-mode-swatch" style="background:linear-gradient(to right,#000,#fff)"></div>
+                        <div class="color-mode-swatch"></div>
                         <span class="color-mode-label">Grayscale (B&amp;W)</span>
                     </label>
                     <label class="color-mode-item" data-value="terrainRamp">
                         <input type="radio" name="colorMode" value="terrainRamp">
-                        <div class="color-mode-swatch"
-                             style="background:linear-gradient(to right,rgb(10,20,60),rgb(30,60,120) 15%,rgb(40,100,70) 30%,rgb(80,130,60) 45%,rgb(140,120,70) 60%,rgb(160,140,100) 75%,rgb(220,220,220) 90%,#fff)">
-                        </div>
+                        <div class="color-mode-swatch"></div>
                         <span class="color-mode-label">Terrain Ramp</span>
                     </label>
                     <label class="color-mode-item" data-value="slopeAware">
                         <input type="radio" name="colorMode" value="slopeAware">
-                        <div class="color-mode-swatch"
-                             style="background:linear-gradient(to right,rgb(10,30,80),rgb(30,80,140) 12%,rgb(40,100,50) 30%,rgb(100,90,70) 50%,rgb(140,120,90) 65%,rgb(180,160,150) 80%,#fff)">
-                        </div>
+                        <div class="color-mode-swatch"></div>
                         <span class="color-mode-label">Slope-Aware</span>
                     </label>
                     <label class="color-mode-item" data-value="geogenStyle">
                         <input type="radio" name="colorMode" value="geogenStyle">
-                        <div class="color-mode-swatch"
-                             style="background:linear-gradient(to right,rgb(20,40,30),rgb(30,80,40) 15%,rgb(60,120,40) 30%,rgb(180,180,40) 45%,rgb(200,120,40) 60%,rgb(180,60,40) 75%,rgb(120,40,40) 88%,#fff)">
-                        </div>
+                        <div class="color-mode-swatch"></div>
                         <span class="color-mode-label">Geogen-Style</span>
                     </label>
                     <label class="color-mode-item" data-value="dolomitesNatural">
                         <input type="radio" name="colorMode" value="dolomitesNatural">
-                        <div class="color-mode-swatch"
-                             style="background:linear-gradient(to right,oklch(0.424 0.035 101.2),oklch(0.546 0.042 111.1) 7.7%,oklch(0.472 0.022 150.2) 15.4%,oklch(0.637 0.061 94.4) 23.1%,oklch(0.599 0.060 103.4) 30.8%,oklch(0.285 0.019 154.5) 38.5%,oklch(0.616 0.060 98.7) 46.2%,oklch(0.669 0.063 87.8) 53.8%,oklch(0.632 0.052 122.1) 61.5%,oklch(0.599 0.060 103.4) 69.2%,oklch(0.546 0.042 111.1) 76.9%,oklch(0.535 0.038 115.1) 84.6%,oklch(0.637 0.061 94.4) 92.3%,oklch(0.753 0.067 186.0))">
-                        </div>
+                        <div class="color-mode-swatch"></div>
                         <span class="color-mode-label">Dolomites Natural</span>
                     </label>
                     <label class="color-mode-item" data-value="dolomitesExtended">
                         <input type="radio" name="colorMode" value="dolomitesExtended">
-                        <div class="color-mode-swatch"
-                             style="background:linear-gradient(90deg,rgb(82,79,57) 0%,rgb(84,78,62) 3%,rgb(113,115,87) 7%,rgb(83,95,85) 14%,rgb(151,139,96) 20%,rgb(132,119,69) 26%,rgb(142,134,92) 32%,rgb(134,130,88) 39%,rgb(156,134,90) 44%,rgb(165,147,104) 51%,rgb(147,119,93) 57%,rgb(113,115,87) 60%,rgb(132,143,108) 64%,rgb(134,130,88) 72%,rgb(108,112,87) 82%,rgb(151,139,96) 89%,rgb(125,189,181) 94%,rgb(200,248,243) 100%)">
-                        </div>
+                        <div class="color-mode-swatch"></div>
                         <span class="color-mode-label">Dolomites Extended</span>
                     </label>
                 </div>
             </div>
             <div class="control-group">
-                <label style="cursor:pointer"><input type="checkbox" id="fixedRange" style="accent-color:var(--accent)">
+                <label class="checkbox-label"><input type="checkbox" id="fixedRange">
                     Fixed Elevation Range</label>
             </div>
             <button id="regen-btn">Regenerate</button>
-            <button id="reset-btn" style="margin-top:8px">Reset Defaults</button>
-            <div class="stats" style="margin-top:10px">
+            <button id="reset-btn">Reset Defaults</button>
+            <div class="stats">
                 Render: <span id="render-time">0</span> ms
             </div>
         </section>
