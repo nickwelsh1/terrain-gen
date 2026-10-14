@@ -6,7 +6,7 @@
     /* --bg: #1a1a1a;
     --panel-bg: rgba(30, 30, 30, 0.95);
     --text: #e0e0e0; */
-    --accent: #eb9e34;
+    --accent: hsl(50, 100%, 67%);
     /* --muted: #999;
     --border: rgba(255, 255, 255, 0.1); */
 }

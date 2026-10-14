@@ -1,7 +1,7 @@
 :root {
             color-scheme: dark;
-            --accent: #eb9e34;
-            --accent-hover: #f5b75a;
+            --accent: hsl(50, 100%, 67%);
+            --accent-hover: hsl(from var(--accent) h s calc(l - 20%));
         }
 
         .thumb-scroll::-webkit-scrollbar {
