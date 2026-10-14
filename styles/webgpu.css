@@ -1,22 +1,4 @@
-* {
-    box-sizing: border-box;
-}
-
-:root {
-    /* --bg: #1a1a1a;
-    --panel-bg: rgba(30, 30, 30, 0.95);
-    --text: #e0e0e0; */
-    --accent: hsl(50, 100%, 67%);
-    /* --muted: #999;
-    --border: rgba(255, 255, 255, 0.1); */
-}
-
 body {
-    margin: 0;
-    padding: 0;
-    background-color: #1a1a1a;
-    color: #e0e0e0;
-    font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
     overflow: hidden;
 }
 
@@ -34,54 +16,28 @@ body {
     transform: translate(-50%, -50%);
     font-size: 1rem;
     text-align: center;
-    color: #e0e0e0;
+    color: var(--text);
     z-index: 50;
 }
 
-#back-link {
-    position: fixed;
-    top: 16px;
-    left: 16px;
-    color: var(--accent);
-    font-size: 0.8rem;
-    text-decoration: none;
-    padding: 8px 14px;
-    border: 1px solid rgba(80, 255, 158, 0.3);
-    border-radius: 6px;
-    background: rgba(30, 30, 30, 0.8);
-    transition: all 0.25s ease;
-    z-index: 200;
-}
-
-#back-link:hover {
-    background: rgba(80, 255, 158, 0.12);
-    border-color: var(--accent);
-}
-
+#back-link,
 #noise-link,
 #terrain-link {
     position: fixed;
     top: 16px;
-    left: 190px;
-    color: var(--accent);
-    font-size: 0.8rem;
-    text-decoration: none;
-    padding: 8px 14px;
-    border: 1px solid rgba(80, 255, 158, 0.3);
-    border-radius: 6px;
-    background: rgba(30, 30, 30, 0.8);
-    transition: all 0.25s ease;
     z-index: 200;
+}
+
+#back-link {
+    left: 16px;
+}
+
+#noise-link {
+    left: 190px;
 }
 
 #terrain-link {
     left: 364px;
-}
-
-#noise-link:hover,
-#terrain-link:hover {
-    background: rgba(80, 255, 158, 0.12);
-    border-color: var(--accent);
 }
 
 /* Mobile: render occupies the top 45% of the screen, panel takes the rest */

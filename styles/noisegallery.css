@@ -1,25 +1,4 @@
-:root {
-    --bg: #1a1a1a;
-    --panel-bg: rgba(30, 30, 30, 0.95);
-    --text: #e0e0e0;
-    --accent: hsl(50, 100%, 67%);
-    --muted: #999;
-    --border: rgba(255, 255, 255, 0.1);
-    --border-200: rgb(50, 50, 50);
-    --border-300: rgb(80, 80, 80);
-    --link-hoverbg: rgb(50, 50, 50);
-}
-
-* {
-    box-sizing: border-box;
-}
-
 body {
-    margin: 0;
-    padding: 0;
-    background-color: var(--bg);
-    color: var(--text);
-    font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
     min-height: 100vh;
     overflow-x: hidden;
 }
@@ -35,22 +14,6 @@ body {
     align-items: center;
     gap: 12px;
     padding: 10px 0;
-}
-
-#top-bar a {
-    color: var(--accent);
-    font-size: 0.8rem;
-    text-decoration: none;
-    padding: 8px 14px;
-    border: 1px solid var(--border-300);
-    border-radius: 6px;
-    background: rgba(30, 30, 30, 0.8);
-    transition: all 0.25s ease;
-}
-
-#top-bar a:hover {
-    background: var(--link-hoverbg);
-    border-color: var(--accent);
 }
 
 main {
@@ -74,7 +37,7 @@ main {
 
 #intro p {
     margin: 0;
-    color: var(--muted);
+    color: var(--text-muted);
     font-size: 0.9rem;
     max-width: 720px;
     line-height: 1.5;
@@ -108,25 +71,15 @@ main {
     font-size: 0.7rem;
     text-transform: uppercase;
     letter-spacing: 1px;
-    color: var(--muted);
+    color: var(--text-muted);
 }
 
 #global-controls select,
 #global-controls input[type="number"],
 #global-controls input[type="text"] {
-    background: #2a2a2a;
-    color: var(--text);
-    border: 1px solid rgba(255, 255, 255, 0.15);
-    border-radius: 4px;
     padding: 6px 8px;
     font-size: 0.85rem;
     width: 100%;
-    outline: none;
-}
-
-#global-controls select:focus,
-#global-controls input:focus {
-    border-color: var(--accent);
 }
 
 #gallery-grid {
@@ -153,16 +106,16 @@ main {
 }
 
 .card:hover {
-    border-color: var(--border-300);
+    border-color: var(--border-strong);
 }
 
 .card canvas {
     width: 100%;
     aspect-ratio: 1 / 1;
     image-rendering: pixelated;
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    border: 1px solid var(--border-subtle);
     border-radius: 4px;
-    background: #000;
+    background: hsl(0, 0%, 0%);
 }
 
 .card h3 {
@@ -182,7 +135,7 @@ main {
 
 .card .meta .noise-type {
     color: var(--text);
-    background: rgba(255, 255, 255, 0.1);
+    background: hsla(0, 0%, 100%, 0.1);
     padding: 2px 6px;
     border-radius: 4px;
 }
@@ -194,39 +147,39 @@ main {
 }
 
 .card .meta .family.gradient {
-    background: rgba(80, 170, 255, 0.2);
-    color: #aaddff;
+    background: hsla(209, 100%, 66%, 0.2);
+    color: hsl(205, 100%, 81%);
 }
 
 .card .meta .family.cellular {
-    background: rgba(255, 120, 120, 0.2);
-    color: #ffaaaa;
+    background: hsla(0, 100%, 74%, 0.2);
+    color: hsl(0, 100%, 84%);
 }
 
 .card .meta .family.value {
-    background: rgba(255, 200, 80, 0.2);
-    color: #ffe6aa;
+    background: hsla(41, 100%, 66%, 0.2);
+    color: hsl(42, 100%, 83%);
 }
 
 .card .meta .family.fractal {
-    background: rgba(180, 120, 255, 0.2);
-    color: #d8bfff;
+    background: hsla(267, 100%, 74%, 0.2);
+    color: hsl(265, 100%, 87%);
 }
 
 .card .meta .family.custom {
-    background: rgba(80, 255, 158, 0.15);
+    background: var(--accent-subtle);
     color: var(--accent);
 }
 
 .card .meta .family.wave {
-    background: rgba(255, 100, 200, 0.2);
-    color: #ffaad8;
+    background: hsla(321, 100%, 70%, 0.2);
+    color: hsl(326, 100%, 83%);
 }
 
 .card .description {
     margin: 0;
     font-size: 0.75rem;
-    color: var(--muted);
+    color: var(--text-muted);
     line-height: 1.4;
     flex: 1 1 auto;
 }
@@ -240,7 +193,7 @@ main {
 .card .tags span {
     font-size: 0.6rem;
     color: var(--accent);
-    border: 1px solid var(--border-200);
+    border: 1px solid var(--border-select);
     border-radius: 4px;
     padding: 2px 6px;
 }
@@ -256,7 +209,7 @@ main {
     display: flex;
     justify-content: space-between;
     font-size: 0.65rem;
-    color: var(--muted);
+    color: var(--text-muted);
     margin-bottom: 2px;
 }
 
