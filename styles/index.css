@@ -1,24 +1,4 @@
-:root {
-    --bg: hsl(0, 0%, 10%);
-    --panel-bg: hsl(0, 0%, 12%);
-    --border: hsl(0, 0%, 20%);
-    --border-select: hsl(0, 0%, 27%);
-    --text: hsl(0, 0%, 88%);
-    --text-muted: hsl(0, 0%, 55%);
-    --accent: hsl(35, 82%, 56%);
-    --link-hoverbg: hsl(0, 0%, 10%);
-}
-
-* {
-    box-sizing: border-box;
-}
-
 body {
-    margin: 0;
-    padding: 0;
-    background-color: var(--bg);
-    color: var(--text);
-    font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
     overflow: hidden;
     display: flex;
     align-items: center;
@@ -43,8 +23,6 @@ canvas {
     border: 1px solid var(--border);
 }
 
-
-
 /* Top-left control bar for launch link + zoom */
 .top-bar {
     position: fixed;
@@ -56,30 +34,12 @@ canvas {
     gap: 12px;
 }
 
-
-/* Launch link (inside top-bar) */
-.top-bar__button {
-    color: var(--accent);
-    font-size: 0.8rem;
-    text-decoration: none;
-    padding: 8px 14px;
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    background: var(--bg);
-}
-
-.top-bar__button:hover {
-    background: var(--link-hoverbg);
-    border-color: var(--border-select);
-}
-
-
 #zoom-control {
     display: flex;
     align-items: center;
     gap: 8px;
     background: var(--bg);
-    border: 1px solid var(--border);
+    border: 1px solid var(--border-strong);
     border-radius: 6px;
     padding: 6px 12px;
     backdrop-filter: blur(10px);
@@ -87,13 +47,12 @@ canvas {
 
 #zoom-control label {
     font-size: 0.75rem;
-    color: #999;
+    color: var(--text-muted);
     white-space: nowrap;
 }
 
 #zoom-control input[type="range"] {
     width: 100px;
-    accent-color: var(--accent);
 }
 
 #zoom-control .val {
@@ -165,7 +124,7 @@ canvas {
 }
 
 #ui-panel::-webkit-scrollbar-track {
-    background: rgba(255, 255, 255, 0.04);
+    background: hsla(0, 0%, 100%, 0.04);
     border-radius: 4px;
 }
 
@@ -175,7 +134,7 @@ canvas {
 }
 
 #ui-panel::-webkit-scrollbar-thumb:hover {
-    background: var(--link-hoverbg);
+    background: var(--surface-hover);
 }
 
 h1 {
@@ -183,8 +142,8 @@ h1 {
     margin: 0 0 16px 0;
     text-transform: uppercase;
     letter-spacing: 2px;
-    color: #fff;
-    border-bottom: 2px solid rgba(255, 255, 255, 0.2);
+    color: hsl(0, 0%, 100%);
+    border-bottom: 2px solid hsla(0, 0%, 100%, 0.2);
     padding-bottom: 10px;
     font-weight: 300;
 }
@@ -192,7 +151,7 @@ h1 {
 section {
     margin-bottom: 14px;
     padding-bottom: 12px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    border-bottom: 1px solid var(--border-subtle);
 }
 
 section>h2 {
@@ -233,10 +192,6 @@ label span.val {
 
 select {
     width: 100%;
-    background: #2a2a2a;
-    color: var(--text);
-    border: 1px solid rgba(255, 255, 255, 0.15);
-    border-radius: 4px;
     padding: 4px;
     font-size: 11px;
 }
@@ -245,9 +200,9 @@ button#regen-btn {
     width: 100%;
     padding: 10px;
     margin-top: 4px;
-    background: linear-gradient(135deg, var(--panel-bg), var(--link-hoverbg));
-    border: 1px solid var(--border);
-    color: #fff;
+    background: linear-gradient(135deg, var(--panel-bg), var(--surface-hover));
+    border: 1px solid var(--border-strong);
+    color: hsl(0, 0%, 100%);
     cursor: pointer;
     font-size: 11px;
     text-transform: uppercase;
@@ -275,7 +230,7 @@ button#regen-btn:hover {
 }
 
 .color-mode-list::-webkit-scrollbar-track {
-    background: rgba(255, 255, 255, 0.04);
+    background: hsla(0, 0%, 100%, 0.04);
     border-radius: 3px;
 }
 
@@ -295,11 +250,11 @@ button#regen-btn:hover {
 }
 
 .color-mode-item:hover {
-    background: rgba(255, 255, 255, 0.06);
+    background: hsla(0, 0%, 100%, 0.06);
 }
 
 .color-mode-item.selected {
-    background: var(--link-hoverbg);
+    background: var(--surface-hover);
     border: 1px solid var(--border-select);
 }
 
@@ -311,22 +266,22 @@ button#regen-btn:hover {
     width: 80px;
     height: 18px;
     border-radius: 3px;
-    border: 1px solid rgba(255, 255, 255, 0.15);
+    border: 1px solid hsla(0, 0%, 100%, 0.15);
     flex-shrink: 0;
 }
 
 .color-mode-label {
     font-size: 11px;
-    color: #ccc;
+    color: var(--text);
     white-space: nowrap;
 }
 
 button#reset-btn {
     width: 100%;
     padding: 10px;
-    background: rgba(255, 255, 255, 0.04);
-    border: 1px solid rgba(255, 255, 255, 0.15);
-    color: #bbb;
+    background: hsla(0, 0%, 100%, 0.04);
+    border: 1px solid hsla(0, 0%, 100%, 0.15);
+    color: var(--text-muted);
     cursor: pointer;
     font-size: 11px;
     text-transform: uppercase;
@@ -336,9 +291,9 @@ button#reset-btn {
 }
 
 button#reset-btn:hover {
-    background: rgba(255, 255, 255, 0.08);
-    border-color: rgba(255, 255, 255, 0.3);
-    color: #fff;
+    background: hsla(0, 0%, 100%, 0.08);
+    border-color: hsla(0, 0%, 100%, 0.3);
+    color: hsl(0, 0%, 100%);
 }
 
 .disabled-section {
@@ -347,7 +302,7 @@ button#reset-btn:hover {
 
 .stats {
     font-size: 11px;
-    color: #777;
+    color: var(--text-muted);
     font-family: monospace;
 }
 
@@ -368,23 +323,23 @@ button#reset-btn:hover {
 }
 
 .dep-dot.dep-red {
-    background: #e74c3c;
+    background: hsl(6, 78%, 57%);
 }
 
 .dep-dot.dep-yellow {
-    background: #f1c40f;
+    background: hsl(48, 89%, 50%);
 }
 
 .dep-dot.dep-green {
-    background: #2ecc71;
+    background: hsl(145, 63%, 49%);
 }
 
 .dep-dot.dep-blue {
-    background: #3498db;
+    background: hsl(204, 70%, 53%);
 }
 
 .dep-dot.dep-purple {
-    background: #9b59b6;
+    background: hsl(283, 39%, 53%);
 }
 
 .dep-dot.lit {
@@ -405,7 +360,7 @@ button#reset-btn:hover {
 }
 
 .color-mode-item[data-value="grayscale"] .color-mode-swatch {
-    background: linear-gradient(to right, #000, #fff);
+    background: linear-gradient(to right, hsl(0, 0%, 0%), hsl(0, 0%, 100%));
 }
 
 .color-mode-item[data-value="terrainRamp"] .color-mode-swatch {
@@ -437,7 +392,6 @@ button#reset-btn:hover {
 }
 
 @keyframes dot-pulse {
-
     0%,
     100% {
         transform: scale(1);
