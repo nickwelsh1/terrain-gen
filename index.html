@@ -14,17 +14,12 @@
     </script>
     <link rel="stylesheet" href="styles/shared.css">
     <link rel="stylesheet" href="styles/index.css">
+    <script type="module" src="src/app-launcher.js"></script>
 </head>
 
 <body>
     <div class="top-bar" id="top-bar">
-        <a class="top-bar__button" id="launch-link" href="examples/tempterrain.html">Terrain Visualizer →</a>
-        <a class="top-bar__button" id="webgpu-link" href="webgpu.html">WebGPU
-            Erosion Simulator →</a>
-        <a class="top-bar__button" id="colors-link" href="colours.html">Color Palettes →</a>
-        <a class="top-bar__button" id="noise-link" href="noisegallery.html">Noise Gallery →</a>
-        <a class="top-bar__button" id="erodemountains-link" href="erodemountains.html">Erode Mountains →</a>
-        <a class="top-bar__button" id="dunes-link" href="dunes.html">Dunes →</a>
+        <terrain-app-launcher></terrain-app-launcher>
         <div id="zoom-control">
             <label>Zoom</label>
             <input type="range" id="displayZoom" min="0.5" max="5.0" step="0.1" value="1.0">

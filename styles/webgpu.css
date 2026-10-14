@@ -269,6 +269,12 @@ body {
         top: 22.5vh;
     }
 
+    .top-bar,
+    #top-bar {
+        top: 8px;
+        left: 8px;
+    }
+
     #back-link,
     #noise-link,
     #terrain-link {

@@ -27,7 +27,7 @@ export class Noise {
         let wx = (x + 500.0) / xScale;
         let wy = (y + 500.0) / yScale;
 
-        let n1 = this._noise2D(wx * 0.3, wy * 0.3);
+        const n1 = this._noise2D(wx * 0.3, wy * 0.3);
         wx += n1;
         wy += n1;
 
@@ -44,7 +44,7 @@ export class Noise {
         let wx = (x + 1234.0) / xScale;
         let wy = (y + 5678.0) / yScale;
 
-        let n1 = this._noise2D(wx * 1.8, wy * 1.8);
+        const n1 = this._noise2D(wx * 1.8, wy * 1.8);
         wx += n1;
         wy += n1;
 

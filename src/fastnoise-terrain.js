@@ -135,7 +135,7 @@ export function smoothstep(edge0, edge1, x) {
 function ridgeTransform(n, sharpness) {
     // n in [-1, 1] -> ridged crest in [0, 1]
     const r = 1 - Math.abs(n);
-    return Math.pow(clamp(r, 0, 1), sharpness);
+    return clamp(r, 0, 1) ** sharpness;
 }
 
 /**
@@ -404,7 +404,7 @@ export function generateBaseHeightmap(width, height, settings = {}, noiseSet) {
                 s.ridgeWeight * ridge +
                 s.detailWeight * detail * 0.5;
 
-            let value = s.broadWeight * broad * (0.4 + 0.6 * broad) + relief * (0.3 + 0.7 * broad);
+            const value = s.broadWeight * broad * (0.4 + 0.6 * broad) + relief * (0.3 + 0.7 * broad);
 
             heightmap[idx] = value;
             if (value < min) min = value;
@@ -417,7 +417,7 @@ export function generateBaseHeightmap(width, height, settings = {}, noiseSet) {
     const curve = s.heightCurve || 1.0;
     for (let i = 0; i < size; i++) {
         let v = (heightmap[i] - min) / range;
-        v = Math.pow(v, curve);
+        v = v ** curve;
         heightmap[i] = v * HEIGHT_SCALE;
     }
 

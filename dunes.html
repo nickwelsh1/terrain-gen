@@ -7,11 +7,13 @@
     <title>WebGPU Sand Dunes Generator</title>
     <link rel="stylesheet" href="styles/shared.css">
     <link rel="stylesheet" href="styles/webgpu.css">
+    <script type="module" src="src/app-launcher.js"></script>
 </head>
 
 <body>
-    <a href="./index.html" id="back-link">← Back to 2D Heightmap</a>
-    <a href="./webgpu.html" id="terrain-link">WebGPU Terrain →</a>
+    <div class="top-bar" id="top-bar">
+        <terrain-app-launcher></terrain-app-launcher>
+    </div>
     <canvas id="renderCanvas"></canvas>
     <div id="status">Initializing WebGPU...</div>
     <script type="module" src="./src/webgpu/dunes/app.js"></script>
