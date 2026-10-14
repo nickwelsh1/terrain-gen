@@ -9,6 +9,8 @@ export default defineConfig({
             input: {
                 main: "index.html",
                 webgpu: "webgpu.html",
+                erodemountains: "erodemountains.html",
+                dunes: "dunes.html",
                 color: "color.html",
                 colors: "colors.html",
                 colours: "colours.html",

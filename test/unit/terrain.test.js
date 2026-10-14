@@ -54,7 +54,7 @@ describe('Terrain Module', () => {
 
             // Still clamped to valid range
             expect(heightmap.length).toBe(4096);
-            for (let h of heightmap) {
+            for (const h of heightmap) {
                 expect(h).toBeLessThanOrEqual(500);
             }
         });
@@ -117,7 +117,7 @@ describe('Terrain Module', () => {
             const eroded = terrain.simulateErosion(heightmap, 0.8);
 
             // Values should not explode to infinity or NaN
-            for (let val of eroded) {
+            for (const val of eroded) {
                 expect(isFinite(val)).toBe(true);
                 expect(Number.isNaN(val)).toBe(false);
             }
@@ -138,7 +138,7 @@ describe('Terrain Module', () => {
             const heightmap = terrain.initHeightmap(64, 64, noise, { zoom: 1.0, ridge: 2.0 });
             const slopes = terrain.calculateSlopes(heightmap);
 
-            for (let slope of slopes) {
+            for (const slope of slopes) {
                 expect(slope).toBeGreaterThanOrEqual(0);
                 expect(slope).toBeLessThanOrEqual(1);
             }
@@ -149,7 +149,7 @@ describe('Terrain Module', () => {
             const slopes = terrain.calculateSlopes(uniformMap);
 
             // Flat terrain should have near-zero slopes
-            for (let s of slopes) {
+            for (const s of slopes) {
                 expect(s).toBeLessThan(0.1);
             }
         });
@@ -163,7 +163,7 @@ describe('Terrain Module', () => {
             const slopes = terrain.calculateSlopes(heightmap);
 
             // Steep changes should produce higher slopes
-            for (let s of slopes) {
+            for (const s of slopes) {
                 expect(s).toBeLessThanOrEqual(1);
             }
         });
@@ -276,7 +276,7 @@ describe('Terrain Module', () => {
 
             // ABGR format means bit 31 is alpha, then blue, green, red
             // Check that we have valid packed colors (no NaN or Infinity)
-            for (let p of pixels) {
+            for (const p of pixels) {
                 expect(Number.isNaN(p)).toBe(false);
                 expect(Number.isFinite(p)).toBe(true);
             }
@@ -396,7 +396,7 @@ describe('Terrain Module', () => {
         });
 
         it('should handle complete pipeline with different dimension sizes', () => {
-            for (let size of [8, 16, 32, 64]) {
+            for (const size of [8, 16, 32, 64]) {
                 const heightmap = terrain.initHeightmap(size, size, noise, { zoom: 1.0, ridge: 1.5 });
                 const eroded = terrain.simulateErosion(heightmap, 0.5);
                 const slopes = terrain.calculateSlopes(eroded);

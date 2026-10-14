@@ -611,7 +611,7 @@ function renderFastNoise(ctx, width, height, card, seed, frequency, state) {
             if (card.customType === 'cellularFaults' && card.returnType === T.CellularReturnType.Distance) {
                 const d = v + 1;
                 const contrast = state.modifier ?? card.params.contrast ?? 1.0;
-                t = Math.pow(d, contrast);
+                t = d ** contrast;
             } else if (isCellular) {
                 // FastNoiseLite cellular return values are shifted by -1.
                 switch (card.returnType) {

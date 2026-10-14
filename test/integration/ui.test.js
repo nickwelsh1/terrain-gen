@@ -290,9 +290,9 @@ describe('UI Integration Tests', () => {
 
     describe('State consistency', () => {
         it('should maintain consistent state after multiple operations', () => {
-            let heightmap = terrain.initHeightmap(64, 64, noise, { zoom: 1.0, ridge: 1.5 });
-            let eroded = terrain.simulateErosion(heightmap, 0.5);
-            let slopes = terrain.calculateSlopes(eroded);
+            const heightmap = terrain.initHeightmap(64, 64, noise, { zoom: 1.0, ridge: 1.5 });
+            const eroded = terrain.simulateErosion(heightmap, 0.5);
+            const slopes = terrain.calculateSlopes(eroded);
 
             // Multiple render operations with same data
             const mockNoise = (x, y) => Math.sin(x * 0.1);
