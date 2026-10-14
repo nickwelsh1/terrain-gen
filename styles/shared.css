@@ -45,6 +45,18 @@ body {
     font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
 }
 
+/* Top bar container */
+.top-bar,
+#top-bar {
+    position: fixed;
+    top: 16px;
+    left: 16px;
+    z-index: 200;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
 /* Top bar navigation buttons */
 .top-bar a,
 #top-bar a,
