@@ -40,6 +40,225 @@ body {
     left: 364px;
 }
 
+/* Control panels across WebGPU demos */
+#webgpu-ui,
+#erosion-ui,
+#dunes-ui {
+    position: fixed;
+    top: 16px;
+    right: 16px;
+    width: 300px;
+    max-height: calc(100vh - 32px);
+    overflow-y: auto;
+    background: var(--panel-bg);
+    color: var(--text);
+    padding: 14px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    font-family: 'Segoe UI', -apple-system, sans-serif;
+    font-size: 0.85rem;
+    z-index: 100;
+    box-shadow: 0 8px 40px hsla(0, 0%, 0%, 0.6);
+    backdrop-filter: blur(10px);
+}
+
+#erosion-ui,
+#dunes-ui {
+    width: 320px;
+}
+
+#webgpu-ui .ui-section,
+#erosion-ui .ui-section,
+#dunes-ui .ui-section {
+    margin-bottom: 14px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border-subtle);
+}
+
+#webgpu-ui .ui-section:last-child,
+#erosion-ui .ui-section:last-child,
+#dunes-ui .ui-section:last-child {
+    border-bottom: none;
+    margin-bottom: 0;
+    padding-bottom: 0;
+}
+
+#webgpu-ui h3,
+#erosion-ui h3,
+#dunes-ui h3 {
+    margin: 0 0 8px 0;
+    font-size: 0.9rem;
+    color: var(--accent);
+    font-weight: 500;
+    letter-spacing: 0.5px;
+}
+
+#webgpu-ui .info-line,
+#erosion-ui .info-line,
+#dunes-ui .info-line {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    margin: 2px 0 6px 0;
+    line-height: 1.35;
+}
+
+#webgpu-ui label,
+#erosion-ui label,
+#dunes-ui label {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin: 6px 0;
+    font-size: 0.8rem;
+    color: var(--text);
+}
+
+#webgpu-ui input[type="range"],
+#erosion-ui input[type="range"],
+#dunes-ui input[type="range"] {
+    width: 120px;
+}
+
+#dunes-ui input[type="range"] {
+    width: 140px;
+}
+
+#webgpu-ui input[type="number"],
+#erosion-ui input[type="number"],
+#dunes-ui input[type="number"] {
+    width: 80px;
+    padding: 3px 6px;
+    font-size: 0.8rem;
+}
+
+#webgpu-ui .value,
+#erosion-ui .value,
+#dunes-ui .value {
+    min-width: 42px;
+    text-align: right;
+    color: var(--accent);
+    font-size: 0.75rem;
+    font-family: monospace;
+}
+
+#webgpu-ui button,
+#erosion-ui button,
+#dunes-ui button {
+    background: var(--accent-subtle);
+    color: var(--accent);
+    border: 1px solid var(--border-strong);
+    border-radius: 6px;
+    padding: 6px 14px;
+    cursor: pointer;
+    font-size: 0.8rem;
+    margin: 4px 4px 0 0;
+    transition: all 0.25s ease;
+}
+
+#webgpu-ui button:hover,
+#erosion-ui button:hover,
+#dunes-ui button:hover {
+    background: hsla(50, 100%, 67%, 0.25);
+    border-color: var(--accent);
+}
+
+#webgpu-ui .btn-group,
+#erosion-ui .btn-group,
+#dunes-ui .btn-group {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 6px;
+}
+
+#webgpu-ui .btn-group button,
+#erosion-ui .btn-group button,
+#dunes-ui .btn-group button {
+    flex: 1;
+    margin: 0;
+    padding: 6px 0;
+}
+
+#webgpu-ui .grid-size-btn.active,
+#erosion-ui .grid-size-btn.active,
+#dunes-ui .grid-size-btn.active {
+    background: hsla(50, 100%, 67%, 0.35);
+    border-color: var(--accent);
+    font-weight: 600;
+}
+
+#webgpu-ui #regenerateBtn.connected,
+#erosion-ui #regenerateBtn.connected,
+#dunes-ui #regenerateBtn.connected {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px var(--accent-subtle);
+}
+
+#webgpu-ui input[type="radio"],
+#webgpu-ui input[type="checkbox"],
+#erosion-ui input[type="radio"],
+#erosion-ui input[type="checkbox"],
+#dunes-ui input[type="radio"],
+#dunes-ui input[type="checkbox"] {
+    accent-color: var(--accent);
+    cursor: pointer;
+}
+
+#webgpu-ui input[type="radio"],
+#erosion-ui input[type="radio"],
+#dunes-ui input[type="radio"] {
+    width: auto;
+    margin-right: 6px;
+}
+
+#webgpu-ui .pass-toggle,
+#erosion-ui .pass-toggle,
+#dunes-ui .pass-toggle {
+    cursor: pointer;
+    justify-content: flex-start;
+    gap: 8px;
+}
+
+#webgpu-ui .pass-toggle input[type="checkbox"],
+#erosion-ui .pass-toggle input[type="checkbox"],
+#dunes-ui .pass-toggle input[type="checkbox"] {
+    width: auto;
+}
+
+#webgpu-ui .pass-toggle.disabled,
+#erosion-ui .pass-toggle.disabled,
+#dunes-ui .pass-toggle.disabled {
+    opacity: 0.4;
+    pointer-events: none;
+}
+
+/* Scrollbars for panels */
+#webgpu-ui::-webkit-scrollbar,
+#erosion-ui::-webkit-scrollbar,
+#dunes-ui::-webkit-scrollbar {
+    width: 6px;
+}
+
+#webgpu-ui::-webkit-scrollbar-track,
+#erosion-ui::-webkit-scrollbar-track,
+#dunes-ui::-webkit-scrollbar-track {
+    background: hsla(0, 0%, 100%, 0.04);
+    border-radius: 3px;
+}
+
+#webgpu-ui::-webkit-scrollbar-thumb,
+#erosion-ui::-webkit-scrollbar-thumb,
+#dunes-ui::-webkit-scrollbar-thumb {
+    background: var(--border-select);
+    border-radius: 3px;
+}
+
+#webgpu-ui::-webkit-scrollbar-thumb:hover,
+#erosion-ui::-webkit-scrollbar-thumb:hover,
+#dunes-ui::-webkit-scrollbar-thumb:hover {
+    background: var(--surface-hover);
+}
+
 /* Mobile: render occupies the top 45% of the screen, panel takes the rest */
 @media (max-width: 768px) {
     #renderCanvas {
@@ -72,12 +291,13 @@ body {
     #webgpu-ui,
     #dunes-ui,
     #erosion-ui {
-        top: auto;
+        top: 45vh;
         bottom: 0;
         right: 0;
         left: 0;
         width: auto;
-        max-height: 50vh;
-        border-radius: 8px 8px 0 0;
+        max-height: none;
+        padding: 12px 14px;
+        border-radius: 12px 12px 0 0;
     }
 }
