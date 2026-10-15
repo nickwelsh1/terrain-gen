@@ -61,6 +61,15 @@ export const APPS = [
         icon: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>`,
     },
     {
+        id: 'pose-capture',
+        title: '2D Pose Capture',
+        desc: 'motion & joint tracking',
+        path: 'https://animate-csd.pages.dev',
+        section: 'projects',
+        external: true,
+        icon: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><circle cx="12" cy="8" r="1.5"/><path d="m9 11 3 1.5 3-1.5"/><path d="M12 12.5V15"/><path d="m9 18 3-3 3 3"/></svg>`,
+    },
+    {
         id: 'solargame',
         title: 'Solar Game',
         desc: 'solargame.pages.dev',
