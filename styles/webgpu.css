@@ -188,10 +188,161 @@ body {
 }
 
 #webgpu-ui #regenerateBtn.connected,
+#webgpu-ui #erodeBtn.connected,
 #erosion-ui #regenerateBtn.connected,
 #dunes-ui #regenerateBtn.connected {
     border-color: var(--accent);
     box-shadow: 0 0 0 2px var(--accent-subtle);
+}
+
+/* Collapsible accordion sections (#webgpu-ui) */
+#webgpu-ui details.ui-accordion {
+    margin-bottom: 10px;
+    padding-bottom: 10px;
+}
+
+#webgpu-ui details.ui-accordion:last-child {
+    margin-bottom: 0;
+    padding-bottom: 0;
+}
+
+#webgpu-ui summary.ui-summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    cursor: pointer;
+    list-style: none;
+    user-select: none;
+    padding: 4px 2px;
+    border-radius: 4px;
+    transition: color 0.15s ease, background 0.15s ease;
+}
+
+#webgpu-ui summary.ui-summary::-webkit-details-marker {
+    display: none;
+}
+
+#webgpu-ui summary.ui-summary:hover {
+    background: hsla(0, 0%, 100%, 0.04);
+}
+
+#webgpu-ui .summary-title {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.9rem;
+    color: var(--accent);
+    font-weight: 500;
+    letter-spacing: 0.5px;
+}
+
+#webgpu-ui .summary-title::before {
+    content: "▸";
+    display: inline-block;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    transition: transform 0.2s ease;
+}
+
+#webgpu-ui details.ui-accordion[open] > summary.ui-summary .summary-title::before {
+    transform: rotate(90deg);
+    color: var(--accent);
+}
+
+#webgpu-ui .summary-badge {
+    font-size: 0.7rem;
+    font-family: monospace;
+    color: var(--text-muted);
+    background: hsla(0, 0%, 100%, 0.06);
+    border: 1px solid var(--border-subtle);
+    padding: 1px 6px;
+    border-radius: 999px;
+    white-space: nowrap;
+}
+
+#webgpu-ui .summary-badge.pending {
+    color: var(--bg);
+    background: var(--accent);
+    border-color: var(--accent);
+    font-weight: 600;
+}
+
+#webgpu-ui .ui-section-body {
+    padding-top: 8px;
+}
+
+#webgpu-ui .info-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2px 8px;
+    margin-top: 4px;
+}
+
+/* Nested fine-tune parameter drawer */
+#webgpu-ui details.ui-subdrawer {
+    margin: 8px 0;
+    border: 1px solid var(--border-subtle);
+    border-radius: 6px;
+    background: hsla(0, 0%, 100%, 0.02);
+    padding: 4px 8px;
+}
+
+#webgpu-ui summary.ui-subsummary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    cursor: pointer;
+    list-style: none;
+    user-select: none;
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    padding: 2px 0;
+}
+
+#webgpu-ui summary.ui-subsummary::-webkit-details-marker {
+    display: none;
+}
+
+#webgpu-ui summary.ui-subsummary > span:first-child::before {
+    content: "▸ ";
+    display: inline-block;
+    transition: transform 0.2s ease;
+}
+
+#webgpu-ui details.ui-subdrawer[open] > summary.ui-subsummary {
+    color: var(--text);
+    margin-bottom: 4px;
+    padding-bottom: 4px;
+    border-bottom: 1px solid var(--border-subtle);
+}
+
+#webgpu-ui details.ui-subdrawer[open] > summary.ui-subsummary > span:first-child::before {
+    content: "▾ ";
+    color: var(--accent);
+}
+
+#webgpu-ui .erode-actions {
+    margin-top: 8px;
+}
+
+#webgpu-ui #erodeBtn.pending {
+    background: var(--accent);
+    color: var(--bg);
+    border-color: var(--accent);
+    font-weight: 600;
+    box-shadow: 0 0 12px hsla(50, 100%, 67%, 0.35);
+}
+
+#webgpu-ui #erodeBtn.pending:hover {
+    background: var(--accent-hover);
+    border-color: var(--accent-hover);
+}
+
+#webgpu-ui .pending-hint {
+    color: var(--accent);
+    margin: 6px 0 0 0;
+    font-size: 0.75rem;
 }
 
 #webgpu-ui input[type="radio"],

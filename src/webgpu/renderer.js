@@ -24,6 +24,7 @@ import { buildSkirtGeometry } from "./skirt.js";
 
 export async function createRenderer(canvas, pipeline, engine) {
     const scene = createSceneContext(engine);
+    scene.clearColor = { r: 29 / 255, g: 27 / 255, b: 28 / 255, a: 1 };
 
     // Camera — orbit around terrain center (scene-scaled units)
     const camera = createDefaultCamera(scene);

@@ -537,14 +537,16 @@ export class TerrainAppLauncher extends HTMLElement {
 
     positionMenu() {
         if (typeof window === 'undefined') return;
-        const rect = this.buttonEl.getBoundingClientRect();
-        if (rect.left + 340 > window.innerWidth) {
-            this.menuEl.style.left = 'auto';
-            this.menuEl.style.right = '0';
-        } else {
-            this.menuEl.style.left = '0';
-            this.menuEl.style.right = 'auto';
-        }
+        const margin = 8;
+        const hostRect = this.getBoundingClientRect();
+        const buttonRect = this.buttonEl.getBoundingClientRect();
+        const menuWidth = this.menuEl.offsetWidth || 330;
+        const menuLeft = Math.max(
+            margin,
+            Math.min(buttonRect.left, window.innerWidth - menuWidth - margin)
+        );
+        this.menuEl.style.left = `${menuLeft - hostRect.left}px`;
+        this.menuEl.style.right = 'auto';
     }
 
     handleDocumentClick(e) {
