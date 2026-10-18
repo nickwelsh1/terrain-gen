@@ -218,6 +218,8 @@
             invert: false
         };
         let selectedImageId = null;
+        let selectedPaletteId = null;
+        let palettes = [];
         let activePalette = null;
         const line = { start: null, end: null, dragging: null };
         let dragMarker = null;
@@ -314,10 +316,10 @@
                     id: im.id,
                     name: im.name,
                     width: im.width,
-                    height: im.height,
-                    palettes: im.palettes,
-                    selectedPaletteId: im.selectedPaletteId
+                    height: im.height
                 })),
+                palettes,
+                selectedPaletteId,
                 settings,
                 selectedImageId
             };
@@ -333,10 +335,22 @@
                 selectedImageId = payload.selectedImageId || null;
                 const blobs = await dbGetAll();
                 images = (payload.images || []).map(im => ({
-                    ...im,
+                    id: im.id,
+                    name: im.name,
+                    width: im.width,
+                    height: im.height,
                     blob: blobs[im.id],
                     url: blobs[im.id] ? URL.createObjectURL(blobs[im.id]) : null
                 }));
+                // Migrate legacy per-image palettes into the global list
+                palettes = (payload.palettes || (payload.images || []).flatMap(im => im.palettes || [])).map(p => ({
+                    ...p,
+                    points: Array.isArray(p.points) && p.points.length === (p.colors || []).length
+                        ? p.points
+                        : (p.colors || []).map(() => ({ x: 0.5, y: 0.5 }))
+                }));
+                const selPal = (payload.images || []).find(im => im.id === selectedImageId)?.selectedPaletteId;
+                selectedPaletteId = payload.selectedPaletteId || selPal || palettes[0]?.id || null;
             } catch (e) { console.error('load failed', e); }
         }
 
@@ -583,8 +597,8 @@
             let data = [];
             const method = overrideMethod || settings.method;
             if (method === 'harmony') {
-                const base = im.palettes.length && im.palettes[0].colors.length
-                    ? im.palettes[0].colors[0].color
+                const base = palettes.length && palettes[0].colors.length
+                    ? palettes[0].colors[0].color
                     : { mode: 'rgb', r: 0.5, g: 0.5, b: 0.5 };
                 data = generateHarmony(base, settings.harmony, settings.colorCount);
             } else if (method === 'line' && (!line.start || !line.end)) {
@@ -617,7 +631,7 @@
         }
 
         function getSelectedImage() { return images.find(i => i.id === selectedImageId); }
-        function getSelectedPalette(im) { return im.palettes.find(p => p.id === im.selectedPaletteId); }
+        function getSelectedPalette() { return palettes.find(p => p.id === selectedPaletteId); }
 
         async function handleFiles(files) {
             const list = Array.from(files);
@@ -632,7 +646,7 @@
                     continue;
                 }
                 const id = uid();
-                const image = { id, name: file.name, width: img.naturalWidth, height: img.naturalHeight, blob, url, palettes: [], selectedPaletteId: null };
+                const image = { id, name: file.name, width: img.naturalWidth, height: img.naturalHeight, blob, url };
                 images.push(image);
                 await dbPut(id, blob);
             }
@@ -667,13 +681,13 @@
             if (!im) {
                 els.viewer.classList.add('hidden');
                 els.emptyState.classList.remove('hidden');
-                els.activePalette.classList.add('hidden');
-                els.paletteList.innerHTML = '';
+                els.overlay.innerHTML = '';
+                if (!activePalette && selectedPaletteId) selectPalette(selectedPaletteId);
+                else { renderActivePalette(); renderPalettes(); }
                 return;
             }
             els.emptyState.classList.add('hidden');
             els.viewer.classList.remove('hidden');
-            els.activePalette.classList.remove('hidden');
             els.mainImage.addEventListener('load', () => { updateImageFilter(); updateActivePalette(); }, { once: true });
             els.mainImage.src = im.url;
             if (els.mainImage.complete && els.mainImage.naturalWidth) {
@@ -698,6 +712,7 @@
         }
 
         function renderActivePalette() {
+            els.activePalette.classList.toggle('hidden', !activePalette || !activePalette.colors.length);
             if (!activePalette || !activePalette.colors.length) {
                 els.activeSwatches.innerHTML = '';
                 els.activeValues.textContent = '';
@@ -717,6 +732,7 @@
             const im = getSelectedImage();
             const svg = els.overlay;
             svg.innerHTML = '';
+            if (!im) return;
             const viewerRect = els.viewer.getBoundingClientRect();
             const imgRect = els.mainImage.getBoundingClientRect();
             const left = imgRect.left - viewerRect.left;
@@ -846,19 +862,19 @@
         }
 
         function addActivePalette() {
-            const im = getSelectedImage();
-            if (!im || !activePalette || !activePalette.colors.length) return;
-            const pal = createPalette('Palette ' + (im.palettes.length + 1), activePalette.colors.map((c, i) => ({ color: c.color, point: activePalette.points[i] })), activePalette.method);
-            im.palettes.push(pal);
-            im.selectedPaletteId = pal.id;
+            if (!activePalette || !activePalette.colors.length) return;
+            const pal = createPalette('Palette ' + (palettes.length + 1), activePalette.colors.map((c, i) => ({ color: c.color, point: activePalette.points[i] })), activePalette.method);
+            pal.source = getSelectedImage()?.name || activePalette.source || null;
+            palettes.push(pal);
+            selectedPaletteId = pal.id;
             saveState();
             renderPalettes();
             showToast('Palette added');
         }
 
-        function selectPalette(im, id) {
-            im.selectedPaletteId = id;
-            const pal = getSelectedPalette(im);
+        function selectPalette(id) {
+            selectedPaletteId = id;
+            const pal = getSelectedPalette();
             if (pal) {
                 activePalette = {
                     id: null,
@@ -867,7 +883,8 @@
                     method: pal.method,
                     harmony: pal.harmony,
                     colors: pal.colors.map(c => ({ color: c.color })),
-                    points: pal.points.map(p => ({ ...p }))
+                    points: pal.points.map(p => ({ ...p })),
+                    source: pal.source
                 };
                 renderActivePalette();
                 renderOverlay();
@@ -876,24 +893,24 @@
             renderPalettes();
         }
 
-        function removePalette(im, id) {
-            im.palettes = im.palettes.filter(p => p.id !== id);
-            if (im.selectedPaletteId === id) {
-                im.selectedPaletteId = im.palettes[0]?.id || null;
-                if (im.palettes[0]) selectPalette(im, im.palettes[0].id);
+        function removePalette(id) {
+            palettes = palettes.filter(p => p.id !== id);
+            if (selectedPaletteId === id) {
+                selectedPaletteId = palettes[0]?.id || null;
+                if (palettes[0]) selectPalette(palettes[0].id);
                 else updateActivePalette();
             }
             saveState();
             renderPalettes();
         }
 
-        function removeColor(im, pal, idx) {
+        function removeColor(pal, idx) {
             pal.colors.splice(idx, 1);
             pal.points.splice(idx, 1);
             pal.colorCount = pal.colors.length;
             saveState();
             renderPalettes();
-            if (pal.id === im.selectedPaletteId) {
+            if (pal.id === selectedPaletteId) {
                 activePalette = {
                     id: null,
                     name: pal.name,
@@ -937,7 +954,7 @@
             }
             saveState();
             renderPalettes();
-            if (getSelectedPalette(getSelectedImage()) === pal) {
+            if (getSelectedPalette() === pal) {
                 activePalette = {
                     id: null,
                     name: pal.name,
@@ -953,13 +970,11 @@
         }
 
         function renderPalettes() {
-            const im = getSelectedImage();
-            if (!im) { els.paletteList.innerHTML = ''; return; }
             els.paletteList.innerHTML = '';
-            for (const pal of im.palettes) {
+            for (const pal of palettes) {
                 const card = document.createElement('div');
-                card.className = `p-3 rounded border ${pal.id === im.selectedPaletteId ? 'border-[var(--accent)] bg-neutral-800' : 'border-neutral-700 bg-neutral-800'} cursor-pointer`;
-                card.onclick = (e) => { if (e.target.closest('button, input, [draggable]')) return; selectPalette(im, pal.id); };
+                card.className = `p-3 rounded border ${pal.id === selectedPaletteId ? 'border-[var(--accent)] bg-neutral-800' : 'border-neutral-700 bg-neutral-800'} cursor-pointer`;
+                card.onclick = (e) => { if (e.target.closest('button, input, [draggable]')) return; selectPalette(pal.id); };
 
                 const grad = pal.colors.map(c => formatColor(c.color, 'hex')).join(',');
                 const swatches = pal.colors.map((c, i) => {
@@ -992,13 +1007,13 @@
                 card.querySelector('.editable-name').onblur = (e) => { pal.name = e.target.textContent.trim(); saveState(); };
                 card.querySelector('.editable-name').onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); e.target.blur(); } };
                 card.querySelector('.copy-list').onclick = () => copyList(pal);
-                card.querySelector('.delete-pal').onclick = () => removePalette(im, pal.id);
+                card.querySelector('.delete-pal').onclick = () => removePalette(pal.id);
                 card.querySelector('.sort-l').onclick = () => sortPalette(pal, 'lightness');
                 card.querySelector('.sort-h').onclick = () => sortPalette(pal, 'hue');
                 card.querySelector('.sort-s').onclick = () => sortPalette(pal, 'saturation');
                 card.querySelector('.sort-c').onclick = () => sortPalette(pal, 'chroma');
                 card.querySelector('.sort-r').onclick = () => sortPalette(pal, 'random');
-                card.querySelectorAll('.remove-color').forEach((b, idx) => b.onclick = (e) => { e.stopPropagation(); removeColor(im, pal, idx); });
+                card.querySelectorAll('.remove-color').forEach((b, idx) => b.onclick = (e) => { e.stopPropagation(); removeColor(pal, idx); });
                 card.querySelectorAll('.swatch-row > div[draggable]').forEach(el => {
                     el.ondragstart = (e) => { e.dataTransfer.setData('text/plain', `${pal.id},${el.dataset.idx}`); };
                     el.ondragover = (e) => { e.preventDefault(); };
@@ -1006,11 +1021,12 @@
                         e.preventDefault();
                         const [fromPid, fromIdx] = e.dataTransfer.getData('text/plain').split(',');
                         const toIdx = +el.dataset.idx;
-                        const fromP = im.palettes.find(p => p.id === fromPid);
-                        if (!fromP) return;
+                        const fromP = palettes.find(p => p.id === fromPid);
+                        const targetP = palettes.find(p => p.id === el.dataset.pid);
+                        if (!fromP || !targetP) return;
                         const col = fromP.colors.splice(+fromIdx, 1)[0];
-                        const pt = fromP.points.splice(+fromIdx, 1)[0];
-                        const targetP = im.palettes.find(p => p.id === el.dataset.pid);
+                        const pt = fromP.points ? fromP.points.splice(+fromIdx, 1)[0] : { x: 0.5, y: 0.5 };
+                        targetP.points = targetP.points || [];
                         targetP.points.splice(toIdx, 0, pt);
                         targetP.colors.splice(toIdx, 0, col);
                         targetP.colorCount = targetP.colors.length;
@@ -1057,51 +1073,69 @@
         function removeAllImages() {
             for (const im of images) { if (im.url) URL.revokeObjectURL(im.url); dbDelete(im.id); }
             images = [];
+            palettes = [];
             selectedImageId = null;
+            selectedPaletteId = null;
+            activePalette = null;
             saveState();
-            renderThumbs();
             selectImage(null);
         }
 
         function exportJson() {
-            const data = images.map(im => ({
-                imageName: im.name,
-                palettes: im.palettes.map(p => ({
+            const data = {
+                palettes: palettes.map(p => ({
                     name: p.name,
                     method: p.method,
+                    ...(p.source ? { source: p.source } : {}),
                     colors: p.colors.map(c => formatColor(c.color, settings.outputFormat))
                 }))
-            }));
+            };
             const str = JSON.stringify(data, null, 2);
             els.jsonOutput.value = str;
             els.jsonDialog.showModal();
         }
 
-        function importJson(str, append = true) {
-            try {
-                const data = JSON.parse(str);
-                const im = getSelectedImage();
-                if (!im) { showToast('Select an image first'); return; }
-                const palettes = (data.palettes || data || []);
-                for (const p of palettes) {
-                    const pal = {
-                        id: uid(),
-                        name: p.name || 'Imported palette',
-                        method: p.method || 'diagonal/',
-                        colorCount: (p.colors || []).length,
-                        colors: (p.colors || []).map(s => {
-                            const color = culori.parse(s) || { mode: 'rgb', r: 0, g: 0, b: 0 };
-                            return { color };
-                        }),
-                        points: (p.colors || []).map(() => ({ x: 0.5, y: 0.5 })),
-                        harmony: 'none'
-                    };
-                    im.palettes.push(pal);
+        function parseImportedColor(s) {
+            if (typeof s === 'string') return culori.parse(s) || { mode: 'rgb', r: 0, g: 0, b: 0 };
+            if (s && s.color) return s.color;
+            if (s && s.mode) return s;
+            return { mode: 'rgb', r: 0, g: 0, b: 0 };
+        }
+
+        function importJson(str) {
+            let data;
+            try { data = JSON.parse(str); } catch { showToast('Invalid JSON'); return; }
+            const entries = [];
+            const loose = [];
+            for (const e of Array.isArray(data) ? data : [data]) {
+                if (typeof e === 'string') { loose.push(e); continue; }
+                if (!e || typeof e !== 'object') continue;
+                if (Array.isArray(e.palettes) && !Array.isArray(e.colors)) {
+                    // Legacy export shape: { imageName, palettes: [...] }
+                    for (const p of e.palettes) {
+                        entries.push({ ...(p && typeof p === 'object' ? p : {}), source: p?.source ?? e.imageName ?? e.name ?? null });
+                    }
+                } else {
+                    entries.push(e);
                 }
-                saveState();
-                renderPalettes();
-                showToast('Imported');
-            } catch (e) { showToast('Invalid JSON'); }
+            }
+            if (loose.length) entries.push({ name: 'Imported palette', colors: loose });
+            const pals = entries.filter(p => Array.isArray(p.colors) && p.colors.length).map(p => ({
+                id: uid(),
+                name: p.name || 'Imported palette',
+                method: p.method || 'diagonal/',
+                colorCount: p.colors.length,
+                colors: p.colors.map(s => ({ color: parseImportedColor(s) })),
+                points: (Array.isArray(p.points) && p.points.length === p.colors.length
+                    ? p.points.map(pt => ({ ...pt, x: pt?.x ?? 0.5, y: pt?.y ?? 0.5 }))
+                    : p.colors.map(() => ({ x: 0.5, y: 0.5 }))),
+                harmony: p.harmony || 'none',
+                source: p.source || null
+            }));
+            if (!pals.length) { showToast('No palettes found'); return; }
+            palettes.push(...pals);
+            selectPalette(pals[0].id);
+            showToast(`Imported ${pals.length} palette${pals.length === 1 ? '' : 's'}`);
         }
 
         function onFileImport(e) {
