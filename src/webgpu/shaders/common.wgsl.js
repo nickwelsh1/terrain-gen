@@ -58,11 +58,12 @@ fn hash2(p: vec2u) -> f32 {
     return f32(v) / 4294967295.0;
 }
 
-// Float 2D -> 2D hash in [-1, 1]
+// Float 2D -> 2D hash in [-1, 1] (Dave Hoskins fract-first hash: bounded in [0, 36]
+// so it never overflows 32-bit float mantissa precision at large coordinates or seeds).
 fn hash22f(p: vec2f) -> vec2f {
-    let k = vec2f(0.3183099, 0.3678794);
-    let q = p * k + k.yx;
-    return -1.0 + 2.0 * fract(16.0 * k * fract(q.x * q.y * (q.x + q.y)));
+    var p3 = fract(vec3f(p.x, p.y, p.x) * vec3f(0.1031, 0.1030, 0.0973));
+    p3 = p3 + dot(p3, p3.yzx + vec3f(33.33, 33.33, 33.33));
+    return -1.0 + 2.0 * fract((p3.xx + p3.yz) * p3.zy);
 }
 
 fn smoothstep01(t: f32) -> f32 {
@@ -253,7 +254,7 @@ fn voronoi2D(p: vec2f, jitter: f32, seed: f32) -> vec4f {
     var bestCell = vec2f(0.0, 0.0);
     var bestVec = vec2f(0.0, 0.0);
 
-    let seedVec = vec2f(seed * 17.3, seed * 31.7);
+    let seedVec = floor(fract(vec2f(seed * 0.1031, seed * 0.1737)) * 256.0);
 
     for (var j: i32 = -1; j <= 1; j = j + 1) {
         for (var i: i32 = -1; i <= 1; i = i + 1) {
@@ -274,8 +275,8 @@ fn voronoi2D(p: vec2f, jitter: f32, seed: f32) -> vec4f {
         }
     }
 
-    let h = hash22f(bestCell * 1.37);
-    let cellHeight01 = h.x * 0.5 + 0.5;
+    let h = hash22f(bestCell + vec2f(17.13, 59.41));
+    let cellHeight01 = clamp01(h.x * 0.5 + 0.5);
     let tiltDir = normalize(h + vec2f(0.001, 0.001));
     let cellTilt = dot(bestVec, tiltDir);
 

@@ -9,6 +9,7 @@
 import {
     DEFAULT_PARAMS,
     MAX_BIOME_LAYERS,
+    MATERIAL_PALETTES,
     PASS_HEIGHTMAP,
     PASS_HARDNESS,
     PASS_NORMALS,
@@ -82,6 +83,24 @@ function renderPresetOptGroups(selectedId) {
     return html;
 }
 
+function renderMaterialPaletteOptGroups(selectedPalette) {
+    const groups = new Map();
+    for (const pal of MATERIAL_PALETTES) {
+        const g = pal.group || "Materials";
+        if (!groups.has(g)) groups.set(g, []);
+        groups.get(g).push(pal);
+    }
+    let html = "";
+    for (const [groupName, items] of groups.entries()) {
+        html += `<optgroup label="${groupName}">`;
+        for (const pal of items) {
+            html += `<option value="${pal.value}"${Number(pal.value) === Number(selectedPalette) ? " selected" : ""}>${pal.label}</option>`;
+        }
+        html += `</optgroup>`;
+    }
+    return html;
+}
+
 function renderScopedParamControl(scope, paramDef, currentValue) {
     const val = currentValue !== undefined ? currentValue : paramDef.default;
     if (paramDef.type === "select" && Array.isArray(paramDef.options)) {
@@ -112,6 +131,7 @@ export function createUI(container, callbacks = {}) {
         onResetToBase = () => {},
         onRegenerate = () => {},
         onRenderModeChange = () => {},
+        onMaterialPaletteChange = () => {},
         onPassToggle = () => {},
         onPresetChange = null,
         onScopedParamChange = null,
@@ -447,6 +467,11 @@ export function createUI(container, callbacks = {}) {
                     <span class="summary-badge" id="renderBadge">Lit</span>
                 </summary>
                 <div class="ui-section-body">
+                    <label for="materialPaletteSelect">Landscape material
+                        <select id="materialPaletteSelect">
+                            ${renderMaterialPaletteOptGroups(activeStack.materialPalette ?? 0)}
+                        </select>
+                    </label>
                     <label><input type="radio" name="renderMode" value="${RENDER_LIT}" checked> Lit biome terrain</label>
                     <label><input type="radio" name="renderMode" value="${RENDER_HEIGHTMAP}"> Elevation heightmap</label>
                     <label><input type="radio" name="renderMode" value="${RENDER_HARDNESS}"> Hardness map</label>
@@ -758,6 +783,12 @@ export function createUI(container, callbacks = {}) {
         bindScopedControls(panel.querySelector("#sectionErosion"));
         rebuildOverlayLayersUI();
 
+        const matSelect = panel.querySelector("#materialPaletteSelect");
+        if (matSelect && activeStack.materialPalette !== undefined) {
+            matSelect.value = String(activeStack.materialPalette);
+            onMaterialPaletteChange(activeStack.materialPalette);
+        }
+
         setErosionPending(false);
         onRegenerate();
     });
@@ -913,6 +944,16 @@ export function createUI(container, callbacks = {}) {
         setErosionPending(false);
         onRegenerate();
     });
+
+    // Landscape material palette selector
+    const materialPaletteSelect = panel.querySelector("#materialPaletteSelect");
+    if (materialPaletteSelect) {
+        materialPaletteSelect.addEventListener("change", (e) => {
+            const paletteId = Number.parseInt(e.target.value, 10);
+            activeStack.materialPalette = paletteId;
+            onMaterialPaletteChange(paletteId);
+        });
+    }
 
     // Render mode radios
     panel.querySelectorAll('input[name="renderMode"]').forEach((radio) => {

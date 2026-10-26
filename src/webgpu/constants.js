@@ -96,6 +96,31 @@ export const RENDER_MASK_INSPECTOR = 5;
 export const RENDER_SEDIMENT = 6;
 export const RENDER_CURVATURE_AO = 7;
 
+// Landscape Material / Season Palettes for Lit Biome Terrain
+export const PALETTE_ALPINE_SUMMER = 0;
+export const PALETTE_ALPINE_WINTER = 1;
+export const PALETTE_ARIZONA_SUMMER = 2;
+export const PALETTE_ZHANGJIAJIE_SUMMER = 3;
+export const PALETTE_ZHANGJIAJIE_WINTER = 4;
+export const PALETTE_TROPICAL_TEPUIS = 5;
+export const PALETTE_SAHARA_DESERT = 6;
+export const PALETTE_NAMIB_RED = 7;
+export const PALETTE_OUTBACK_PURNULULU = 8;
+export const PALETTE_POLAR_FJORD = 9;
+
+export const MATERIAL_PALETTES = [
+    { value: PALETTE_ALPINE_SUMMER, group: "Alpine & Mountain", label: "Alpine Dolomites (Summer)" },
+    { value: PALETTE_ALPINE_WINTER, group: "Alpine & Mountain", label: "Alpine & Himalayan (Winter Snow)" },
+    { value: PALETTE_POLAR_FJORD, group: "Alpine & Mountain", label: "Subpolar Basalt & Glaciers" },
+    { value: PALETTE_ZHANGJIAJIE_SUMMER, group: "Karst & Subtropical", label: "Zhangjiajie Karst (Lush Summer)" },
+    { value: PALETTE_ZHANGJIAJIE_WINTER, group: "Karst & Subtropical", label: "Zhangjiajie Karst (Winter Frost)" },
+    { value: PALETTE_TROPICAL_TEPUIS, group: "Karst & Subtropical", label: "Tropical Island & Guiana Tepui" },
+    { value: PALETTE_ARIZONA_SUMMER, group: "Arid, Canyon & Outback", label: "Dry Summer Arizona (Red Rock)" },
+    { value: PALETTE_OUTBACK_PURNULULU, group: "Arid, Canyon & Outback", label: "Australian Outback (Purnululu)" },
+    { value: PALETTE_SAHARA_DESERT, group: "Arid, Canyon & Outback", label: "Golden Sahara & Sudan Dunes" },
+    { value: PALETTE_NAMIB_RED, group: "Arid, Canyon & Outback", label: "Namib Red Oxide Dunes & Pans" },
+];
+
 // Default simulation parameters (real-world units)
 export const DEFAULT_PARAMS = {
     rainRate: 2.0,           // litres of water a droplet starts with
@@ -109,4 +134,5 @@ export const DEFAULT_PARAMS = {
     baseHeight: 800,          // metres of relief in the generated base noise
     batchSeed: 0,            // varies per erosion batch so droplets take new paths
     renderMode: RENDER_LIT,
+    materialPalette: PALETTE_ALPINE_SUMMER,
 };

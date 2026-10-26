@@ -2,7 +2,34 @@
 // Supports up to MAX_BIOME_LAYERS (8) composable biome layers per stack while
 // keeping backward-compatible layer1 / layer2 references on every stack object.
 
-import { MAX_BIOME_LAYERS } from "./constants.js";
+import {
+    MAX_BIOME_LAYERS,
+    PALETTE_ALPINE_SUMMER,
+    PALETTE_ALPINE_WINTER,
+    PALETTE_ARIZONA_SUMMER,
+    PALETTE_ZHANGJIAJIE_SUMMER,
+    PALETTE_TROPICAL_TEPUIS,
+    PALETTE_SAHARA_DESERT,
+    PALETTE_NAMIB_RED,
+    PALETTE_OUTBACK_PURNULULU,
+} from "./constants.js";
+
+const PRESET_DEFAULT_PALETTE = {
+    "classic-fbm-mountains": PALETTE_ALPINE_SUMMER,
+    "alpine-dolomites": PALETTE_ALPINE_SUMMER,
+    "himalayan-peaks": PALETTE_ALPINE_WINTER,
+    "roraima-tepui": PALETTE_TROPICAL_TEPUIS,
+    "monument-valley-buttes": PALETTE_ARIZONA_SUMMER,
+    "grand-canyon-gorge": PALETTE_ARIZONA_SUMMER,
+    "grand-mesa-canyons": PALETTE_ARIZONA_SUMMER,
+    "zhangjiajie-karst": PALETTE_ZHANGJIAJIE_SUMMER,
+    "bungle-bungles-domes": PALETTE_OUTBACK_PURNULULU,
+    "wilpena-pound": PALETTE_OUTBACK_PURNULULU,
+    "sudan-barchan-dunes": PALETTE_SAHARA_DESERT,
+    "namib-mega-dunes": PALETTE_NAMIB_RED,
+    "canyon-valley-dunes": PALETTE_ARIZONA_SUMMER,
+    "volcanic-caldera-island": PALETTE_TROPICAL_TEPUIS,
+};
 
 export function defaultShapers(overrides = {}) {
     const base = {
@@ -168,6 +195,9 @@ export function normalizeStack(stack) {
     stack.layer1 = stack.layers[0];
     stack.layer2 = stack.layers[1];
     stack.simulations = defaultSimulations(stack.simulations || {});
+    if (stack.materialPalette === undefined) {
+        stack.materialPalette = PRESET_DEFAULT_PALETTE[stack.id] ?? PALETTE_ALPINE_SUMMER;
+    }
     return stack;
 }
 
@@ -175,6 +205,41 @@ export const PRESETS = [
     // =========================================================================
     // GROUP 1: MOUNTAINS & MASSIFS
     // =========================================================================
+    {
+        id: "classic-fbm-mountains",
+        group: "Mountains & Massifs",
+        name: "Classic fBm Mountains (Original)",
+        description: "The original fBm + ridged multifractal + domain-warped mountain heightmap, ready for interactive hydraulic droplet erosion.",
+        recommendedAreaM: 2560,
+        seed: 42,
+        layers: [
+            {
+                id: "layer1",
+                name: "Layer 1: Classic fBm Heightmap",
+                enabled: true,
+                generatorId: "gen.ridgeFbm",
+                generatorParams: {
+                    landformMode: 3, // Classic fBm & Ridged Mountains (Original)
+                    baseHeight: 800,
+                    frequency: 4.0,
+                    ridgeWeight: 0.4,
+                    ridgeSharpness: 2.0,
+                    scaleVariation: 0.0,
+                    warpAmplitude: 0.3,
+                    octaves: 6,
+                    lacunarity: 2.0,
+                    gain: 0.5,
+                    warpFrequency: 2.0,
+                    secondRangeWeight: 0.0,
+                    secondRangeAngle: 65,
+                    heightCurve: 2.585,
+                },
+                shapers: defaultShapers(),
+            },
+            createDefaultOverlayLayer(2, { enabled: false }),
+        ],
+        simulations: defaultSimulations(),
+    },
     {
         id: "alpine-dolomites",
         group: "Mountains & Massifs",
@@ -494,40 +559,41 @@ export const PRESETS = [
         id: "zhangjiajie-karst",
         group: "Karst & Australian Landmarks",
         name: "Zhangjiajie Limestone Karst Pillars",
-        description: "Clustered vertical Fenglin sandstone/limestone pillars and spires rising from deep dissolution ravines with craggy crowns.",
+        description: "Dozens of slender, vertical quartz-sandstone and limestone karst pillars, needles, and rock fins rising from a misty canyon floor.",
         recommendedAreaM: 2560,
         seed: 512,
         layers: [
             {
                 id: "layer1",
-                name: "Layer 1: Fenglin Karst Towers",
+                name: "Layer 1: Fenglin Karst Pillars",
                 enabled: true,
                 generatorId: "gen.ridgeFbm",
                 generatorParams: {
-                    landformMode: 2, // Karst Towers (Zhangjiajie)
-                    baseHeight: 1320,
-                    frequency: 2.5,
-                    ridgeWeight: 0.7,
+                    landformMode: 2, // Karst Towers & Pillars (Zhangjiajie)
+                    baseHeight: 1480,
+                    frequency: 2.4,
+                    ridgeWeight: 0.75,
                     ridgeSharpness: 2.8,
-                    scaleVariation: 0.82,
-                    warpAmplitude: 0.3,
+                    scaleVariation: 0.85,
+                    warpAmplitude: 0.22,
                     octaves: 6,
                     lacunarity: 2.0,
                     gain: 0.5,
                     warpFrequency: 2.0,
                     secondRangeWeight: 0.3,
                     secondRangeAngle: 70,
-                    heightCurve: 1.4,
+                    heightCurve: 1.3,
                 },
                 shapers: defaultShapers({
-                    "shape.terrace": { enabled: true, stepHeightM: 42, sharpness: 0.76, strength: 0.45, strataTiltM: 15, strataAngleDeg: 10, strataWarpM: 12 },
-                    "shape.surfaceDetail": { enabled: true, boulderHeightM: 18, boulderScale: 16, caprockRoughnessM: 24, basinHummocksM: 14, strength: 0.9 },
+                    "shape.terrace": { enabled: true, stepHeightM: 38, sharpness: 0.78, strength: 0.35, strataTiltM: 12, strataAngleDeg: 10, strataWarpM: 8 },
+                    "shape.surfaceDetail": { enabled: true, boulderHeightM: 14, boulderScale: 18, caprockRoughnessM: 22, basinHummocksM: 14, strength: 0.85 },
                 }),
             },
             createDefaultOverlayLayer(2, { enabled: false }),
         ],
         simulations: defaultSimulations({
-            "sim.thermalTalus": { enabled: true, talusReposeDeg: 35, bedrockReposeDeg: 74, iterations: 8, transferRate: 0.22, weatheringRate: 0.25 },
+            // Keep thermalTalus off by default so slender 2-cell-wide vertical rock needles aren't slumped into cones
+            "sim.thermalTalus": { enabled: false, talusReposeDeg: 36, bedrockReposeDeg: 78, iterations: 4, transferRate: 0.15, weatheringRate: 0.1 },
         }),
     },
     {

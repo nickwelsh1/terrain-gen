@@ -79,46 +79,117 @@ fn generateHeightmap(@builtin(global_invocation_id) gid: vec3u) {
         // MODE 1: Tabular Carbonate Massif (Alpine Dolomites — Tre Cime / Seceda / Tofane)
         // Massive uplifted reef blocks separated by deep glacial saddles, with a 33° scree apron
         // at the base and sheer vertical dolomitic cliff walls crowned by jagged spires (torri).
-        let mUv = uv * max(baseFreq * 0.55, 0.8) + vec2f(warpX * 0.4, warpY * 0.4);
+        let rWeight = clamp01(params.ridgeWeight);
+        let mUv = uv * (baseFreq * 0.65 * localFreqMult) + vec2f(warpX * 0.4, warpY * 0.4);
         let vMassif = voronoi2D(mUv, 0.85, seed + 17.0);
         let ridgeSpine = ridgedEx(wx * 0.65 + 40.0, wy * 0.65 + 40.0, seed + 7.0, 5, lac, gain, sharp);
-        let massifCore = clamp01((1.0 - vMassif.x * 0.95) * 0.55 + ridgeSpine * 0.65);
+        let massifCore = clamp01(
+            (1.0 - vMassif.x * 0.95) * (1.0 - rWeight * 0.45) + ridgeSpine * (0.35 + rWeight * 0.55)
+        );
 
         // Valley floor & broad dolomitic scree apron [0.0 .. 0.42]
-        let valleyBase = fbmEx(wx * 0.5, wy * 0.5, seed + 3.0, 4, 2.0, 0.5) * 0.22;
-        let screeApron = smoothstep(0.18, 0.48, massifCore) * 0.34;
+        let valleyBase = fbmEx(wx * 0.5, wy * 0.5, seed + 3.0, 4, 2.0, 0.5) * 0.20;
+        let screeApron = smoothstep(0.16, 0.46, massifCore) * 0.34;
 
-        // Sheer vertical carbonate cliff wall [0.46 .. 0.56] jumping up to the massif summit
-        let cliffWall = smoothstep(0.44, 0.55, massifCore);
+        // Cliff steepness controlled by Peak sharpness (sharp)
+        let wallHalfSpan = clamp(0.12 / max(sharp * 0.6, 0.5), 0.025, 0.14);
+        let cliffWall = smoothstep(0.48 - wallHalfSpan, 0.48 + wallHalfSpan, massifCore);
         // Jagged dolomitic towers (torri), clefts, and inclined bedding ledges on the massif top
-        let spires = ridgedEx(wx * 2.4, wy * 2.4, seed + 71.0, 5, 2.1, 0.55, max(sharp * 1.3, 2.5));
+        let spires = ridgedEx(wx * 2.4, wy * 2.4, seed + 71.0, 5, 2.1, 0.55, max(sharp * 1.3, 1.2));
         let strataBenches = floor(spires * 6.0) / 6.0 * 0.25 + spires * 0.75;
 
-        h = valleyBase + screeApron + cliffWall * (0.42 + 0.36 * strataBenches);
+        h = valleyBase + screeApron + cliffWall * (0.38 + (0.28 + 0.22 * rWeight) * strataBenches);
         h = clamp01(h * (0.85 + 0.3 * ampEnvelope));
-        // Mark scree apron in sediment channel for authentic talus coloring & repose
         initSediment = screeApron * (1.0 - cliffWall) * params.baseHeight * 0.18;
     } else if (params.landformMode == 2u) {
-        // MODE 2: Fenglin Limestone / Sandstone Karst Pillars (Zhangjiajie / Guilin)
-        // Clustered vertical-walled rock pillars and towers rising out of deep dissolution ravines.
-        let kScale = max(baseFreq * 1.6, 2.5);
-        let kp = (uv + vec2f(warpX * 0.15, warpY * 0.15)) * kScale;
-        let v1 = voronoi2D(kp, 0.9, seed + 31.0);
-        let v2 = voronoi2D(kp * 2.1 + vec2f(17.3, 9.1), 0.85, seed + 67.0);
+        // MODE 2: Fenglin Karst Pillars & Quartz-Sandstone Needles (Zhangjiajie / Guilin)
+        // All 4 primary sliders directly shape the karst formations:
+        // - Massif frequency (baseFreq): pillar & needle grid density
+        // - Ridge crest weight (ridgeWeight): pillar packing density & connected rock fin ridges
+        // - Peak sharpness (sharp): wall verticality, pillar slenderness, and crown spire sharpness
+        // - Scale variety (scaleVar): contrast between giant monoliths, thin needles, and deep gorges
+        let rWeight = clamp01(params.ridgeWeight);
+        let kScale = max(baseFreq * 2.8, 1.5) * mix(1.0, 0.75 + 0.55 * macroMod, scaleVar * 0.5);
+        let kWarpX = (fbmEx(uv.x * 2.5 + 13.0, uv.y * 2.5, seed + 17.0, 3, 2.0, 0.5) - 0.5) * 0.12 * wa;
+        let kWarpY = (fbmEx(uv.x * 2.5, uv.y * 2.5 + 41.0, seed + 29.0, 3, 2.0, 0.5) - 0.5) * 0.12 * wa;
+        let kp = (uv + vec2f(kWarpX, kWarpY)) * kScale;
 
-        // Pillar silhouette: steep vertical column inside each cell where cellHash > threshold
-        let pillarPresence = smoothstep(0.22, 0.75, v1.z * 0.7 + macroMod * 0.3);
-        let pillarRadius = 0.28 + 0.22 * v1.z;
-        let columnWall1 = 1.0 - smoothstep(pillarRadius * 0.45, pillarRadius, v1.x);
-        let columnWall2 = 1.0 - smoothstep(0.18, 0.42, v2.x);
+        // 3-tier Voronoi karst grids (monoliths, slender needles, and flanking spires)
+        let v1 = voronoi2D(kp, 0.88, seed + 31.0);
+        let v2 = voronoi2D(kp * 1.85 + vec2f(7.3, 4.1), 0.92, seed + 67.0);
+        let v3 = voronoi2D(kp * 3.10 + vec2f(13.7, 9.4), 0.85, seed + 103.0);
 
-        // Steep-sided tower with horizontal bedding notches and craggy vegetated crown
-        let towerRaw = max(columnWall1, columnWall2 * 0.75) * pillarPresence;
-        let steepTower = smoothstep(0.12, 0.38, towerRaw) * (0.65 + 0.35 * pow(towerRaw, 0.6));
-        let crownCrags = ridgedEx(wx * 3.0, wy * 3.0, seed + 97.0, 4, 2.0, 0.5, 2.2) * 0.22;
-        let valleyMistFloor = fbmEx(wx * 0.6, wy * 0.6, seed + 11.0, 4, 2.0, 0.5) * 0.16;
+        // Winding canyon gorge floor
+        let gorgeChannel = smoothstep(0.18, 0.72, fbmEx(uv.x * 1.8 + 5.0, uv.y * 1.8 + 11.0, seed + 3.0, 3, 2.0, 0.5));
+        let valleyFloor = 0.05 + 0.12 * gorgeChannel
+                        + 0.04 * fbmEx(uv.x * 6.0, uv.y * 6.0, seed + 11.0, 3, 2.0, 0.5);
 
-        h = clamp01(valleyMistFloor + steepTower * (0.68 + 0.32 * v1.z) + steepTower * crownCrags);
+        // Ridge crest weight controls what fraction of cells host a pillar (from 25% sparse to 85% dense)
+        let survivalThreshold1 = clamp(0.72 - rWeight * 0.58, 0.12, 0.78);
+        let survivalThreshold2 = clamp(0.80 - rWeight * 0.55, 0.18, 0.84);
+
+        // Peak sharpness controls pillar slenderness and wall verticality
+        let slenderFactor = clamp(1.25 / pow(max(sharp, 0.5), 0.35), 0.55, 1.45);
+        let wallWidth = clamp(0.09 / max(sharp, 0.6), 0.015, 0.12);
+
+        // Scale variety controls height & diameter variance across pillars
+        let heightVar1 = mix(0.72, 0.32 + 0.68 * pow(v1.z, 0.7), scaleVar);
+        let heightVar2 = mix(0.65, 0.25 + 0.75 * pow(v2.z, 0.6), scaleVar);
+
+        // Tier 1: Primary vertical karst monoliths & twin rock fins
+        let score1 = fract(v1.z * 1.73 + gorgeChannel * 0.25 * scaleVar);
+        let keep1 = smoothstep(survivalThreshold1 - 0.04, survivalThreshold1 + 0.04, score1);
+        let rad1 = (0.18 + 0.22 * mix(0.5, fract(v1.z * 3.17), scaleVar)) * slenderFactor;
+        let shaft1 = (1.0 - smoothstep(max(0.02, rad1 - wallWidth), rad1 + wallWidth, v1.x)) * keep1;
+        let slot1 = smoothstep(0.015, 0.065, v1.y);
+        // Taper top according to Peak sharpness (flat table vs pointed pinnacle)
+        let coneProfile1 = max(0.0, 1.0 - (v1.x / max(rad1, 0.05)) * clamp01((sharp - 1.5) * 0.22));
+        let pillar1 = shaft1 * slot1 * heightVar1 * coneProfile1;
+
+        // Tier 2: Slender high-aspect-ratio quartz-sandstone needles
+        let score2 = fract(v2.z * 2.31 + macroMod * 0.25 * scaleVar);
+        let keep2 = smoothstep(survivalThreshold2 - 0.04, survivalThreshold2 + 0.04, score2);
+        let rad2 = (0.15 + 0.17 * mix(0.5, fract(v2.z * 4.13), scaleVar)) * slenderFactor;
+        let shaft2 = (1.0 - smoothstep(max(0.02, rad2 - wallWidth), rad2 + wallWidth, v2.x)) * keep2;
+        let coneProfile2 = max(0.0, 1.0 - (v2.x / max(rad2, 0.05)) * clamp01((sharp - 1.2) * 0.25));
+        let pillar2 = shaft2 * heightVar2 * coneProfile2;
+
+        // Tier 3: Flanking spires & rock pinnacles (boosted by Ridge crest weight)
+        let keep3 = smoothstep(0.65 - rWeight * 0.35, 0.72 - rWeight * 0.35, v3.z);
+        let rad3 = (0.16 + 0.14 * v3.z) * slenderFactor;
+        let shaft3 = (1.0 - smoothstep(max(0.02, rad3 - wallWidth), rad3 + wallWidth, v3.x)) * keep3;
+        let pillar3 = shaft3 * (0.28 + 0.45 * v3.z) * (0.5 + 0.5 * rWeight);
+
+        let maxPillar = max(pillar1, max(pillar2, pillar3));
+        let isOnPillar = clamp01(max(shaft1 * slot1, max(shaft2, shaft3)));
+
+        // Conical talus foot skirt around the base of each pillar cluster
+        let foot1 = clamp01((rad1 + 0.22 - v1.x) / 0.24) * keep1;
+        let foot2 = clamp01((rad2 + 0.18 - v2.x) / 0.20) * keep2;
+        let talusBase = pow(max(foot1, foot2 * 0.8), 1.8) * 0.16;
+
+        // Horizontal bedding ledges along vertical shafts + craggy crown on pillar tops
+        let crownNoise = (ridgedEx(uv.x * 20.0, uv.y * 20.0, seed + 97.0, 3, 2.0, 0.5, max(sharp, 1.2)) - 0.35)
+                       * (0.06 + 0.05 * sharp);
+        let stepLedges = floor(maxPillar * 9.0) / 9.0 * 0.12 + maxPillar * 0.88;
+
+        h = clamp01(valleyFloor + talusBase + stepLedges + isOnPillar * crownNoise);
+        initSediment = talusBase * (1.0 - isOnPillar * 0.85) * params.baseHeight * 0.25;
+    } else if (params.landformMode == 3u) {
+        // MODE 3: Classic fBm & Ridged Mountains (Original webgpu.html heightmap formula)
+        let origNx = uv.x * baseFreq;
+        let origNy = uv.y * baseFreq;
+        var origH = fbm(origNx, origNy, seed);
+        let origRidge = ridged(origNx + 100.0, origNy + 100.0, seed + 7.0);
+        let rWeight = clamp01(params.ridgeWeight);
+        origH = origH * (1.0 - rWeight) + origRidge * rWeight;
+
+        let origWarpX = fbm(origNx * wf + 50.0, origNy * wf, seed + 13.0) * wa;
+        let origWarpY = fbm(origNx * wf, origNy * wf + 50.0, seed + 19.0) * wa;
+        origH = origH + fbm(origNx + origWarpX, origNy + origWarpY, seed + 23.0) * 0.15;
+
+        let curve = max(params.heightCurve, 0.3);
+        h = pow(clamp01(origH), curve);
     } else {
         // MODE 0: Tectonic High-Mountain Range (Himalayas / Karakoram / Alps)
         let baseFbm = fbmEx(wx, wy, seed, oct, lac, gain);

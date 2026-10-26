@@ -53,6 +53,7 @@ export async function createRenderer(canvas, pipeline, engine) {
         uniforms: [
             "viewProjection",
             { name: "renderMode", type: "u32" },
+            { name: "materialPalette", type: "u32" },
         ],
         storageBuffers: [
             { name: "heights", type: "array<i32>" },
@@ -110,8 +111,9 @@ export async function createRenderer(canvas, pipeline, engine) {
         pipeline.setOnBuffersChanged(() => syncBuffers());
     }
 
-    // Set initial render mode
+    // Set initial render mode & material palette
     setShaderUniform(renderMaterial, "renderMode", 0);
+    setShaderUniform(renderMaterial, "materialPalette", 0);
 
     // Register and start
     await registerScene(scene);
@@ -127,6 +129,9 @@ export async function createRenderer(canvas, pipeline, engine) {
         syncBuffers,
         setRenderMode(mode) {
             setShaderUniform(renderMaterial, "renderMode", mode);
+        },
+        setMaterialPalette(paletteId) {
+            setShaderUniform(renderMaterial, "materialPalette", paletteId >>> 0);
         },
         async start() {
             await startEngine(engine);

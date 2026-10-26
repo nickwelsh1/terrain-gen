@@ -141,9 +141,10 @@ describe("WebGPU Terrain Compositor Architecture", () => {
     });
 
     describe("12 Real-World Landmark Presets & Dynamic N-Layer Stack", () => {
-        it("ships 13 valid landmark presets that round-trip through JSON serialization", () => {
-            expect(PRESETS.length).toBe(13);
+        it("ships 14 valid landmark presets that round-trip through JSON serialization", () => {
+            expect(PRESETS.length).toBe(14);
             const expectedPresetIds = [
+                "classic-fbm-mountains",
                 "alpine-dolomites",
                 "himalayan-peaks",
                 "roraima-tepui",

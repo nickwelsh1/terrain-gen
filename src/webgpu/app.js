@@ -67,6 +67,9 @@ export async function main() {
         onRenderModeChange(mode) {
             renderer.setRenderMode(mode);
         },
+        onMaterialPaletteChange(paletteId) {
+            renderer.setMaterialPalette(paletteId);
+        },
         onPassToggle(flags) {
             pipeline.updateUniforms({ passFlags: flags });
         },
