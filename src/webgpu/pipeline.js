@@ -1,249 +1,380 @@
-// GPU pipeline manager: creates buffers, compute pipelines, and runs passes.
-// Uses Babylon Lite's StorageBuffer for render-side binding,
-// accesses ._buffer for compute shader bind groups.
-
-import { createStorageBuffer } from "@babylonjs/lite";
+// GPU pipeline manager: orchestrates TerrainState, OperatorRegistry, and
+// OperatorGraphRunner to execute a composable N-layer stack (up to MAX_BIOME_LAYERS)
+// + global simulation chain.
 
 import {
-    N,
-    GRID_CELLS,
-    HEIGHT_BUFFER_BYTES,
-    HARDNESS_BUFFER_BYTES,
-    DROPLET_BUFFER_BYTES,
-    UNIFORM_BUFFER_BYTES,
-    DROPLET_COUNT,
-    DROPLET_WORKGROUPS,
-    WORKGROUP_SIZE,
-    FIXED_POINT_SCALE,
     DEFAULT_PARAMS,
+    MAX_BIOME_LAYERS,
+    PASS_HEIGHTMAP,
+    PASS_HARDNESS,
+    PASS_NORMALS,
+    PASS_EROSION,
 } from "./constants.js";
-import { HEIGHTMAP_SHADER } from "./shaders/heightmap.wgsl.js";
-import { HARDNESS_SHADER } from "./shaders/hardness.wgsl.js";
-import { ANALYSIS_SHADER } from "./shaders/analysis.wgsl.js";
-import { EROSION_SHADER } from "./shaders/erosion.wgsl.js";
+import { TerrainState } from "./state.js";
+import { createDefaultRegistry } from "./operators/index.js";
+import { OperatorGraphRunner } from "./operators/graph.js";
+import {
+    DEFAULT_PRESET_ID,
+    getPresetById,
+    createDefaultOverlayLayer,
+    normalizeStack,
+} from "./presets.js";
+
+export const SHAPER_ORDER = [
+    "shape.terrace",
+    "shape.fold",
+    "shape.glacialCarve",
+    "shape.warp",
+    "shape.curveRemap",
+    "shape.surfaceDetail",
+];
 
 export class TerrainPipeline {
     constructor(engine) {
         this.engine = engine;
-        this.device = engine._device;
-        this.pipelines = {};
-        this.bindGroups = {};
-        this.storageBuffers = {};
+        this.device = engine ? engine._device : null;
+        this.state = new TerrainState(engine);
+        this.registry = createDefaultRegistry();
+        this.runner = new OperatorGraphRunner(this.device, this.registry, this.state);
         this.params = { ...DEFAULT_PARAMS };
+        this.stack = getPresetById(DEFAULT_PRESET_ID);
+        this.onBuffersChanged = null;
     }
 
     async init() {
-        this._createBuffers();
-        this._createPipelines();
-        this._createBindGroups();
+        this.state.init();
+        this.runner.init();
     }
 
-    _createBuffers() {
-        const engine = this.engine;
-        const device = this.device;
-
-        // Uniform buffer — raw GPUBuffer (not used by Babylon Lite material system)
-        this.uniformBuffer = device.createBuffer({
-            size: UNIFORM_BUFFER_BYTES,
-            usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-        });
-
-        // Height buffers — StorageBuffer wrappers for render binding
-        const zeroI32 = new Int32Array(GRID_CELLS);
-        this.storageBuffers.baseHeight = createStorageBuffer(engine, zeroI32, "baseHeight");
-        this.storageBuffers.erodedHeight = createStorageBuffer(engine, zeroI32, "erodedHeight");
-
-        // Hardness buffer
-        this.storageBuffers.hardness = createStorageBuffer(engine, new Int32Array(GRID_CELLS), "hardness");
-
-        // Analysis output buffers — u32 per cell
-        const zeroU32 = new Uint32Array(GRID_CELLS);
-        this.storageBuffers.normals = createStorageBuffer(engine, zeroU32, "normals");
-        this.storageBuffers.slopes = createStorageBuffer(engine, zeroU32, "slopes");
-        this.storageBuffers.aspects = createStorageBuffer(engine, zeroU32, "aspects");
-
-        // Droplet buffer — raw GPUBuffer (not needed for render)
-        this.dropletBuffer = device.createBuffer({
-            size: DROPLET_BUFFER_BYTES,
-            usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
-        });
+    setOnBuffersChanged(cb) {
+        this.onBuffersChanged = cb;
     }
 
-    _createPipelines() {
-        const device = this.device;
-
-        const heightmapModule = device.createShaderModule({ code: HEIGHTMAP_SHADER });
-        this.pipelines.heightmap = device.createComputePipeline({
-            layout: "auto",
-            compute: { module: heightmapModule, entryPoint: "generateHeightmap" },
-        });
-
-        const hardnessModule = device.createShaderModule({ code: HARDNESS_SHADER });
-        this.pipelines.hardness = device.createComputePipeline({
-            layout: "auto",
-            compute: { module: hardnessModule, entryPoint: "generateHardness" },
-        });
-
-        const analysisModule = device.createShaderModule({ code: ANALYSIS_SHADER });
-        this.pipelines.analysis = device.createComputePipeline({
-            layout: "auto",
-            compute: { module: analysisModule, entryPoint: "computeNormals" },
-        });
-
-        const erosionModule = device.createShaderModule({ code: EROSION_SHADER });
-        this.pipelines.erosion = device.createComputePipeline({
-            layout: "auto",
-            compute: { module: erosionModule, entryPoint: "simulateDroplets" },
-        });
+    _notifyBuffersChanged() {
+        if (typeof this.onBuffersChanged === "function") {
+            this.onBuffersChanged(this.state);
+        }
     }
 
-    _createBindGroups() {
-        const device = this.device;
+    getStack() {
+        return this.stack;
+    }
 
-        // Heightmap → baseHeight
-        this.bindGroups.heightmap = device.createBindGroup({
-            layout: this.pipelines.heightmap.getBindGroupLayout(0),
-            entries: [
-                { binding: 0, resource: { buffer: this.uniformBuffer } },
-                { binding: 1, resource: { buffer: this.storageBuffers.baseHeight._buffer } },
-            ],
-        });
+    getRegistry() {
+        return this.registry;
+    }
 
-        // Heightmap → erodedHeight (for initial copy / reset)
-        this.bindGroups.heightmapEroded = device.createBindGroup({
-            layout: this.pipelines.heightmap.getBindGroupLayout(0),
-            entries: [
-                { binding: 0, resource: { buffer: this.uniformBuffer } },
-                { binding: 1, resource: { buffer: this.storageBuffers.erodedHeight._buffer } },
-            ],
-        });
+    setPreset(presetId) {
+        this.stack = getPresetById(presetId);
+        this.params.seed = this.stack.seed;
+        if (this.stack.layer1.generatorParams.baseHeight !== undefined) {
+            this.params.baseHeight = this.stack.layer1.generatorParams.baseHeight;
+        }
+        const dropSim = this.stack.simulations["sim.dropletErosion"];
+        if (dropSim) {
+            this.params = { ...this.params, ...dropSim };
+        }
+        return this.stack;
+    }
 
-        // Hardness
-        this.bindGroups.hardness = device.createBindGroup({
-            layout: this.pipelines.hardness.getBindGroupLayout(0),
-            entries: [
-                { binding: 0, resource: { buffer: this.uniformBuffer } },
-                { binding: 1, resource: { buffer: this.storageBuffers.hardness._buffer } },
-            ],
+    /**
+     * Appends a new overlay biome layer to the stack up to MAX_BIOME_LAYERS (8).
+     */
+    addLayer(overrides = {}) {
+        if (this.stack.layers.length >= MAX_BIOME_LAYERS) {
+            return null;
+        }
+        const nextIndex = this.stack.layers.length + 1;
+        const newLayer = createDefaultOverlayLayer(nextIndex, {
+            enabled: true,
+            ...overrides,
         });
+        this.stack.layers.push(newLayer);
+        normalizeStack(this.stack);
+        return newLayer;
+    }
 
-        // Analysis: erodedHeight (read) + normals/slopes/aspects (write)
-        this.bindGroups.analysis = device.createBindGroup({
-            layout: this.pipelines.analysis.getBindGroupLayout(0),
-            entries: [
-                { binding: 0, resource: { buffer: this.storageBuffers.erodedHeight._buffer } },
-                { binding: 1, resource: { buffer: this.storageBuffers.normals._buffer } },
-                { binding: 2, resource: { buffer: this.storageBuffers.slopes._buffer } },
-                { binding: 3, resource: { buffer: this.storageBuffers.aspects._buffer } },
-            ],
-        });
+    /**
+     * Removes an overlay layer by 0-based index (keeps at least 2 layers so layer1/layer2 always exist).
+     */
+    removeLayer(layerIndex) {
+        if (layerIndex < 2 || layerIndex >= this.stack.layers.length) {
+            return false;
+        }
+        this.stack.layers.splice(layerIndex, 1);
+        normalizeStack(this.stack);
+        return true;
+    }
 
-        // Erosion: uniform + erodedHeight (atomic) + hardness (read) + droplets
-        this.bindGroups.erosion = device.createBindGroup({
-            layout: this.pipelines.erosion.getBindGroupLayout(0),
-            entries: [
-                { binding: 0, resource: { buffer: this.uniformBuffer } },
-                { binding: 1, resource: { buffer: this.storageBuffers.erodedHeight._buffer } },
-                { binding: 2, resource: { buffer: this.storageBuffers.hardness._buffer } },
-                { binding: 3, resource: { buffer: this.dropletBuffer } },
-            ],
-        });
+    /**
+     * Updates a scoped parameter inside any layer (`layer1`, `layer2`, ..., `layer8`) or simulation.
+     * @param {string} scope e.g. "layer1.gen", "layer1.shaper:shape.terrace", "layer2.gen", "layer2.mask", "layer2.blend", "sim:sim.thermalTalus"
+     * @param {string} key
+     * @param {number|boolean|string} value
+     */
+    updateScopedParam(scope, key, value) {
+        if (scope === "global") {
+            if (key === "seed") {
+                this.stack.seed = Number(value);
+                this.params.seed = Number(value);
+            }
+            return;
+        }
+
+        // Match layerN, layerN.gen, layerN.mask, layerN.blend, layerN.shaper:<id>
+        const layerMatch = /^layer(\d+)(?:\.(.+))?$/.exec(scope);
+        if (layerMatch) {
+            const layerIdx = Number.parseInt(layerMatch[1], 10) - 1;
+            const subScope = layerMatch[2] || "";
+            const layer = this.stack.layers[layerIdx];
+            if (!layer) return;
+
+            if (subScope === "") {
+                if (key === "enabled") {
+                    layer.enabled = Boolean(value);
+                } else if (key === "name") {
+                    layer.name = String(value);
+                }
+                return;
+            }
+
+            if (subScope === "gen") {
+                if (key === "generatorId") {
+                    const newGenId = String(value);
+                    const op = this.registry.get(newGenId);
+                    layer.generatorId = newGenId;
+                    if (op) {
+                        layer.generatorParams = {
+                            ...op.defaultParams,
+                            ...layer.generatorParams,
+                        };
+                    }
+                } else {
+                    layer.generatorParams[key] = value;
+                    if (layerIdx === 0 && key === "baseHeight") {
+                        this.params.baseHeight = Number(value);
+                    }
+                }
+                return;
+            }
+
+            if (subScope.startsWith("shaper:")) {
+                const shaperId = subScope.slice("shaper:".length);
+                if (!layer.shapers[shaperId]) {
+                    const op = this.registry.get(shaperId);
+                    layer.shapers[shaperId] = { enabled: false, ...(op ? op.defaultParams : {}) };
+                }
+                layer.shapers[shaperId][key] = value;
+                return;
+            }
+
+            if (subScope === "mask" && layer.maskParams) {
+                layer.maskParams[key] = value;
+                return;
+            }
+
+            if (subScope === "blend" && layer.blendParams) {
+                layer.blendParams[key] = value;
+                return;
+            }
+        }
+
+        if (scope.startsWith("sim:")) {
+            const simId = scope.slice("sim:".length);
+            if (!this.stack.simulations[simId]) {
+                const op = this.registry.get(simId);
+                this.stack.simulations[simId] = { enabled: false, ...(op ? op.defaultParams : {}) };
+            }
+            this.stack.simulations[simId][key] = value;
+            if (simId === "sim.dropletErosion") {
+                this.params[key] = value;
+            }
+        }
     }
 
     updateUniforms(params) {
         this.params = { ...this.params, ...params };
-        const data = new ArrayBuffer(UNIFORM_BUFFER_BYTES);
-        const view = new DataView(data);
-        view.setFloat32(0, this.params.rainRate, true);
-        view.setFloat32(4, this.params.erosionRate, true);
-        view.setFloat32(8, this.params.depositionRate, true);
-        view.setFloat32(12, this.params.evaporation, true);
-        view.setFloat32(16, this.params.sedimentCapacity, true);
-        view.setFloat32(20, this.params.stepCount, true);
-        view.setUint32(24, this.params.passFlags, true);
-        view.setFloat32(28, this.params.seed, true);
-        view.setFloat32(32, this.params.baseHeight, true);
-        view.setFloat32(36, this.params.batchSeed, true);
-        this.device.queue.writeBuffer(this.uniformBuffer, 0, data);
+        if (params.seed !== undefined) {
+            this.stack.seed = Number(params.seed);
+        }
+        if (params.baseHeight !== undefined) {
+            this.stack.layers[0].generatorParams.baseHeight = Number(params.baseHeight);
+        }
+        const dropSim = this.stack.simulations["sim.dropletErosion"];
+        if (dropSim) {
+            for (const k of ["rainRate", "erosionRate", "depositionRate", "evaporation", "sedimentCapacity", "stepCount"]) {
+                if (params[k] !== undefined) {
+                    dropSim[k] = Number(params[k]);
+                }
+            }
+        }
     }
 
+    /**
+     * Executes the full N-layer compositor stack + enabled non-droplet simulations.
+     */
     generateMaps() {
-        const encoder = this.device.createCommandEncoder();
-        const pass = encoder.beginComputePass();
+        const seed = this.stack.seed ?? this.params.seed ?? 42;
+        const flags = this.params.passFlags ?? DEFAULT_PARAMS.passFlags;
+        this.state.resetIndices();
 
-        // Generate heightmap into baseHeight
-        pass.setPipeline(this.pipelines.heightmap);
-        pass.setBindGroup(0, this.bindGroups.heightmap);
-        pass.dispatchWorkgroups(Math.ceil(N / 8), Math.ceil(N / 8));
+        const layers = this.stack.layers || [];
+        const baseLayer = layers[0];
 
-        // Generate hardness
-        pass.setPipeline(this.pipelines.hardness);
-        pass.setBindGroup(0, this.bindGroups.hardness);
-        pass.dispatchWorkgroups(Math.ceil(N / 8), Math.ceil(N / 8));
+        // 1. Layer 1 (index 0): Base Terrain Generator + Shapers
+        if ((flags & PASS_HEIGHTMAP) !== 0 && baseLayer && baseLayer.enabled !== false) {
+            const genId = baseLayer.generatorId || "gen.ridgeFbm";
+            this.runner.runOperator(genId, {
+                ...baseLayer.generatorParams,
+                seed,
+                clearAux: 1,
+                writeSediment: genId === "gen.duneField" ? 1 : 0,
+            });
 
-        pass.end();
+            for (const shaperId of SHAPER_ORDER) {
+                const shaperCfg = baseLayer.shapers?.[shaperId];
+                if (shaperCfg?.enabled) {
+                    this.runner.runOperator(shaperId, { ...shaperCfg, seed });
+                }
+            }
+        }
 
-        // Generate same heightmap into erodedHeight (deterministic → same result)
-        const pass2 = encoder.beginComputePass();
-        pass2.setPipeline(this.pipelines.heightmap);
-        pass2.setBindGroup(0, this.bindGroups.heightmapEroded);
-        pass2.dispatchWorkgroups(Math.ceil(N / 8), Math.ceil(N / 8));
-        pass2.end();
+        // 2. Overlay Layers (indices 1 .. min(layers.length, MAX_BIOME_LAYERS) - 1)
+        const maxLayerCount = Math.min(layers.length, MAX_BIOME_LAYERS);
+        for (let i = 1; i < maxLayerCount; i++) {
+            const overlay = layers[i];
+            if (!overlay?.enabled) continue;
 
-        this.device.queue.submit([encoder.finish()]);
+            const layerSeed = seed + i * 107;
+
+            // Compute current normals/slopes/curvature so mask.select has accurate terrain data
+            this.runner.runOperator("detail.analysis", {});
+
+            // Evaluate placement mask into aux.z (maskA)
+            const maskCfg = overlay.maskParams || {};
+            this.runner.runOperator("mask.select", {
+                ...maskCfg,
+                seed: layerSeed + 31,
+            });
+
+            const blurPasses = Math.max(0, Math.trunc(maskCfg.blurIterations ?? 2));
+            if (blurPasses > 0) {
+                this.runner.runOperator(
+                    "mask.blur",
+                    { radius: maskCfg.blurRadius ?? 2 },
+                    { iterations: blurPasses },
+                );
+            }
+
+            // Generate overlay layer heightmap into layerScratch
+            const genId = overlay.generatorId || "gen.duneField";
+            this.runner.runOperator(
+                genId,
+                {
+                    ...overlay.generatorParams,
+                    seed: layerSeed + 73,
+                    clearAux: 0,
+                    writeSediment: 0,
+                },
+                { targetBuffer: this.state.layerScratch },
+            );
+
+            // Run pointwise shapers on layerScratch if enabled on this overlay layer
+            for (const shaperId of ["shape.terrace", "shape.curveRemap"]) {
+                const shaperCfg = overlay.shapers?.[shaperId];
+                if (shaperCfg?.enabled) {
+                    this.runner.runOperator(
+                        shaperId,
+                        { ...shaperCfg, seed: layerSeed + 91 },
+                        { targetBuffer: this.state.layerScratch },
+                    );
+                }
+            }
+
+            // Blend layerScratch onto activeHeight using aux.z (maskA)
+            this.runner.runOperator("blend.layer", {
+                ...overlay.blendParams,
+            });
+        }
+
+        // 3. Generate rock hardness field
+        if ((flags & PASS_HARDNESS) !== 0) {
+            this.runner.runOperator("mask.hardness", {
+                ...this.params,
+                seed,
+            });
+        }
+
+        // 4. Snapshot pre-simulation composite height into baseHeight (for Reset to Base)
+        this.runner.runOperator(
+            "util.copyHeight",
+            {},
+            { srcBuffer: this.state.activeHeight, targetBuffer: this.state.baseHeight },
+        );
+
+        // 5. Run enabled global simulations
+        const sims = this.stack.simulations || {};
+
+        if (sims["sim.phacelleErosion"]?.enabled) {
+            this.runner.runOperator("sim.phacelleErosion", {
+                ...sims["sim.phacelleErosion"],
+                seed,
+            });
+        }
+
+        if (sims["sim.thermalTalus"]?.enabled) {
+            const talusCfg = sims["sim.thermalTalus"];
+            this.runner.runOperator("sim.thermalTalus", talusCfg, {
+                iterations: talusCfg.iterations ?? 10,
+            });
+        }
+
+        if (sims["sim.windDrift"]?.enabled) {
+            const windCfg = sims["sim.windDrift"];
+            this.runner.runOperator("sim.windDrift", windCfg, {
+                iterations: windCfg.iterations ?? 10,
+            });
+        }
+
+        if (sims["sim.waterLevel"]?.enabled) {
+            this.runner.runOperator("sim.waterLevel", sims["sim.waterLevel"]);
+        } else {
+            this.runner.runOperator("sim.waterLevel", { waterLevelM: 0 });
+        }
+
+        this._notifyBuffersChanged();
     }
 
     computeAnalysis() {
-        const encoder = this.device.createCommandEncoder();
-        const pass = encoder.beginComputePass();
-        pass.setPipeline(this.pipelines.analysis);
-        pass.setBindGroup(0, this.bindGroups.analysis);
-        pass.dispatchWorkgroups(Math.ceil(N / 8), Math.ceil(N / 8));
-        pass.end();
-        this.device.queue.submit([encoder.finish()]);
+        if ((this.params.passFlags & PASS_NORMALS) !== 0) {
+            this.runner.runOperator("detail.analysis", {});
+        }
+        this._notifyBuffersChanged();
     }
 
-    // `batches` batches of DROPLET_COUNT droplets. Each batch is submitted
-    // separately with a new batchSeed: droplets are seeded from the uniform, so
-    // batching inside one submission would replay the exact same droplet paths
-    // and carve the same tracks over and over.
     runErosion(batches) {
-        for (let i = 0; i < batches; i++) {
-            this.updateUniforms({ batchSeed: this.params.batchSeed + 1 });
-
-            const encoder = this.device.createCommandEncoder();
-            const pass = encoder.beginComputePass();
-            pass.setPipeline(this.pipelines.erosion);
-            pass.setBindGroup(0, this.bindGroups.erosion);
-            pass.dispatchWorkgroups(DROPLET_WORKGROUPS);
-            pass.end();
-            this.device.queue.submit([encoder.finish()]);
+        if ((this.params.passFlags & PASS_EROSION) !== 0) {
+            const count = Math.max(1, Math.trunc(batches || this.params.stepCount || 1));
+            for (let i = 0; i < count; i++) {
+                this.params.batchSeed = (this.params.batchSeed || 0) + 1;
+                this.runner.runOperator("sim.dropletErosion", {
+                    ...this.params,
+                });
+            }
         }
-
-        // Recompute analysis after erosion
         this.computeAnalysis();
     }
 
     resetToBase() {
-        // Re-generate heightmap into erodedHeight (deterministic, same seed)
-        const encoder = this.device.createCommandEncoder();
-        const pass = encoder.beginComputePass();
-        pass.setPipeline(this.pipelines.heightmap);
-        pass.setBindGroup(0, this.bindGroups.heightmapEroded);
-        pass.dispatchWorkgroups(Math.ceil(N / 8), Math.ceil(N / 8));
-        pass.end();
-
-        // Recompute analysis
-        const analysisPass = encoder.beginComputePass();
-        analysisPass.setPipeline(this.pipelines.analysis);
-        analysisPass.setBindGroup(0, this.bindGroups.analysis);
-        analysisPass.dispatchWorkgroups(Math.ceil(N / 8), Math.ceil(N / 8));
-        analysisPass.end();
-
-        this.device.queue.submit([encoder.finish()]);
+        this.runner.runOperator(
+            "util.copyHeight",
+            {},
+            { srcBuffer: this.state.baseHeight, targetBuffer: this.state.activeHeight },
+        );
+        this.computeAnalysis();
     }
 
     getStorageBuffers() {
-        return this.storageBuffers;
+        return this.state.getStorageBuffers();
     }
 }

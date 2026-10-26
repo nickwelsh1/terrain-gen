@@ -132,6 +132,40 @@ body {
     font-size: 0.8rem;
 }
 
+#webgpu-ui select {
+    max-width: 155px;
+    padding: 3px 6px;
+    font-size: 0.78rem;
+    background-color: var(--surface-input);
+    color: var(--text);
+    border: 1px solid var(--border-strong);
+    border-radius: 5px;
+    cursor: pointer;
+}
+
+#webgpu-ui select option,
+#webgpu-ui select optgroup {
+    background-color: var(--surface-input);
+    color: var(--text);
+}
+
+#webgpu-ui #addLayerBtn,
+#webgpu-ui .remove-layer-btn {
+    width: 100%;
+    margin: 4px 0 0 0;
+}
+
+#webgpu-ui #addLayerBtn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+#webgpu-ui .sub-label {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin: 4px 0 3px 0;
+}
+
 #webgpu-ui .value,
 #erosion-ui .value,
 #dunes-ui .value {

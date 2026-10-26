@@ -53,12 +53,14 @@ export async function createRenderer(canvas, pipeline, engine) {
         uniforms: [
             "viewProjection",
             { name: "renderMode", type: "u32" },
+            { name: "materialPalette", type: "u32" },
         ],
         storageBuffers: [
             { name: "heights", type: "array<i32>" },
             { name: "hardness", type: "array<i32>" },
             { name: "normals", type: "array<u32>" },
             { name: "slopes", type: "array<u32>" },
+            { name: "aux", type: "array<vec4f>" },
         ],
         backFaceCulling: false,
         depthWrite: true,
@@ -93,16 +95,25 @@ export async function createRenderer(canvas, pipeline, engine) {
     walls.material = wallMaterial;
     addToScene(scene, walls);
 
-    // Bind storage buffers to the materials
-    const sbs = pipeline.getStorageBuffers();
-    setShaderStorageBuffer(renderMaterial, "heights", sbs.erodedHeight);
-    setShaderStorageBuffer(renderMaterial, "hardness", sbs.hardness);
-    setShaderStorageBuffer(renderMaterial, "normals", sbs.normals);
-    setShaderStorageBuffer(renderMaterial, "slopes", sbs.slopes);
-    setShaderStorageBuffer(wallMaterial, "heights", sbs.erodedHeight);
+    function syncBuffers() {
+        const sbs = pipeline.getStorageBuffers();
+        setShaderStorageBuffer(renderMaterial, "heights", sbs.erodedHeight);
+        setShaderStorageBuffer(renderMaterial, "hardness", sbs.hardness);
+        setShaderStorageBuffer(renderMaterial, "normals", sbs.normals);
+        setShaderStorageBuffer(renderMaterial, "slopes", sbs.slopes);
+        setShaderStorageBuffer(renderMaterial, "aux", sbs.aux);
+        setShaderStorageBuffer(wallMaterial, "heights", sbs.erodedHeight);
+    }
 
-    // Set initial render mode
+    // Bind storage buffers to the materials and subscribe to ping-pong swaps
+    syncBuffers();
+    if (typeof pipeline.setOnBuffersChanged === "function") {
+        pipeline.setOnBuffersChanged(() => syncBuffers());
+    }
+
+    // Set initial render mode & material palette
     setShaderUniform(renderMaterial, "renderMode", 0);
+    setShaderUniform(renderMaterial, "materialPalette", 0);
 
     // Register and start
     await registerScene(scene);
@@ -115,8 +126,12 @@ export async function createRenderer(canvas, pipeline, engine) {
         walls,
         renderMaterial,
         wallMaterial,
+        syncBuffers,
         setRenderMode(mode) {
             setShaderUniform(renderMaterial, "renderMode", mode);
+        },
+        setMaterialPalette(paletteId) {
+            setShaderUniform(renderMaterial, "materialPalette", paletteId >>> 0);
         },
         async start() {
             await startEngine(engine);

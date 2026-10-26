@@ -3,6 +3,9 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { createUI } from "../../src/webgpu/ui.js";
 import {
     DEFAULT_PARAMS,
+    MATERIAL_PALETTES,
+    PALETTE_ARIZONA_SUMMER,
+    PALETTE_ZHANGJIAJIE_WINTER,
     RENDER_HARDNESS,
     PASS_EROSION,
     PASS_DEPOSITION,
@@ -136,5 +139,62 @@ describe("WebGPU UI (src/webgpu/ui.js)", () => {
         expect(callbacks.onPassToggle).toHaveBeenCalledWith(
             DEFAULT_PARAMS.passFlags & ~PASS_EROSION & ~PASS_DEPOSITION,
         );
+    });
+
+    it("supports switching presets, toggling Layer 2 overlay, and updating scoped operator controls", () => {
+        const onPresetChange = vi.fn();
+        const onScopedParamChange = vi.fn();
+        createUI(container, {
+            ...callbacks,
+            onPresetChange,
+            onScopedParamChange,
+        });
+
+        const presetSelect = document.getElementById("presetSelect");
+        presetSelect.value = "canyon-valley-dunes";
+        presetSelect.dispatchEvent(new Event("change", { bubbles: true }));
+
+        expect(onPresetChange).toHaveBeenCalledWith("canyon-valley-dunes");
+        expect(document.getElementById("layer2Badge").textContent).toBe("On");
+
+        // Change Layer 2 Dune Crest Mode to Warped fBm (1)
+        const crestSelect = document.querySelector(
+            '.scoped-select[data-scope="layer2.gen"][data-param="crestMode"]',
+        );
+        expect(crestSelect).not.toBeNull();
+        crestSelect.value = "1";
+        crestSelect.dispatchEvent(new Event("change", { bubbles: true }));
+        expect(onScopedParamChange).toHaveBeenCalledWith("layer2.gen", "crestMode", 1);
+
+        // Add a 3rd biome layer via #addLayerBtn
+        const addLayerBtn = document.getElementById("addLayerBtn");
+        expect(addLayerBtn).not.toBeNull();
+        addLayerBtn.click();
+        expect(document.getElementById("sectionLayer3")).not.toBeNull();
+    });
+
+    it("renders 10 landscape material palettes, auto-syncs palette on preset change, and allows manual override", () => {
+        const onMaterialPaletteChange = vi.fn();
+        createUI(container, {
+            ...callbacks,
+            onMaterialPaletteChange,
+        });
+
+        const matSelect = document.getElementById("materialPaletteSelect");
+        expect(matSelect).not.toBeNull();
+        expect(MATERIAL_PALETTES.length).toBeGreaterThanOrEqual(10);
+        expect(matSelect.querySelectorAll("option").length).toBe(MATERIAL_PALETTES.length);
+
+        // Switching preset to Monument Valley auto-selects Dry Summer Arizona (Red Rock)
+        const presetSelect = document.getElementById("presetSelect");
+        presetSelect.value = "monument-valley-buttes";
+        presetSelect.dispatchEvent(new Event("change", { bubbles: true }));
+        expect(Number(matSelect.value)).toBe(PALETTE_ARIZONA_SUMMER);
+        expect(onMaterialPaletteChange).toHaveBeenCalledWith(PALETTE_ARIZONA_SUMMER);
+
+        // Manually switching material dropdown to Zhangjiajie Karst (Winter Frost)
+        matSelect.value = String(PALETTE_ZHANGJIAJIE_WINTER);
+        matSelect.dispatchEvent(new Event("change", { bubbles: true }));
+        expect(onMaterialPaletteChange).toHaveBeenCalledWith(PALETTE_ZHANGJIAJIE_WINTER);
     });
 });

@@ -66,7 +66,26 @@ fn computeNormals(@builtin(global_invocation_id) gid: vec3u) {
     
     // Slope = angle from vertical = acos(ny) / (pi/2)
     let slope = acos(clamp(ny, -1.0, 1.0)) / 1.5707963;
-    slopes[idx] = packRGBA(slope, 0.0, 0.0, 1.0);
+
+    // Mean curvature (Laplacian): > 0.5 = convex ridge/peak, < 0.5 = concave valley/channel
+    let hCenter = heightAt(x, y);
+    let mean8 = (hL + hC + hR + hLM + hRM + hLB + hCB + hRB) * 0.125;
+    let laplacian = (hCenter - mean8) / max(CELL_M * 1.5, 2.0);
+    let curvature01 = clamp(0.5 + laplacian * 0.5, 0.0, 1.0);
+
+    // 4-direction horizon ambient occlusion in heightfield space
+    var horizonBlock = 0.0;
+    for (var step: i32 = 1; step <= 4; step = step + 1) {
+        let distM = f32(step * 2) * CELL_M;
+        let eE = max(0.0, (heightAt(x + step * 2, y) - hCenter) / distM);
+        let eW = max(0.0, (heightAt(x - step * 2, y) - hCenter) / distM);
+        let eN = max(0.0, (heightAt(x, y - step * 2) - hCenter) / distM);
+        let eS = max(0.0, (heightAt(x, y + step * 2) - hCenter) / distM);
+        horizonBlock = max(horizonBlock, (atan(eE) + atan(eW) + atan(eN) + atan(eS)) / (4.0 * 1.5707963));
+    }
+    let ao01 = clamp(1.0 - horizonBlock * 1.35, 0.0, 1.0);
+
+    slopes[idx] = packRGBA(slope, curvature01, ao01, 1.0);
     
     // Aspect = horizontal flow direction (opposite of gradient horizontal)
     let aspectLen = sqrt(dx * dx + dz * dz);
