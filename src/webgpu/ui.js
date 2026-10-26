@@ -1,17 +1,14 @@
 // UI module: Layer-Centric Accordion Composer Panel for webgpu.html.
-// Organizes controls into:
-//   - Top Preset Bar (6 Gaea-style presets + Seed + Regenerate)
-//   - Scale & World Extent Accordion (256/512/1024 grid + 1.28..10.24 km world size)
-//   - Layer 1: Base Terrain Accordion (Generator selector + Primary/Advanced params + 5 Shapers)
-//   - Layer 2: Secondary Biome / Overlay Accordion (Generator + Mask & Placement + Height-Fill Blend)
-//   - Simulations & Hydraulic Erosion Accordion (Droplet sim + Phacelle + Thermal Talus + Wind Drift + Water Level)
-//   - Visualization & Mask Inspector Accordion (8 render modes)
-//   - Pass Toggles Accordion
-//
-// Preserves all existing DOM IDs and callback contracts tested by test/unit/webgpu-ui.test.js.
+// Supports:
+//   - 12 Grouped Real-World Landmark Presets (<optgroup> categories)
+//   - Dynamic N-Layer Biome Stack (up to MAX_BIOME_LAYERS = 8, with "+ Add Biome Layer" & "Remove")
+//   - 6 Shapers including Post-Terrace Boulders, Outcrops & Micro-Relief (shape.surfaceDetail)
+//   - 5 Simulations (Phacelle Gullies, Two-Tier Thermal Talus, Wind/Snow Drift, Water Level, Droplets)
+//   - 8 Visualization & Mask Inspector Modes
 
 import {
     DEFAULT_PARAMS,
+    MAX_BIOME_LAYERS,
     PASS_HEIGHTMAP,
     PASS_HARDNESS,
     PASS_NORMALS,
@@ -35,13 +32,19 @@ import {
     GRID_SIZES,
     GRID_SIZE_STORAGE_KEY,
 } from "./constants.js";
-import { PRESETS, DEFAULT_PRESET_ID, getPresetById } from "./presets.js";
+import {
+    PRESETS,
+    DEFAULT_PRESET_ID,
+    getPresetById,
+    createDefaultOverlayLayer,
+    normalizeStack,
+} from "./presets.js";
 import { createDefaultRegistry } from "./operators/index.js";
 
 const GENERATOR_IDS = [
     "gen.ridgeFbm",
-    "gen.duneField",
     "gen.voronoiBlock",
+    "gen.duneField",
     "gen.islandCaldera",
 ];
 
@@ -51,6 +54,7 @@ const SHAPER_IDS = [
     "shape.glacialCarve",
     "shape.warp",
     "shape.curveRemap",
+    "shape.surfaceDetail",
 ];
 
 const EXTRA_SIM_IDS = [
@@ -59,6 +63,24 @@ const EXTRA_SIM_IDS = [
     "sim.windDrift",
     "sim.waterLevel",
 ];
+
+function renderPresetOptGroups(selectedId) {
+    const groups = new Map();
+    for (const preset of PRESETS) {
+        const g = preset.group || "Presets";
+        if (!groups.has(g)) groups.set(g, []);
+        groups.get(g).push(preset);
+    }
+    let html = "";
+    for (const [groupName, items] of groups.entries()) {
+        html += `<optgroup label="${groupName}">`;
+        for (const p of items) {
+            html += `<option value="${p.id}"${p.id === selectedId ? " selected" : ""}>${p.name}</option>`;
+        }
+        html += `</optgroup>`;
+    }
+    return html;
+}
 
 function renderScopedParamControl(scope, paramDef, currentValue) {
     const val = currentValue !== undefined ? currentValue : paramDef.default;
@@ -93,11 +115,13 @@ export function createUI(container, callbacks = {}) {
         onPassToggle = () => {},
         onPresetChange = null,
         onScopedParamChange = null,
+        onAddLayer = null,
+        onRemoveLayer = null,
         registry = createDefaultRegistry(),
         initialStack = null,
     } = callbacks;
 
-    let activeStack = initialStack || getPresetById(DEFAULT_PRESET_ID);
+    let activeStack = normalizeStack(initialStack || getPresetById(DEFAULT_PRESET_ID));
 
     const RENDER_MODE_LABELS = {
         [RENDER_LIT]: "Lit",
@@ -109,6 +133,9 @@ export function createUI(container, callbacks = {}) {
         [RENDER_SEDIMENT]: "Sediment",
         [RENDER_CURVATURE_AO]: "Curvature",
     };
+
+    const maskOp = registry.get("mask.select");
+    const blendOp = registry.get("blend.layer");
 
     function renderGeneratorExtraParams(scope, genId, paramsMap, excludeBaseHeight = false) {
         const op = registry.get(genId);
@@ -136,18 +163,18 @@ export function createUI(container, callbacks = {}) {
             </div>`;
     }
 
-    function renderShapersList(shapersState) {
+    function renderShapersList(layerKey, shapersState) {
         return SHAPER_IDS.map((shaperId) => {
             const op = registry.get(shaperId);
             if (!op) return "";
             const stateObj = shapersState?.[shaperId] || { enabled: false, ...op.defaultParams };
-            const scope = `layer1.shaper:${shaperId}`;
+            const scope = `${layerKey}.shaper:${shaperId}`;
             const visibleParams = op.paramSchema.filter((p) => p.tier === "primary" || p.tier === "advanced");
             return `
                 <details class="ui-subdrawer shaper-item" data-shaper="${shaperId}">
                     <summary class="ui-subsummary">
                         <span>${op.label}</span>
-                        <span class="summary-badge" data-shaper-badge="${shaperId}">${stateObj.enabled ? "On" : "Off"}</span>
+                        <span class="summary-badge" data-shaper-badge="${layerKey}:${shaperId}">${stateObj.enabled ? "On" : "Off"}</span>
                     </summary>
                     <div class="ui-subdrawer-body">
                         <label class="pass-toggle">
@@ -184,10 +211,76 @@ export function createUI(container, callbacks = {}) {
         }).join("");
     }
 
+    function renderOverlayLayersMarkup() {
+        const layers = activeStack.layers || [];
+        let html = "";
+        for (let i = 1; i < layers.length; i++) {
+            const layer = layers[i];
+            const layerNum = i + 1;
+            const layerKey = `layer${layerNum}`;
+            const sectionId = layerNum === 2 ? "sectionLayer2" : `sectionLayer${layerNum}`;
+            const badgeId = layerNum === 2 ? "layer2Badge" : `${layerKey}Badge`;
+            const enabledId = layerNum === 2 ? "layer2Enabled" : `${layerKey}Enabled`;
+            const genSelectId = layerNum === 2 ? "layer2GeneratorSelect" : `${layerKey}GeneratorSelect`;
+            const genControlsId = layerNum === 2 ? "layer2GenControls" : `${layerKey}GenControls`;
+
+            html += `
+            <details class="ui-section ui-accordion overlay-layer-section" id="${sectionId}" data-layer-index="${i}">
+                <summary class="ui-summary">
+                    <span class="summary-title">${layer.name || `Layer ${layerNum}: Biome Overlay`}</span>
+                    <span class="summary-badge" id="${badgeId}">${layer.enabled ? "On" : "Off"}</span>
+                </summary>
+                <div class="ui-section-body">
+                    <label class="pass-toggle">
+                        <input type="checkbox" id="${enabledId}" class="overlay-enable-cb" data-layer-index="${i}" data-scope="${layerKey}" data-param="enabled"${layer.enabled ? " checked" : ""}>
+                        Enable Layer ${layerNum}
+                    </label>
+                    <label>Overlay generator
+                        <select id="${genSelectId}" class="overlay-gen-select" data-layer-index="${i}" data-scope="${layerKey}.gen" data-param="generatorId">
+                            ${GENERATOR_IDS.map((gid) => {
+                                const op = registry.get(gid);
+                                return `<option value="${gid}"${layer.generatorId === gid ? " selected" : ""}>${op ? op.label : gid}</option>`;
+                            }).join("")}
+                        </select>
+                    </label>
+                    <div id="${genControlsId}">
+                        ${renderGeneratorExtraParams(`${layerKey}.gen`, layer.generatorId, layer.generatorParams, false)}
+                    </div>
+
+                    <details class="ui-subdrawer" id="${layerKey}MaskDrawer">
+                        <summary class="ui-subsummary">
+                            <span>Mask &amp; Placement (Alt, Slope, Warp)</span>
+                            <span class="summary-badge">Mask</span>
+                        </summary>
+                        <div class="ui-subdrawer-body">
+                            ${maskOp ? maskOp.paramSchema.filter((p) => p.tier !== "hidden").map((p) => renderScopedParamControl(`${layerKey}.mask`, p, layer.maskParams?.[p.key])).join("") : ""}
+                        </div>
+                    </details>
+
+                    <details class="ui-subdrawer" id="${layerKey}BlendDrawer">
+                        <summary class="ui-subsummary">
+                            <span>Seam-Free Layer Blending</span>
+                            <span class="summary-badge">Height-Fill</span>
+                        </summary>
+                        <div class="ui-subdrawer-body">
+                            ${blendOp ? blendOp.paramSchema.filter((p) => p.tier !== "hidden").map((p) => renderScopedParamControl(`${layerKey}.blend`, p, layer.blendParams?.[p.key])).join("") : ""}
+                        </div>
+                    </details>
+                    ${
+                        i >= 2
+                            ? `<button type="button" class="remove-layer-btn" data-remove-layer="${i}">Remove Layer ${layerNum}</button>`
+                            : ""
+                    }
+                </div>
+            </details>`;
+        }
+        return html;
+    }
+
     function countActiveShapers() {
         let count = 0;
         for (const id of SHAPER_IDS) {
-            if (activeStack.layer1?.shapers?.[id]?.enabled) count++;
+            if (activeStack.layers[0]?.shapers?.[id]?.enabled) count++;
         }
         return count;
     }
@@ -200,19 +293,13 @@ export function createUI(container, callbacks = {}) {
         return count;
     }
 
-    const maskOp = registry.get("mask.select");
-    const blendOp = registry.get("blend.layer");
-
     const panel = document.createElement("div");
     panel.id = "webgpu-ui";
     panel.innerHTML = `
             <div class="ui-section preset-bar" id="sectionPresets">
                 <label for="presetSelect">Biome Preset
                     <select id="presetSelect">
-                        ${PRESETS.map(
-                            (p) =>
-                                `<option value="${p.id}"${p.id === activeStack.id ? " selected" : ""}>${p.name}</option>`,
-                        ).join("")}
+                        ${renderPresetOptGroups(activeStack.id)}
                     </select>
                 </label>
                 <div class="info-line" id="presetDesc">${activeStack.description || ""}</div>
@@ -258,7 +345,7 @@ export function createUI(container, callbacks = {}) {
                         <select id="layer1GeneratorSelect" data-scope="layer1.gen" data-param="generatorId">
                             ${GENERATOR_IDS.map((gid) => {
                                 const op = registry.get(gid);
-                                return `<option value="${gid}"${activeStack.layer1.generatorId === gid ? " selected" : ""}>${op ? op.label : gid}</option>`;
+                                return `<option value="${gid}"${activeStack.layers[0].generatorId === gid ? " selected" : ""}>${op ? op.label : gid}</option>`;
                             }).join("")}
                         </select>
                     </label>
@@ -267,16 +354,16 @@ export function createUI(container, callbacks = {}) {
                         <span class="value" id="baseHeightVal">${DEFAULT_PARAMS.baseHeight}</span>
                     </label>
                     <div id="layer1GenControls">
-                        ${renderGeneratorExtraParams("layer1.gen", activeStack.layer1.generatorId, activeStack.layer1.generatorParams, true)}
+                        ${renderGeneratorExtraParams("layer1.gen", activeStack.layers[0].generatorId, activeStack.layers[0].generatorParams, true)}
                     </div>
 
                     <details class="ui-subdrawer" id="layer1ShapersDrawer">
                         <summary class="ui-subsummary">
-                            <span>Shapers &amp; Filters (Strata, Fold, Glacial)</span>
+                            <span>Shapers, Strata &amp; Boulder Detail</span>
                             <span class="summary-badge" id="shapersCountBadge">${countActiveShapers()} on</span>
                         </summary>
                         <div class="ui-subdrawer-body" id="layer1ShapersBody">
-                            ${renderShapersList(activeStack.layer1.shapers)}
+                            ${renderShapersList("layer1", activeStack.layers[0].shapers)}
                         </div>
                     </details>
 
@@ -287,49 +374,13 @@ export function createUI(container, callbacks = {}) {
                 </div>
             </details>
 
-            <details class="ui-section ui-accordion" id="sectionLayer2">
-                <summary class="ui-summary">
-                    <span class="summary-title">Layer 2: Biome Overlay</span>
-                    <span class="summary-badge" id="layer2Badge">${activeStack.layer2.enabled ? "On" : "Off"}</span>
-                </summary>
-                <div class="ui-section-body">
-                    <label class="pass-toggle">
-                        <input type="checkbox" id="layer2Enabled" data-scope="layer2" data-param="enabled"${activeStack.layer2.enabled ? " checked" : ""}>
-                        Enable Secondary Biome Layer
-                    </label>
-                    <label>Overlay generator
-                        <select id="layer2GeneratorSelect" data-scope="layer2.gen" data-param="generatorId">
-                            ${GENERATOR_IDS.map((gid) => {
-                                const op = registry.get(gid);
-                                return `<option value="${gid}"${activeStack.layer2.generatorId === gid ? " selected" : ""}>${op ? op.label : gid}</option>`;
-                            }).join("")}
-                        </select>
-                    </label>
-                    <div id="layer2GenControls">
-                        ${renderGeneratorExtraParams("layer2.gen", activeStack.layer2.generatorId, activeStack.layer2.generatorParams, false)}
-                    </div>
+            <div id="overlayLayersContainer">
+                ${renderOverlayLayersMarkup()}
+            </div>
 
-                    <details class="ui-subdrawer" id="layer2MaskDrawer">
-                        <summary class="ui-subsummary">
-                            <span>Mask &amp; Placement (Alt, Slope, Warp)</span>
-                            <span class="summary-badge">Mask</span>
-                        </summary>
-                        <div class="ui-subdrawer-body" id="layer2MaskBody">
-                            ${maskOp ? maskOp.paramSchema.filter((p) => p.tier !== "hidden").map((p) => renderScopedParamControl("layer2.mask", p, activeStack.layer2.maskParams?.[p.key])).join("") : ""}
-                        </div>
-                    </details>
-
-                    <details class="ui-subdrawer" id="layer2BlendDrawer">
-                        <summary class="ui-subsummary">
-                            <span>Seam-Free Layer Blending</span>
-                            <span class="summary-badge">Height-Fill</span>
-                        </summary>
-                        <div class="ui-subdrawer-body" id="layer2BlendBody">
-                            ${blendOp ? blendOp.paramSchema.filter((p) => p.tier !== "hidden").map((p) => renderScopedParamControl("layer2.blend", p, activeStack.layer2.blendParams?.[p.key])).join("") : ""}
-                        </div>
-                    </details>
-                </div>
-            </details>
+            <div class="ui-section layer-stack-actions" id="layerStackActions">
+                <button type="button" id="addLayerBtn">${activeStack.layers.length >= MAX_BIOME_LAYERS ? `Max ${MAX_BIOME_LAYERS} Layers Reached` : `+ Add Biome Layer (${activeStack.layers.length}/${MAX_BIOME_LAYERS})`}</button>
+            </div>
 
             <details class="ui-section ui-accordion" id="sectionErosion" open>
                 <summary class="ui-summary">
@@ -401,7 +452,7 @@ export function createUI(container, callbacks = {}) {
                     <label><input type="radio" name="renderMode" value="${RENDER_HARDNESS}"> Hardness map</label>
                     <label><input type="radio" name="renderMode" value="${RENDER_NORMALS}"> Slope arrows (flow direction)</label>
                     <label><input type="radio" name="renderMode" value="${RENDER_EROSION_HEATMAP}"> Erosion / slope heatmap</label>
-                    <label><input type="radio" name="renderMode" value="${RENDER_MASK_INSPECTOR}"> Layer 2 placement mask</label>
+                    <label><input type="radio" name="renderMode" value="${RENDER_MASK_INSPECTOR}"> Active layer placement mask</label>
                     <label><input type="radio" name="renderMode" value="${RENDER_SEDIMENT}"> Loose sand / scree depth</label>
                     <label><input type="radio" name="renderMode" value="${RENDER_CURVATURE_AO}"> Curvature &amp; horizon AO</label>
                 </div>
@@ -446,11 +497,23 @@ export function createUI(container, callbacks = {}) {
     const regenerateBtn = panel.querySelector("#regenerateBtn");
     const presetSelect = panel.querySelector("#presetSelect");
     const presetDesc = panel.querySelector("#presetDesc");
-    const layer2Badge = panel.querySelector("#layer2Badge");
     const shapersCountBadge = panel.querySelector("#shapersCountBadge");
     const extraSimsBadge = panel.querySelector("#extraSimsBadge");
+    const overlayLayersContainer = panel.querySelector("#overlayLayersContainer");
+    const addLayerBtn = panel.querySelector("#addLayerBtn");
 
     let erosionPending = false;
+
+    function updateAddLayerButtonState() {
+        const count = activeStack.layers.length;
+        if (count >= MAX_BIOME_LAYERS) {
+            addLayerBtn.disabled = true;
+            addLayerBtn.textContent = `Max ${MAX_BIOME_LAYERS} Layers Reached`;
+        } else {
+            addLayerBtn.disabled = false;
+            addLayerBtn.textContent = `+ Add Biome Layer (${count}/${MAX_BIOME_LAYERS})`;
+        }
+    }
 
     function updateErosionBadge() {
         const steps = Number.parseInt(stepCountInput.value, 10) || DEFAULT_PARAMS.stepCount;
@@ -475,6 +538,35 @@ export function createUI(container, callbacks = {}) {
         updateErosionBadge();
     }
 
+    function applyLocalScopedUpdate(scope, param, val) {
+        const layerMatch = /^layer(\d+)(?:\.(.+))?$/.exec(scope);
+        if (layerMatch) {
+            const idx = Number.parseInt(layerMatch[1], 10) - 1;
+            const sub = layerMatch[2] || "";
+            const layer = activeStack.layers[idx];
+            if (!layer) return;
+            if (sub === "") {
+                layer[param] = val;
+            } else if (sub === "gen") {
+                layer.generatorParams[param] = val;
+            } else if (sub.startsWith("shaper:")) {
+                const sid = sub.slice("shaper:".length);
+                if (layer.shapers?.[sid]) layer.shapers[sid][param] = val;
+            } else if (sub === "mask" && layer.maskParams) {
+                layer.maskParams[param] = val;
+            } else if (sub === "blend" && layer.blendParams) {
+                layer.blendParams[param] = val;
+            }
+            return;
+        }
+        if (scope.startsWith("sim:")) {
+            const simId = scope.slice("sim:".length);
+            if (activeStack.simulations[simId]) {
+                activeStack.simulations[simId][param] = val;
+            }
+        }
+    }
+
     function bindScopedControls(rootEl) {
         rootEl.querySelectorAll(".scoped-slider").forEach((slider) => {
             slider.addEventListener("input", () => {
@@ -484,22 +576,7 @@ export function createUI(container, callbacks = {}) {
                 const span = panel.querySelector(`[data-val-for="${scope}:${param}"]`);
                 if (span) span.textContent = val;
 
-                if (scope === "layer1.gen") {
-                    activeStack.layer1.generatorParams[param] = val;
-                } else if (scope.startsWith("layer1.shaper:")) {
-                    const sid = scope.slice("layer1.shaper:".length);
-                    if (activeStack.layer1.shapers[sid]) activeStack.layer1.shapers[sid][param] = val;
-                } else if (scope === "layer2.gen") {
-                    activeStack.layer2.generatorParams[param] = val;
-                } else if (scope === "layer2.mask") {
-                    activeStack.layer2.maskParams[param] = val;
-                } else if (scope === "layer2.blend") {
-                    activeStack.layer2.blendParams[param] = val;
-                } else if (scope.startsWith("sim:")) {
-                    const simId = scope.slice("sim:".length);
-                    if (activeStack.simulations[simId]) activeStack.simulations[simId][param] = val;
-                }
-
+                applyLocalScopedUpdate(scope, param, val);
                 if (typeof onScopedParamChange === "function") {
                     onScopedParamChange(scope, param, val);
                 }
@@ -514,14 +591,7 @@ export function createUI(container, callbacks = {}) {
                 const numVal = Number(sel.value);
                 const val = Number.isNaN(numVal) ? sel.value : numVal;
 
-                if (scope === "layer1.gen") {
-                    activeStack.layer1.generatorParams[param] = val;
-                } else if (scope === "layer2.gen") {
-                    activeStack.layer2.generatorParams[param] = val;
-                } else if (scope === "layer2.blend") {
-                    activeStack.layer2.blendParams[param] = val;
-                }
-
+                applyLocalScopedUpdate(scope, param, val);
                 if (typeof onScopedParamChange === "function") {
                     onScopedParamChange(scope, param, val);
                 }
@@ -535,19 +605,16 @@ export function createUI(container, callbacks = {}) {
                 const param = cb.dataset.param;
                 const checked = cb.checked;
 
-                if (scope.startsWith("layer1.shaper:")) {
-                    const sid = scope.slice("layer1.shaper:".length);
-                    if (activeStack.layer1.shapers[sid]) {
-                        activeStack.layer1.shapers[sid][param] = checked;
-                    }
-                    const badge = panel.querySelector(`[data-shaper-badge="${sid}"]`);
+                applyLocalScopedUpdate(scope, param, checked);
+                const shaperMatch = /^(layer\d+)\.shaper:(.+)$/.exec(scope);
+                if (shaperMatch) {
+                    const lKey = shaperMatch[1];
+                    const sid = shaperMatch[2];
+                    const badge = panel.querySelector(`[data-shaper-badge="${lKey}:${sid}"]`);
                     if (badge) badge.textContent = checked ? "On" : "Off";
                     shapersCountBadge.textContent = `${countActiveShapers()} on`;
                 } else if (scope.startsWith("sim:")) {
                     const simId = scope.slice("sim:".length);
-                    if (activeStack.simulations[simId]) {
-                        activeStack.simulations[simId][param] = checked;
-                    }
                     const badge = panel.querySelector(`[data-sim-badge="${simId}"]`);
                     if (badge) badge.textContent = checked ? "On" : "Off";
                     extraSimsBadge.textContent = `${countActiveExtraSims()} on`;
@@ -561,7 +628,101 @@ export function createUI(container, callbacks = {}) {
         });
     }
 
+    function bindOverlayLayerEvents(containerEl) {
+        containerEl.querySelectorAll(".overlay-enable-cb").forEach((cb) => {
+            cb.addEventListener("change", () => {
+                const idx = Number.parseInt(cb.dataset.layerIndex, 10);
+                const layerNum = idx + 1;
+                const layerKey = `layer${layerNum}`;
+                const badgeId = layerNum === 2 ? "layer2Badge" : `${layerKey}Badge`;
+                if (activeStack.layers[idx]) {
+                    activeStack.layers[idx].enabled = cb.checked;
+                }
+                const badgeEl = panel.querySelector(`#${badgeId}`);
+                if (badgeEl) badgeEl.textContent = cb.checked ? "On" : "Off";
+
+                if (typeof onScopedParamChange === "function") {
+                    onScopedParamChange(layerKey, "enabled", cb.checked);
+                }
+                onRegenerate();
+            });
+        });
+
+        containerEl.querySelectorAll(".overlay-gen-select").forEach((sel) => {
+            sel.addEventListener("change", () => {
+                const idx = Number.parseInt(sel.dataset.layerIndex, 10);
+                const layerNum = idx + 1;
+                const layerKey = `layer${layerNum}`;
+                const genId = sel.value;
+                const layer = activeStack.layers[idx];
+                if (!layer) return;
+
+                layer.generatorId = genId;
+                const op = registry.get(genId);
+                if (op) {
+                    layer.generatorParams = { ...op.defaultParams, ...layer.generatorParams };
+                }
+                if (typeof onScopedParamChange === "function") {
+                    onScopedParamChange(`${layerKey}.gen`, "generatorId", genId);
+                }
+                const controlsId = layerNum === 2 ? "layer2GenControls" : `${layerKey}GenControls`;
+                const genControls = panel.querySelector(`#${controlsId}`);
+                if (genControls) {
+                    genControls.innerHTML = renderGeneratorExtraParams(
+                        `${layerKey}.gen`,
+                        genId,
+                        layer.generatorParams,
+                        false,
+                    );
+                    bindScopedControls(genControls);
+                }
+                onRegenerate();
+            });
+        });
+
+        containerEl.querySelectorAll(".remove-layer-btn").forEach((btn) => {
+            btn.addEventListener("click", () => {
+                const idx = Number.parseInt(btn.dataset.removeLayer, 10);
+                if (typeof onRemoveLayer === "function") {
+                    onRemoveLayer(idx);
+                } else if (idx >= 2 && idx < activeStack.layers.length) {
+                    activeStack.layers.splice(idx, 1);
+                    normalizeStack(activeStack);
+                }
+                rebuildOverlayLayersUI();
+                onRegenerate();
+            });
+        });
+    }
+
+    function rebuildOverlayLayersUI() {
+        overlayLayersContainer.innerHTML = renderOverlayLayersMarkup();
+        bindScopedControls(overlayLayersContainer);
+        bindOverlayLayerEvents(overlayLayersContainer);
+        updateAddLayerButtonState();
+    }
+
     bindScopedControls(panel);
+    bindOverlayLayerEvents(overlayLayersContainer);
+    updateAddLayerButtonState();
+
+    // Add Biome Layer button (capped at MAX_BIOME_LAYERS = 8)
+    addLayerBtn.addEventListener("click", () => {
+        if (activeStack.layers.length >= MAX_BIOME_LAYERS) return;
+        if (typeof onAddLayer === "function") {
+            const added = onAddLayer();
+            if (added && !activeStack.layers.includes(added)) {
+                activeStack.layers.push(added);
+                normalizeStack(activeStack);
+            }
+        } else {
+            const nextIdx = activeStack.layers.length + 1;
+            activeStack.layers.push(createDefaultOverlayLayer(nextIdx, { enabled: true }));
+            normalizeStack(activeStack);
+        }
+        rebuildOverlayLayersUI();
+        onRegenerate();
+    });
 
     // Preset selector
     presetSelect.addEventListener("change", () => {
@@ -569,43 +730,34 @@ export function createUI(container, callbacks = {}) {
         activeStack = getPresetById(presetId);
         if (typeof onPresetChange === "function") {
             const returned = onPresetChange(presetId);
-            if (returned) activeStack = returned;
+            if (returned) activeStack = normalizeStack(returned);
         }
         presetDesc.textContent = activeStack.description || "";
 
-        // Sync top-level controls from preset
-        const newBaseH = activeStack.layer1.generatorParams.baseHeight ?? activeStack.layer1.generatorParams.duneHeight ?? 800;
+        const baseGenParams = activeStack.layers[0].generatorParams;
+        const newBaseH = baseGenParams.baseHeight ?? baseGenParams.duneHeight ?? 1200;
         baseHeightInput.value = String(newBaseH);
         baseHeightVal.textContent = String(newBaseH);
         seedInput.value = String(activeStack.seed ?? 42);
         updateTerrainBadge();
 
-        // Rebuild Layer 1 & Layer 2 generator controls + Shapers + Extra Sims
-        panel.querySelector("#layer1GeneratorSelect").value = activeStack.layer1.generatorId;
+        panel.querySelector("#layer1GeneratorSelect").value = activeStack.layers[0].generatorId;
         panel.querySelector("#layer1GenControls").innerHTML = renderGeneratorExtraParams(
             "layer1.gen",
-            activeStack.layer1.generatorId,
-            activeStack.layer1.generatorParams,
+            activeStack.layers[0].generatorId,
+            activeStack.layers[0].generatorParams,
             true,
         );
-        panel.querySelector("#layer1ShapersBody").innerHTML = renderShapersList(activeStack.layer1.shapers);
+        panel.querySelector("#layer1ShapersBody").innerHTML = renderShapersList("layer1", activeStack.layers[0].shapers);
         shapersCountBadge.textContent = `${countActiveShapers()} on`;
-
-        const l2EnabledCb = panel.querySelector("#layer2Enabled");
-        l2EnabledCb.checked = Boolean(activeStack.layer2.enabled);
-        layer2Badge.textContent = activeStack.layer2.enabled ? "On" : "Off";
-        panel.querySelector("#layer2GeneratorSelect").value = activeStack.layer2.generatorId;
-        panel.querySelector("#layer2GenControls").innerHTML = renderGeneratorExtraParams(
-            "layer2.gen",
-            activeStack.layer2.generatorId,
-            activeStack.layer2.generatorParams,
-            false,
-        );
 
         panel.querySelector("#extraSimsBody").innerHTML = renderExtraSimulationsList(activeStack.simulations);
         extraSimsBadge.textContent = `${countActiveExtraSims()} on`;
 
-        bindScopedControls(panel);
+        bindScopedControls(panel.querySelector("#sectionTerrain"));
+        bindScopedControls(panel.querySelector("#sectionErosion"));
+        rebuildOverlayLayersUI();
+
         setErosionPending(false);
         onRegenerate();
     });
@@ -614,10 +766,10 @@ export function createUI(container, callbacks = {}) {
     const layer1GenSelect = panel.querySelector("#layer1GeneratorSelect");
     layer1GenSelect.addEventListener("change", () => {
         const genId = layer1GenSelect.value;
-        activeStack.layer1.generatorId = genId;
+        activeStack.layers[0].generatorId = genId;
         const op = registry.get(genId);
         if (op) {
-            activeStack.layer1.generatorParams = { ...op.defaultParams, ...activeStack.layer1.generatorParams };
+            activeStack.layers[0].generatorParams = { ...op.defaultParams, ...activeStack.layers[0].generatorParams };
         }
         if (typeof onScopedParamChange === "function") {
             onScopedParamChange("layer1.gen", "generatorId", genId);
@@ -626,47 +778,14 @@ export function createUI(container, callbacks = {}) {
         genControls.innerHTML = renderGeneratorExtraParams(
             "layer1.gen",
             genId,
-            activeStack.layer1.generatorParams,
+            activeStack.layers[0].generatorParams,
             true,
         );
         bindScopedControls(genControls);
         onRegenerate();
     });
 
-    // Layer 2 Enable & Generator type change
-    const layer2EnabledCb = panel.querySelector("#layer2Enabled");
-    layer2EnabledCb.addEventListener("change", () => {
-        activeStack.layer2.enabled = layer2EnabledCb.checked;
-        layer2Badge.textContent = layer2EnabledCb.checked ? "On" : "Off";
-        if (typeof onScopedParamChange === "function") {
-            onScopedParamChange("layer2", "enabled", layer2EnabledCb.checked);
-        }
-        onRegenerate();
-    });
-
-    const layer2GenSelect = panel.querySelector("#layer2GeneratorSelect");
-    layer2GenSelect.addEventListener("change", () => {
-        const genId = layer2GenSelect.value;
-        activeStack.layer2.generatorId = genId;
-        const op = registry.get(genId);
-        if (op) {
-            activeStack.layer2.generatorParams = { ...op.defaultParams, ...activeStack.layer2.generatorParams };
-        }
-        if (typeof onScopedParamChange === "function") {
-            onScopedParamChange("layer2.gen", "generatorId", genId);
-        }
-        const genControls = panel.querySelector("#layer2GenControls");
-        genControls.innerHTML = renderGeneratorExtraParams(
-            "layer2.gen",
-            genId,
-            activeStack.layer2.generatorParams,
-            false,
-        );
-        bindScopedControls(genControls);
-        onRegenerate();
-    });
-
-    // Wire up droplet erosion slider events (preserved contract)
+    // Wire up droplet erosion slider events
     const sliders = ["rainRate", "erosionRate", "depositionRate", "evaporation", "sedimentCapacity"];
     for (const name of sliders) {
         const input = panel.querySelector(`#${name}`);
@@ -685,7 +804,7 @@ export function createUI(container, callbacks = {}) {
         });
     }
 
-    // Base noise height — regenerate so the new relief is visible immediately
+    // Base noise height
     baseHeightInput.addEventListener("input", () => {
         const val = Number.parseFloat(baseHeightInput.value);
         baseHeightVal.textContent = val;
@@ -697,7 +816,7 @@ export function createUI(container, callbacks = {}) {
         onRegenerate();
     });
 
-    // Terrain detail (grid resolution) — persisted, requires a reload
+    // Grid resolution
     panel.querySelectorAll(".grid-size-btn[data-size]").forEach((btn) => {
         btn.addEventListener("click", () => {
             const size = Number.parseInt(btn.dataset.size, 10);
@@ -707,7 +826,7 @@ export function createUI(container, callbacks = {}) {
         });
     });
 
-    // World extent (tile size in meters) — persisted, requires a reload
+    // World extent
     panel.querySelectorAll(".area-size-btn[data-area]").forEach((btn) => {
         btn.addEventListener("click", () => {
             const area = Number.parseInt(btn.dataset.area, 10);

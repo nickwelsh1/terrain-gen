@@ -45,6 +45,12 @@ export async function main() {
         onScopedParamChange(scope, key, value) {
             pipeline.updateScopedParam(scope, key, value);
         },
+        onAddLayer() {
+            return pipeline.addLayer();
+        },
+        onRemoveLayer(idx) {
+            return pipeline.removeLayer(idx);
+        },
         onParamChange(params) {
             pipeline.updateUniforms(params);
         },

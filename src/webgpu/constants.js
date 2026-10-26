@@ -30,10 +30,12 @@ export const AREA_M = readAreaSize();     // meters per side (default 2.56 km)
 export const CELL_SPACING_M = AREA_M / N; // meters between cells
 export const AREA_KM = AREA_M / 1000;
 
-// Height range
+// Height range — 2500m supports tall Alpine Dolomites, Himalayan massifs, and Tepuis
 export const MIN_HEIGHT_M = 10;
-export const MAX_HEIGHT_M = 1500;
+export const MAX_HEIGHT_M = 2500;
 export const HEIGHT_RANGE_M = MAX_HEIGHT_M - MIN_HEIGHT_M;
+// Maximum number of composable biome layers in the stack to keep GPU dispatch fast on mid-range devices
+export const MAX_BIOME_LAYERS = 8;
 // Exponent applied to the normalized heightmap. Raw noise averages ~0.5, which
 // left the terrain sitting halfway up the height range; 2.585 maps 0.5 to 0.167,
 // i.e. roughly a third of its former elevation, while peaks stay at full height.

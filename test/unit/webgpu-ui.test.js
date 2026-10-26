@@ -162,5 +162,11 @@ describe("WebGPU UI (src/webgpu/ui.js)", () => {
         crestSelect.value = "1";
         crestSelect.dispatchEvent(new Event("change", { bubbles: true }));
         expect(onScopedParamChange).toHaveBeenCalledWith("layer2.gen", "crestMode", 1);
+
+        // Add a 3rd biome layer via #addLayerBtn
+        const addLayerBtn = document.getElementById("addLayerBtn");
+        expect(addLayerBtn).not.toBeNull();
+        addLayerBtn.click();
+        expect(document.getElementById("sectionLayer3")).not.toBeNull();
     });
 });

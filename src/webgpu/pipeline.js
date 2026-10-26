@@ -1,11 +1,10 @@
 // GPU pipeline manager: orchestrates TerrainState, OperatorRegistry, and
-// OperatorGraphRunner to execute a composable layer stack + simulation chain.
-// Preserves the legacy TerrainPipeline public methods (updateUniforms,
-// generateMaps, computeAnalysis, runErosion, resetToBase, getStorageBuffers)
-// while adding layer-stack preset & scoped parameter controls.
+// OperatorGraphRunner to execute a composable N-layer stack (up to MAX_BIOME_LAYERS)
+// + global simulation chain.
 
 import {
     DEFAULT_PARAMS,
+    MAX_BIOME_LAYERS,
     PASS_HEIGHTMAP,
     PASS_HARDNESS,
     PASS_NORMALS,
@@ -14,14 +13,20 @@ import {
 import { TerrainState } from "./state.js";
 import { createDefaultRegistry } from "./operators/index.js";
 import { OperatorGraphRunner } from "./operators/graph.js";
-import { DEFAULT_PRESET_ID, getPresetById } from "./presets.js";
+import {
+    DEFAULT_PRESET_ID,
+    getPresetById,
+    createDefaultOverlayLayer,
+    normalizeStack,
+} from "./presets.js";
 
-const SHAPER_ORDER = [
+export const SHAPER_ORDER = [
     "shape.terrace",
     "shape.fold",
     "shape.glacialCarve",
     "shape.warp",
     "shape.curveRemap",
+    "shape.surfaceDetail",
 ];
 
 export class TerrainPipeline {
@@ -73,7 +78,36 @@ export class TerrainPipeline {
     }
 
     /**
-     * Updates a scoped parameter inside the active layer stack.
+     * Appends a new overlay biome layer to the stack up to MAX_BIOME_LAYERS (8).
+     */
+    addLayer(overrides = {}) {
+        if (this.stack.layers.length >= MAX_BIOME_LAYERS) {
+            return null;
+        }
+        const nextIndex = this.stack.layers.length + 1;
+        const newLayer = createDefaultOverlayLayer(nextIndex, {
+            enabled: true,
+            ...overrides,
+        });
+        this.stack.layers.push(newLayer);
+        normalizeStack(this.stack);
+        return newLayer;
+    }
+
+    /**
+     * Removes an overlay layer by 0-based index (keeps at least 2 layers so layer1/layer2 always exist).
+     */
+    removeLayer(layerIndex) {
+        if (layerIndex < 2 || layerIndex >= this.stack.layers.length) {
+            return false;
+        }
+        this.stack.layers.splice(layerIndex, 1);
+        normalizeStack(this.stack);
+        return true;
+    }
+
+    /**
+     * Updates a scoped parameter inside any layer (`layer1`, `layer2`, ..., `layer8`) or simulation.
      * @param {string} scope e.g. "layer1.gen", "layer1.shaper:shape.terrace", "layer2.gen", "layer2.mask", "layer2.blend", "sim:sim.thermalTalus"
      * @param {string} key
      * @param {number|boolean|string} value
@@ -87,68 +121,62 @@ export class TerrainPipeline {
             return;
         }
 
-        if (scope === "layer1.gen") {
-            if (key === "generatorId") {
-                const newGenId = String(value);
-                const op = this.registry.get(newGenId);
-                this.stack.layer1.generatorId = newGenId;
-                if (op) {
-                    this.stack.layer1.generatorParams = {
-                        ...op.defaultParams,
-                        ...this.stack.layer1.generatorParams,
-                    };
+        // Match layerN, layerN.gen, layerN.mask, layerN.blend, layerN.shaper:<id>
+        const layerMatch = /^layer(\d+)(?:\.(.+))?$/.exec(scope);
+        if (layerMatch) {
+            const layerIdx = Number.parseInt(layerMatch[1], 10) - 1;
+            const subScope = layerMatch[2] || "";
+            const layer = this.stack.layers[layerIdx];
+            if (!layer) return;
+
+            if (subScope === "") {
+                if (key === "enabled") {
+                    layer.enabled = Boolean(value);
+                } else if (key === "name") {
+                    layer.name = String(value);
                 }
-            } else {
-                this.stack.layer1.generatorParams[key] = value;
-                if (key === "baseHeight") {
-                    this.params.baseHeight = Number(value);
+                return;
+            }
+
+            if (subScope === "gen") {
+                if (key === "generatorId") {
+                    const newGenId = String(value);
+                    const op = this.registry.get(newGenId);
+                    layer.generatorId = newGenId;
+                    if (op) {
+                        layer.generatorParams = {
+                            ...op.defaultParams,
+                            ...layer.generatorParams,
+                        };
+                    }
+                } else {
+                    layer.generatorParams[key] = value;
+                    if (layerIdx === 0 && key === "baseHeight") {
+                        this.params.baseHeight = Number(value);
+                    }
                 }
+                return;
             }
-            return;
-        }
 
-        if (scope.startsWith("layer1.shaper:")) {
-            const shaperId = scope.slice("layer1.shaper:".length);
-            if (!this.stack.layer1.shapers[shaperId]) {
-                const op = this.registry.get(shaperId);
-                this.stack.layer1.shapers[shaperId] = { enabled: false, ...(op ? op.defaultParams : {}) };
-            }
-            this.stack.layer1.shapers[shaperId][key] = value;
-            return;
-        }
-
-        if (scope === "layer2") {
-            if (key === "enabled") {
-                this.stack.layer2.enabled = Boolean(value);
-            }
-            return;
-        }
-
-        if (scope === "layer2.gen") {
-            if (key === "generatorId") {
-                const newGenId = String(value);
-                const op = this.registry.get(newGenId);
-                this.stack.layer2.generatorId = newGenId;
-                if (op) {
-                    this.stack.layer2.generatorParams = {
-                        ...op.defaultParams,
-                        ...this.stack.layer2.generatorParams,
-                    };
+            if (subScope.startsWith("shaper:")) {
+                const shaperId = subScope.slice("shaper:".length);
+                if (!layer.shapers[shaperId]) {
+                    const op = this.registry.get(shaperId);
+                    layer.shapers[shaperId] = { enabled: false, ...(op ? op.defaultParams : {}) };
                 }
-            } else {
-                this.stack.layer2.generatorParams[key] = value;
+                layer.shapers[shaperId][key] = value;
+                return;
             }
-            return;
-        }
 
-        if (scope === "layer2.mask") {
-            this.stack.layer2.maskParams[key] = value;
-            return;
-        }
+            if (subScope === "mask" && layer.maskParams) {
+                layer.maskParams[key] = value;
+                return;
+            }
 
-        if (scope === "layer2.blend") {
-            this.stack.layer2.blendParams[key] = value;
-            return;
+            if (subScope === "blend" && layer.blendParams) {
+                layer.blendParams[key] = value;
+                return;
+            }
         }
 
         if (scope.startsWith("sim:")) {
@@ -170,7 +198,7 @@ export class TerrainPipeline {
             this.stack.seed = Number(params.seed);
         }
         if (params.baseHeight !== undefined) {
-            this.stack.layer1.generatorParams.baseHeight = Number(params.baseHeight);
+            this.stack.layers[0].generatorParams.baseHeight = Number(params.baseHeight);
         }
         const dropSim = this.stack.simulations["sim.dropletErosion"];
         if (dropSim) {
@@ -183,41 +211,50 @@ export class TerrainPipeline {
     }
 
     /**
-     * Executes the full layer compositor stack + enabled non-droplet simulations.
+     * Executes the full N-layer compositor stack + enabled non-droplet simulations.
      */
     generateMaps() {
         const seed = this.stack.seed ?? this.params.seed ?? 42;
         const flags = this.params.passFlags ?? DEFAULT_PARAMS.passFlags;
         this.state.resetIndices();
 
-        // 1. Layer 1: Base Terrain Generator
-        if ((flags & PASS_HEIGHTMAP) !== 0 && this.stack.layer1.enabled !== false) {
-            const genId = this.stack.layer1.generatorId || "gen.ridgeFbm";
+        const layers = this.stack.layers || [];
+        const baseLayer = layers[0];
+
+        // 1. Layer 1 (index 0): Base Terrain Generator + Shapers
+        if ((flags & PASS_HEIGHTMAP) !== 0 && baseLayer && baseLayer.enabled !== false) {
+            const genId = baseLayer.generatorId || "gen.ridgeFbm";
             this.runner.runOperator(genId, {
-                ...this.stack.layer1.generatorParams,
+                ...baseLayer.generatorParams,
                 seed,
                 clearAux: 1,
                 writeSediment: genId === "gen.duneField" ? 1 : 0,
             });
 
-            // Layer 1 Shapers
             for (const shaperId of SHAPER_ORDER) {
-                const shaperCfg = this.stack.layer1.shapers?.[shaperId];
+                const shaperCfg = baseLayer.shapers?.[shaperId];
                 if (shaperCfg?.enabled) {
                     this.runner.runOperator(shaperId, { ...shaperCfg, seed });
                 }
             }
         }
 
-        // 2. Preliminary analysis so Layer 2's slope/curvature mask has up-to-date slopes
-        if (this.stack.layer2?.enabled) {
+        // 2. Overlay Layers (indices 1 .. min(layers.length, MAX_BIOME_LAYERS) - 1)
+        const maxLayerCount = Math.min(layers.length, MAX_BIOME_LAYERS);
+        for (let i = 1; i < maxLayerCount; i++) {
+            const overlay = layers[i];
+            if (!overlay?.enabled) continue;
+
+            const layerSeed = seed + i * 107;
+
+            // Compute current normals/slopes/curvature so mask.select has accurate terrain data
             this.runner.runOperator("detail.analysis", {});
 
-            // Compute Layer 2 placement mask into aux.z (maskA)
-            const maskCfg = this.stack.layer2.maskParams || {};
+            // Evaluate placement mask into aux.z (maskA)
+            const maskCfg = overlay.maskParams || {};
             this.runner.runOperator("mask.select", {
                 ...maskCfg,
-                seed: seed + 101,
+                seed: layerSeed + 31,
             });
 
             const blurPasses = Math.max(0, Math.trunc(maskCfg.blurIterations ?? 2));
@@ -229,22 +266,34 @@ export class TerrainPipeline {
                 );
             }
 
-            // Generate Layer 2 heightmap into layerScratch
-            const gen2Id = this.stack.layer2.generatorId || "gen.duneField";
+            // Generate overlay layer heightmap into layerScratch
+            const genId = overlay.generatorId || "gen.duneField";
             this.runner.runOperator(
-                gen2Id,
+                genId,
                 {
-                    ...this.stack.layer2.generatorParams,
-                    seed: seed + 211,
+                    ...overlay.generatorParams,
+                    seed: layerSeed + 73,
                     clearAux: 0,
                     writeSediment: 0,
                 },
                 { targetBuffer: this.state.layerScratch },
             );
 
-            // Blend Layer 2 (layerScratch) onto Layer 1 (activeHeight) using aux.z (maskA)
+            // Run pointwise shapers on layerScratch if enabled on this overlay layer
+            for (const shaperId of ["shape.terrace", "shape.curveRemap"]) {
+                const shaperCfg = overlay.shapers?.[shaperId];
+                if (shaperCfg?.enabled) {
+                    this.runner.runOperator(
+                        shaperId,
+                        { ...shaperCfg, seed: layerSeed + 91 },
+                        { targetBuffer: this.state.layerScratch },
+                    );
+                }
+            }
+
+            // Blend layerScratch onto activeHeight using aux.z (maskA)
             this.runner.runOperator("blend.layer", {
-                ...this.stack.layer2.blendParams,
+                ...overlay.blendParams,
             });
         }
 
@@ -263,7 +312,7 @@ export class TerrainPipeline {
             { srcBuffer: this.state.activeHeight, targetBuffer: this.state.baseHeight },
         );
 
-        // 5. Run enabled global simulations (Phacelle Gullies, Thermal Talus, Wind Drift, Water Level)
+        // 5. Run enabled global simulations
         const sims = this.stack.simulations || {};
 
         if (sims["sim.phacelleErosion"]?.enabled) {
@@ -303,8 +352,6 @@ export class TerrainPipeline {
         this._notifyBuffersChanged();
     }
 
-    // `batches` batches of DROPLET_COUNT droplets. Each batch is submitted
-    // separately with a new batchSeed so droplets trace distinct paths.
     runErosion(batches) {
         if ((this.params.passFlags & PASS_EROSION) !== 0) {
             const count = Math.max(1, Math.trunc(batches || this.params.stepCount || 1));

@@ -102,13 +102,13 @@ fn mainFragment(input: FragmentInput) -> @location(0) vec4f {
 
     // Mode 4: Grayscale Heightmap
     if (renderMode == 4u) {
-        let hGray = clamp(input.height / 950.0, 0.0, 1.0);
+        let hGray = clamp(input.height / 1600.0, 0.0, 1.0);
         return vec4f(hGray, hGray, hGray, 1.0);
     }
 
     // Mode 5: Active Layer Mask Inspector (aux.z = maskA)
     if (renderMode == 5u) {
-        let baseGray = clamp(input.height / 950.0, 0.0, 1.0) * light;
+        let baseGray = clamp(input.height / 1600.0, 0.0, 1.0) * light;
         let bg = vec3f(baseGray * 0.55);
         let maskColor = mix(vec3f(0.12, 0.15, 0.22), vec3f(1.0, 0.82, 0.22), maskA);
         return vec4f(mix(bg, maskColor, 0.78), 1.0);
@@ -139,45 +139,49 @@ fn mainFragment(input: FragmentInput) -> @location(0) vec4f {
     }
 
     // Compute natural biome surface color (used by Mode 0 Lit and Mode 2 Slope Arrows)
-    let duneSandColor = vec3f(0.84, 0.72, 0.50);
-    let leeSandColor = vec3f(0.74, 0.61, 0.41);
-    let screeColor = vec3f(0.56, 0.52, 0.47);
-    let grassColor = vec3f(0.32, 0.46, 0.22);
-    let rockColor = vec3f(0.46, 0.43, 0.39);
-    let steepCliffColor = vec3f(0.35, 0.32, 0.30);
-    let snowColor = vec3f(0.93, 0.95, 0.98);
+    let duneSandColor = vec3f(0.85, 0.72, 0.49);
+    let leeSandColor = vec3f(0.74, 0.60, 0.40);
+    let screeColor = vec3f(0.62, 0.58, 0.52);
+    let grassColor = vec3f(0.30, 0.45, 0.21);
+    let rockColor = vec3f(0.52, 0.47, 0.42);
+    let dolomitePaleRock = vec3f(0.72, 0.67, 0.61);
+    let sandstoneBand = vec3f(0.68, 0.44, 0.30);
+    let steepCliffColor = vec3f(0.38, 0.34, 0.31);
+    let snowColor = vec3f(0.94, 0.96, 0.99);
 
     var color: vec3f;
-    if (input.height < 60.0) {
-        color = mix(duneSandColor, grassColor, clamp(input.height / 60.0, 0.0, 1.0));
-    } else if (input.height < 240.0) {
-        let t = (input.height - 60.0) / 180.0;
+    if (input.height < 90.0) {
+        color = mix(duneSandColor, grassColor, clamp(input.height / 90.0, 0.0, 1.0));
+    } else if (input.height < 420.0) {
+        let t = (input.height - 90.0) / 330.0;
         color = mix(grassColor, rockColor, t);
-    } else if (input.height < 520.0) {
-        let t = (input.height - 240.0) / 280.0;
-        color = mix(rockColor, snowColor, t * 0.65);
+    } else if (input.height < 1150.0) {
+        let t = (input.height - 420.0) / 730.0;
+        color = mix(rockColor, dolomitePaleRock, t * 0.75);
     } else {
-        let t = clamp((input.height - 520.0) / 220.0, 0.0, 1.0);
-        color = mix(rockColor, snowColor, 0.65 + t * 0.35);
+        let t = clamp((input.height - 1150.0) / 550.0, 0.0, 1.0);
+        let snowSlopeGate = 1.0 - smoothstep(0.34, 0.56, slope01);
+        color = mix(dolomitePaleRock, snowColor, clamp(0.25 + t * 0.75, 0.0, 1.0) * snowSlopeGate);
     }
 
-    // Steep slopes expose bare stratified cliff rock even at high or low altitude
-    let cliffMask = smoothstep(0.32, 0.58, slope01);
-    color = mix(color, steepCliffColor, cliffMask * 0.85);
+    // Geological horizontal strata banding on steep cliff faces (canyons, buttes, tepuis, beehive domes, dolomites)
+    let cliffMask = smoothstep(0.28, 0.54, slope01);
+    let strataWave = sin(input.height * 0.14) * 0.5 + sin(input.height * 0.42) * 0.3 + cos(input.height * 0.05) * 0.2;
+    let cliffRock = mix(steepCliffColor, mix(sandstoneBand, dolomitePaleRock, clamp(input.height / 1100.0, 0.0, 1.0)), clamp(strataWave * 0.5 + 0.5, 0.0, 1.0));
+    color = mix(color, cliffRock, cliffMask * 0.88);
 
-    // Convex ridge highlight from curvature
-    let ridgeCrest = clamp((curvature01 - 0.52) * 2.5, 0.0, 1.0);
-    color = mix(color, color * 1.16, ridgeCrest * 0.5);
+    // Convex ridge & boulder highlight from curvature
+    let ridgeCrest = clamp((curvature01 - 0.52) * 2.6, 0.0, 1.0);
+    color = mix(color, color * 1.18, ridgeCrest * 0.55);
 
-    // Loose sediment / dune sand / alpine snow drift tinting from aux.y
+    // Loose sediment / dune sand / scree apron / alpine snow drift tinting from aux.y
     if (sedimentDepth > 0.15) {
-        let sedWeight = clamp(sedimentDepth / 18.0, 0.0, 1.0);
-        let warmSand = mix(duneSandColor, leeSandColor, maskB * 0.6);
-        let highSnow = snowColor;
+        let sedWeight = clamp(sedimentDepth / 16.0, 0.0, 1.0);
+        let warmSand = mix(duneSandColor, leeSandColor, maskB * 0.65);
         let sedBiomeColor = select(
-            mix(screeColor, warmSand, clamp(1.0 - slope01 * 1.6, 0.0, 1.0)),
-            highSnow,
-            input.height > 340.0
+            mix(screeColor, warmSand, clamp(1.0 - slope01 * 1.5, 0.0, 1.0)),
+            snowColor,
+            input.height > 780.0
         );
         color = mix(color, sedBiomeColor, sedWeight * 0.9);
     }

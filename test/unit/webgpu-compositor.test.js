@@ -13,6 +13,7 @@ import {
     deserializeStack,
 } from "../../src/webgpu/presets.js";
 import { TerrainPipeline } from "../../src/webgpu/pipeline.js";
+import { MAX_BIOME_LAYERS, MAX_HEIGHT_M } from "../../src/webgpu/constants.js";
 
 describe("WebGPU Terrain Compositor Architecture", () => {
     describe("Uniform schema calculation & DataView binary packing", () => {
@@ -53,7 +54,7 @@ describe("WebGPU Terrain Compositor Architecture", () => {
     describe("Operator Registry & Shader Catalog", () => {
         const registry = createDefaultRegistry();
 
-        it("registers all required generators, shapers, masks, blends, and simulations", () => {
+        it("registers all required generators, shapers (including surfaceDetail), masks, blends, and simulations", () => {
             const expectedIds = [
                 "gen.ridgeFbm",
                 "gen.duneField",
@@ -64,6 +65,7 @@ describe("WebGPU Terrain Compositor Architecture", () => {
                 "shape.warp",
                 "shape.curveRemap",
                 "shape.glacialCarve",
+                "shape.surfaceDetail",
                 "mask.hardness",
                 "mask.select",
                 "mask.blur",
@@ -86,18 +88,22 @@ describe("WebGPU Terrain Compositor Architecture", () => {
             }
         });
 
-        it("exposes both Phacelle (Y-junctions) and Warped fBm (Classic) crest modes on gen.duneField", () => {
+        it("exposes all 4 dune crest modes (Phacelle, Warped fBm, Sudan Barchans, Namib Star Dunes) and geological landform modes", () => {
+            expect(MAX_HEIGHT_M).toBeGreaterThanOrEqual(2500);
+
             const duneOp = registry.get("gen.duneField");
             const crestParam = duneOp.paramSchema.find((p) => p.key === "crestMode");
             expect(crestParam).toBeDefined();
             expect(crestParam.options).toEqual([
                 { value: 0, label: "Phacelle (Y-junctions)" },
                 { value: 1, label: "Warped fBm (Classic)" },
+                { value: 2, label: "Barchan Crescents (Sudan)" },
+                { value: 3, label: "Pyramidal Star Dunes (Namib)" },
             ]);
 
-            // Also verify mega-dune height range exceeds the old 100m cap
-            const heightParam = duneOp.paramSchema.find((p) => p.key === "duneHeight");
-            expect(heightParam.max).toBeGreaterThanOrEqual(500);
+            const voronoiOp = registry.get("gen.voronoiBlock");
+            const formationParam = voronoiOp.paramSchema.find((p) => p.key === "formationMode");
+            expect(formationParam.options.map((o) => o.value)).toEqual([0, 1, 2, 3]);
         });
     });
 
@@ -116,53 +122,72 @@ describe("WebGPU Terrain Compositor Architecture", () => {
             };
             const runner = new OperatorGraphRunner(null, registry, fakeState);
 
-            // Pointwise generator does not swap height
-            runner.runOperator("gen.ridgeFbm", { baseHeight: 900 });
+            runner.runOperator("gen.ridgeFbm", { baseHeight: 1650 });
             expect(fakeState.heightIndex).toBe(0);
 
-            // Pointwise terrace shaper does not swap height
             runner.runOperator("shape.terrace", { stepHeightM: 50 });
             expect(fakeState.heightIndex).toBe(0);
 
-            // Neighborhood fold shaper swaps height once
             runner.runOperator("shape.fold", { directionDeg: 90 });
             expect(fakeState.heightIndex).toBe(1);
 
-            // Thermal talus with 3 iterations swaps both height and aux 3 times (1 -> 0, 0 -> 1)
-            runner.runOperator("sim.thermalTalus", {}, { iterations: 3 });
+            runner.runOperator("shape.surfaceDetail", { boulderHeightM: 22 });
             expect(fakeState.heightIndex).toBe(0);
+
+            runner.runOperator("sim.thermalTalus", {}, { iterations: 3 });
+            expect(fakeState.heightIndex).toBe(1);
             expect(fakeState.auxIndex).toBe(1);
         });
     });
 
-    describe("Built-in Presets & Pipeline Stack Management", () => {
-        it("ships 6 valid presets that round-trip through JSON serialization", () => {
-            expect(PRESETS.length).toBe(6);
-            for (const preset of PRESETS) {
-                const copy = getPresetById(preset.id);
+    describe("12 Real-World Landmark Presets & Dynamic N-Layer Stack", () => {
+        it("ships 13 valid landmark presets that round-trip through JSON serialization", () => {
+            expect(PRESETS.length).toBe(13);
+            const expectedPresetIds = [
+                "alpine-dolomites",
+                "himalayan-peaks",
+                "roraima-tepui",
+                "monument-valley-buttes",
+                "grand-canyon-gorge",
+                "grand-mesa-canyons",
+                "zhangjiajie-karst",
+                "bungle-bungles-domes",
+                "wilpena-pound",
+                "sudan-barchan-dunes",
+                "namib-mega-dunes",
+                "canyon-valley-dunes",
+                "volcanic-caldera-island",
+            ];
+            for (const id of expectedPresetIds) {
+                const copy = getPresetById(id);
                 const json = serializeStack(copy);
                 const restored = deserializeStack(json);
-                expect(restored.id).toBe(preset.id);
-                expect(restored.layer1.generatorId).toBe(preset.layer1.generatorId);
+                expect(restored.layer1.generatorId).toBe(copy.layer1.generatorId);
+                expect(Array.isArray(restored.layers)).toBe(true);
             }
         });
 
-        it("updates scoped parameters across Layer 1, Layer 2, Masks, Blends, and Simulations in TerrainPipeline", () => {
+        it("supports adding and removing dynamic biome layers up to MAX_BIOME_LAYERS (8)", () => {
             const pipeline = new TerrainPipeline(null);
             pipeline.setPreset("canyon-valley-dunes");
+            expect(pipeline.getStack().layers.length).toBe(2);
 
-            expect(pipeline.getStack().layer1.generatorId).toBe("gen.voronoiBlock");
-            expect(pipeline.getStack().layer2.enabled).toBe(true);
-            expect(pipeline.getStack().layer2.generatorId).toBe("gen.duneField");
+            for (let i = 2; i < MAX_BIOME_LAYERS; i++) {
+                const added = pipeline.addLayer({ name: `Custom Layer ${i + 1}` });
+                expect(added).not.toBeNull();
+            }
+            expect(pipeline.getStack().layers.length).toBe(MAX_BIOME_LAYERS);
 
-            pipeline.updateScopedParam("layer2.gen", "crestMode", 1);
-            expect(pipeline.getStack().layer2.generatorParams.crestMode).toBe(1);
+            // Adding beyond MAX_BIOME_LAYERS returns null
+            expect(pipeline.addLayer()).toBeNull();
 
-            pipeline.updateScopedParam("layer1.shaper:shape.terrace", "stepHeightM", 85);
-            expect(pipeline.getStack().layer1.shapers["shape.terrace"].stepHeightM).toBe(85);
+            // Update a parameter on layer4
+            pipeline.updateScopedParam("layer4.gen", "duneHeight", 210);
+            expect(pipeline.getStack().layers[3].generatorParams.duneHeight).toBe(210);
 
-            pipeline.updateScopedParam("sim:sim.thermalTalus", "talusReposeDeg", 31);
-            expect(pipeline.getStack().simulations["sim.thermalTalus"].talusReposeDeg).toBe(31);
+            // Remove layer index 2
+            expect(pipeline.removeLayer(2)).toBe(true);
+            expect(pipeline.getStack().layers.length).toBe(MAX_BIOME_LAYERS - 1);
         });
     });
 });

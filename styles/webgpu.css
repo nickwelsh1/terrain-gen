@@ -143,9 +143,21 @@ body {
     cursor: pointer;
 }
 
-#webgpu-ui select option {
+#webgpu-ui select option,
+#webgpu-ui select optgroup {
     background-color: var(--surface-input);
     color: var(--text);
+}
+
+#webgpu-ui #addLayerBtn,
+#webgpu-ui .remove-layer-btn {
+    width: 100%;
+    margin: 4px 0 0 0;
+}
+
+#webgpu-ui #addLayerBtn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
 }
 
 #webgpu-ui .sub-label {

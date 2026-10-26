@@ -324,3 +324,81 @@ fn applyGlacialCarve(@builtin(global_invocation_id) gid: vec3u) {
     dstHeights[idx] = toFixedHeight(outH);
 }
 `;
+
+// =============================================================================
+// 6. shape.surfaceDetail — Post-Terrace Boulder, Caprock & Valley Micro-Relief
+// =============================================================================
+export const SHAPE_SURFACE_DETAIL_SHADER = /* wgsl */`
+${COMMON_WGSL}
+
+struct SurfaceDetailParams {
+    boulderHeightM: f32,     // Height of cellular boulder & talus mounds (m)
+    boulderScale: f32,       // Spatial frequency of boulder clusters
+    caprockRoughnessM: f32,  // Fractured rock ledges on mesa tops & steep cliffs (m)
+    basinHummocksM: f32,     // Hummocky shrub/alluvial mounds & rills on flat valley floors (m)
+    strength: f32,
+    seed: f32,
+    _pad0: f32,
+    _pad1: f32,
+};
+
+@group(0) @binding(0) var<uniform> params: SurfaceDetailParams;
+@group(0) @binding(1) var<storage, read> srcHeights: array<i32>;
+@group(0) @binding(2) var<storage, read_write> dstHeights: array<i32>;
+
+fn sampleSrcH(x: i32, y: i32) -> f32 {
+    let cx = clamp(x, 0, N_I - 1);
+    let cy = clamp(y, 0, N_I - 1);
+    return fromFixedHeight(srcHeights[u32(cy) * N + u32(cx)]);
+}
+
+@compute @workgroup_size(8, 8)
+fn applySurfaceDetail(@builtin(global_invocation_id) gid: vec3u) {
+    let x = i32(gid.x);
+    let y = i32(gid.y);
+    if (x >= N_I || y >= N_I) { return; }
+
+    let idx = gid.y * N + gid.x;
+    let h = sampleSrcH(x, y);
+
+    let hL = sampleSrcH(x - 1, y);
+    let hR = sampleSrcH(x + 1, y);
+    let hU = sampleSrcH(x, y - 1);
+    let hD = sampleSrcH(x, y + 1);
+    let gx = (hR - hL) / (2.0 * CELL_M);
+    let gy = (hD - hU) / (2.0 * CELL_M);
+    let slopeMag = length(vec2f(gx, gy));
+
+    // Gates for flat/gentle surfaces (mesa tops & valley floors) vs steep talus/cliff transitions
+    let flatGate = 1.0 - smoothstep(0.18, 0.65, slopeMag);
+    let talusFootGate = smoothstep(0.06, 0.28, slopeMag) * (1.0 - smoothstep(0.45, 0.95, slopeMag));
+    let highPlateauGate = smoothstep(140.0, 380.0, h);
+    let lowBasinGate = 1.0 - smoothstep(80.0, 320.0, h);
+
+    let uv = vec2f(f32(x) / N_F, f32(y) / N_F);
+    let bScale = max(params.boulderScale, 4.0);
+
+    // 1. Multi-scale cellular boulders & talus blocks (clustered at cliff bases & mesa rims)
+    let vB1 = voronoi2D(uv * bScale, 0.9, params.seed + 19.0);
+    let vB2 = voronoi2D(uv * bScale * 2.3 + vec2f(11.3, 27.9), 0.9, params.seed + 47.0);
+    // Sparse boulder mask so only ~30% of cells form protruding rock mounds
+    let clusterGate1 = smoothstep(0.58, 0.88, vB1.z);
+    let clusterGate2 = smoothstep(0.62, 0.92, vB2.z);
+    let mound1 = max(0.0, 1.0 - vB1.x * vB1.x * 2.2) * clusterGate1;
+    let mound2 = max(0.0, 1.0 - vB2.x * vB2.x * 2.5) * clusterGate2 * 0.55;
+    let boulders = (mound1 + mound2) * params.boulderHeightM * max(flatGate * 0.65, talusFootGate * 1.25);
+
+    // 2. Caprock fracture ledges, jointing & erosion pits on high plateau/mesa tops
+    let capCracks = ridgedEx(uv.x * 16.0, uv.y * 16.0, params.seed + 73.0, 4, 2.1, 0.5, 2.2) - 0.45;
+    let capDetail = capCracks * params.caprockRoughnessM * (0.35 + 0.65 * highPlateauGate) * (0.4 + 0.6 * flatGate);
+
+    // 3. Basin floor hummocks, coppice mounds & dendritic drainage rills on valley floors
+    let hummockNoise = fbmEx(uv.x * 18.0 + 7.0, uv.y * 18.0 + 13.0, params.seed + 109.0, 4, 2.0, 0.55) - 0.45;
+    let rills = (1.0 - abs(fbmEx(uv.x * 11.0, uv.y * 11.0, params.seed + 137.0, 3, 2.0, 0.5) * 2.0 - 1.0)) - 0.65;
+    let basinDetail = (hummockNoise * 0.8 + rills * 0.45) * params.basinHummocksM * lowBasinGate * flatGate;
+
+    let outH = max(0.0, h + (boulders + capDetail + basinDetail) * clamp01(params.strength));
+    dstHeights[idx] = toFixedHeight(outH);
+}
+`;
+
