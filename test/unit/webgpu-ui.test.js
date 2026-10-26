@@ -137,4 +137,30 @@ describe("WebGPU UI (src/webgpu/ui.js)", () => {
             DEFAULT_PARAMS.passFlags & ~PASS_EROSION & ~PASS_DEPOSITION,
         );
     });
+
+    it("supports switching presets, toggling Layer 2 overlay, and updating scoped operator controls", () => {
+        const onPresetChange = vi.fn();
+        const onScopedParamChange = vi.fn();
+        createUI(container, {
+            ...callbacks,
+            onPresetChange,
+            onScopedParamChange,
+        });
+
+        const presetSelect = document.getElementById("presetSelect");
+        presetSelect.value = "canyon-valley-dunes";
+        presetSelect.dispatchEvent(new Event("change", { bubbles: true }));
+
+        expect(onPresetChange).toHaveBeenCalledWith("canyon-valley-dunes");
+        expect(document.getElementById("layer2Badge").textContent).toBe("On");
+
+        // Change Layer 2 Dune Crest Mode to Warped fBm (1)
+        const crestSelect = document.querySelector(
+            '.scoped-select[data-scope="layer2.gen"][data-param="crestMode"]',
+        );
+        expect(crestSelect).not.toBeNull();
+        crestSelect.value = "1";
+        crestSelect.dispatchEvent(new Event("change", { bubbles: true }));
+        expect(onScopedParamChange).toHaveBeenCalledWith("layer2.gen", "crestMode", 1);
+    });
 });

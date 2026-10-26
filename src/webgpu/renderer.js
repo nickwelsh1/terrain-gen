@@ -59,6 +59,7 @@ export async function createRenderer(canvas, pipeline, engine) {
             { name: "hardness", type: "array<i32>" },
             { name: "normals", type: "array<u32>" },
             { name: "slopes", type: "array<u32>" },
+            { name: "aux", type: "array<vec4f>" },
         ],
         backFaceCulling: false,
         depthWrite: true,
@@ -93,13 +94,21 @@ export async function createRenderer(canvas, pipeline, engine) {
     walls.material = wallMaterial;
     addToScene(scene, walls);
 
-    // Bind storage buffers to the materials
-    const sbs = pipeline.getStorageBuffers();
-    setShaderStorageBuffer(renderMaterial, "heights", sbs.erodedHeight);
-    setShaderStorageBuffer(renderMaterial, "hardness", sbs.hardness);
-    setShaderStorageBuffer(renderMaterial, "normals", sbs.normals);
-    setShaderStorageBuffer(renderMaterial, "slopes", sbs.slopes);
-    setShaderStorageBuffer(wallMaterial, "heights", sbs.erodedHeight);
+    function syncBuffers() {
+        const sbs = pipeline.getStorageBuffers();
+        setShaderStorageBuffer(renderMaterial, "heights", sbs.erodedHeight);
+        setShaderStorageBuffer(renderMaterial, "hardness", sbs.hardness);
+        setShaderStorageBuffer(renderMaterial, "normals", sbs.normals);
+        setShaderStorageBuffer(renderMaterial, "slopes", sbs.slopes);
+        setShaderStorageBuffer(renderMaterial, "aux", sbs.aux);
+        setShaderStorageBuffer(wallMaterial, "heights", sbs.erodedHeight);
+    }
+
+    // Bind storage buffers to the materials and subscribe to ping-pong swaps
+    syncBuffers();
+    if (typeof pipeline.setOnBuffersChanged === "function") {
+        pipeline.setOnBuffersChanged(() => syncBuffers());
+    }
 
     // Set initial render mode
     setShaderUniform(renderMaterial, "renderMode", 0);
@@ -115,6 +124,7 @@ export async function createRenderer(canvas, pipeline, engine) {
         walls,
         renderMaterial,
         wallMaterial,
+        syncBuffers,
         setRenderMode(mode) {
             setShaderUniform(renderMaterial, "renderMode", mode);
         },

@@ -35,8 +35,16 @@ export async function main() {
     // 5. Create renderer (uses the same engine for scene/mesh/material)
     const renderer = await createRenderer(canvas, pipeline, engine);
 
-    // 6. Create UI
+    // 6. Create Layer-Centric Composer UI
     createUI(document.body, {
+        registry: pipeline.getRegistry(),
+        initialStack: pipeline.getStack(),
+        onPresetChange(presetId) {
+            return pipeline.setPreset(presetId);
+        },
+        onScopedParamChange(scope, key, value) {
+            pipeline.updateScopedParam(scope, key, value);
+        },
         onParamChange(params) {
             pipeline.updateUniforms(params);
         },
@@ -67,7 +75,6 @@ main().catch((err) => {
     const statusEl = document.getElementById("status");
     if (statusEl) {
         statusEl.textContent = `Error: ${err.message}`;
-        statusEl.style.color = "#ff6060";
     }
     console.error(err);
 });
