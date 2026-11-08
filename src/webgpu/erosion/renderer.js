@@ -8,6 +8,7 @@ import {
     createGround,
     createShaderMaterial,
     attachControl,
+    setCameraLimits,
     addToScene,
     registerScene,
     startEngine,
@@ -232,7 +233,21 @@ export async function createRenderer(canvas, pipeline, engine) {
     camera.beta = Math.PI / 3;
     camera.radius = SCENE_AREA * 1.5;
     camera.target = { x: 0, y: SCENE_MAX_HEIGHT * 0.3, z: 0 };
+    setCameraLimits(camera, {
+        lowerRadiusLimit: SCENE_AREA * 0.12,
+        upperRadiusLimit: SCENE_AREA * 4.0,
+        lowerBetaLimit: 0.05,
+        upperBetaLimit: Math.PI * 0.48,
+    });
     attachControl(camera, canvas, scene);
+    canvas.addEventListener("wheel", (e) => {
+        if ((e.deltaY < 0 && camera.inertialRadiusOffset < 0) || (e.deltaY > 0 && camera.inertialRadiusOffset > 0)) {
+            camera.inertialRadiusOffset = 0;
+        }
+        if (e.deltaY < 0 && camera.radius <= camera.lowerRadiusLimit + 1e-3) {
+            camera.inertialRadiusOffset = 0;
+        }
+    });
 
     addToScene(scene, createHemisphericLight([0, 1, 0], 1.0));
 

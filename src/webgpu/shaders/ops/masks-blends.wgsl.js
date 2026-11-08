@@ -23,7 +23,10 @@ struct MaskSelectParams {
     warpFreq: f32,
     invertMask: u32,
     seed: f32,
-    _pad0: f32,
+    sourceStep: u32,       // 0 = Previous step, 1 = Base Layer, 2 = Pre-Erosion, 3 = Erosion step
+    maskSource: u32,       // 0 = Combined Range, 1 = Heightmap, 2 = Slope Heatmap, 3 = Active Layer Mask, 4 = Curvature & AO, 5 = Erosion/Sediment
+    contrast: f32,         // [0.1 .. 4.0], default 1.0
+    bias: f32,             // [-1.0 .. 1.0], default 0.0
 };
 
 @group(0) @binding(0) var<uniform> params: MaskSelectParams;
@@ -40,8 +43,12 @@ fn selectMask(@builtin(global_invocation_id) gid: vec3u) {
     let idx = y * N + x;
     let h = fromFixedHeight(heights[idx]);
     let packedS = unpackRGBA(slopes[idx]);
-    let slopeDeg = packedS.r * 90.0;
-    let curvatureSigned = (packedS.g - 0.5) * 2.0; // [-1, 1]
+    let slope01 = packedS.r;
+    let slopeDeg = slope01 * 90.0;
+    let curvature01 = packedS.g;
+    let curvatureSigned = (curvature01 - 0.5) * 2.0; // [-1, 1]
+    let ao01 = packedS.b;
+    let prev = aux[idx];
 
     // Perturb elevation & slope lookup using domain-warped fBm BEFORE smoothstep
     // so the biome boundary follows organic spurs and gullies rather than flat contour lines.
@@ -63,22 +70,47 @@ fn selectMask(@builtin(global_invocation_id) gid: vec3u) {
     var mCurv = 1.0;
     if (abs(params.curvatureBias) > 0.01) {
         if (params.curvatureBias < 0.0) {
-            // Favor concave basins/valleys
             let basin = smoothstep(-0.05, 0.35, -curvatureSigned);
             mCurv = mix(1.0, basin, clamp01(-params.curvatureBias));
         } else {
-            // Favor convex ridges/peaks
             let ridge = smoothstep(-0.05, 0.35, curvatureSigned);
             mCurv = mix(1.0, ridge, clamp01(params.curvatureBias));
         }
     }
 
     var mask = clamp01(mAlt * mSlope * mCurv);
+    if (params.maskSource == 1u) {
+        // Signal 1: Normalized Heightmap within [minAltM .. maxAltM]
+        let span = max(params.maxAltM - params.minAltM, 10.0);
+        mask = clamp01((hWarped - params.minAltM) / span);
+    } else if (params.maskSource == 2u) {
+        // Signal 2: Slope Heatmap within [minSlopeDeg .. maxSlopeDeg]
+        let spanS = max(params.maxSlopeDeg - params.minSlopeDeg, 1.0);
+        mask = clamp01((slopeDeg - params.minSlopeDeg) / spanS) * mAlt;
+    } else if (params.maskSource == 3u) {
+        // Signal 3: Active Layer Placement Mask (previous mask stored in aux.z)
+        mask = clamp01(prev.z);
+    } else if (params.maskSource == 4u) {
+        // Signal 4: Curvature & Horizon AO
+        let curvSignal = select(
+            clamp01(curvature01 * ao01),
+            select(clamp01(0.5 + curvatureSigned * 1.5), clamp01(0.5 - curvatureSigned * 1.5), params.curvatureBias < 0.0),
+            abs(params.curvatureBias) > 0.05
+        );
+        mask = clamp01(curvSignal * mix(0.6, 1.0, ao01)) * mAlt;
+    } else if (params.maskSource == 5u) {
+        // Signal 5: Erosion / Sediment / Flow depth (aux.y + aux.x)
+        let sedSignal = clamp01((prev.y + prev.x * 2.0) / 35.0);
+        mask = clamp01(sedSignal) * mAlt;
+    }
+
+    let c = select(max(params.contrast, 0.1), 1.0, params.contrast <= 0.001);
+    mask = clamp01((mask - 0.5) * c + 0.5 + params.bias);
+
     if (params.invertMask != 0u) {
         mask = 1.0 - mask;
     }
 
-    let prev = aux[idx];
     aux[idx] = vec4f(prev.x, prev.y, mask, prev.w);
 }
 `;

@@ -338,13 +338,14 @@ struct SurfaceDetailParams {
     basinHummocksM: f32,     // Hummocky shrub/alluvial mounds & rills on flat valley floors (m)
     strength: f32,
     seed: f32,
-    _pad0: f32,
+    useMask: u32,            // 1 = multiply detail by aux[idx].z placement mask, 0 = unmasked
     _pad1: f32,
 };
 
 @group(0) @binding(0) var<uniform> params: SurfaceDetailParams;
 @group(0) @binding(1) var<storage, read> srcHeights: array<i32>;
 @group(0) @binding(2) var<storage, read_write> dstHeights: array<i32>;
+@group(0) @binding(3) var<storage, read> aux: array<vec4f>;
 
 fn sampleSrcH(x: i32, y: i32) -> f32 {
     let cx = clamp(x, 0, N_I - 1);
@@ -397,7 +398,8 @@ fn applySurfaceDetail(@builtin(global_invocation_id) gid: vec3u) {
     let rills = (1.0 - abs(fbmEx(uv.x * 11.0, uv.y * 11.0, params.seed + 137.0, 3, 2.0, 0.5) * 2.0 - 1.0)) - 0.65;
     let basinDetail = (hummockNoise * 0.8 + rills * 0.45) * params.basinHummocksM * lowBasinGate * flatGate;
 
-    let outH = max(0.0, h + (boulders + capDetail + basinDetail) * clamp01(params.strength));
+    let maskWeight = select(1.0, clamp01(aux[idx].z), params.useMask != 0u);
+    let outH = max(0.0, h + (boulders + capDetail + basinDetail) * clamp01(params.strength) * maskWeight);
     dstHeights[idx] = toFixedHeight(outH);
 }
 `;

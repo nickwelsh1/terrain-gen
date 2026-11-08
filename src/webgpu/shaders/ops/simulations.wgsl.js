@@ -265,7 +265,7 @@ fn applyWaterLevel(@builtin(global_invocation_id) gid: vec3u) {
 `;
 
 // =============================================================================
-// 4. sim.phacelleErosion — Analytic Stacked-Gully Filter on Existing Heightmap
+// 4. sim.phacelleErosion — Analytic Stacked-Gully & Gavoronoise Filter
 // =============================================================================
 export const SIM_PHACELLE_EROSION_SHADER = /* wgsl */`
 ${COMMON_WGSL}
@@ -279,6 +279,14 @@ struct PhacelleErosionParams {
     creaseRounding: f32,
     assumedSlope: f32,
     seed: f32,
+    erosionMode: u32,        // 0 = Runevision Phacelle (2026), 1 = Classic Gavoronoise (Clay John / Fewes)
+    cellScale: f32,
+    normalization: f32,
+    lacunarity: f32,
+    gain: f32,
+    detail: f32,
+    laplacianWeight: f32,    // Post-erosion ridgeMap + Laplacian unsharp mask weight
+    plateauRim: f32,         // Rim-wall & basin erosion focus modulation
 };
 
 @group(0) @binding(0) var<uniform> params: PhacelleErosionParams;
@@ -293,7 +301,7 @@ fn hNorm(x: i32, y: i32) -> f32 {
 }
 
 fn powInv(t: f32, power: f32) -> f32 {
-    return 1.0 - pow(1.0 - clamp01(t), power);
+    return 1.0 - pow(1.0 - clamp01(t), max(power, 0.001));
 }
 
 fn easeOut(t: f32) -> f32 {
@@ -302,15 +310,15 @@ fn easeOut(t: f32) -> f32 {
 }
 
 fn smoothStart(t: f32, smoothing: f32) -> f32 {
-    if (smoothing <= 1e-10) { return t; }
+    if (smoothing <= 1e-4) { return t; }
     if (t >= smoothing) { return t - 0.5 * smoothing; }
-    return 0.5 * t * t / smoothing;
+    return 0.5 * t * t / max(smoothing, 1e-4);
 }
 
 fn safeNorm(v: vec2f) -> vec2f {
     let l = length(v);
-    if (l > 1e-8) { return v / l; }
-    return vec2f(1.0, 0.0);
+    if (l > 1e-6) { return v / l; }
+    return vec2f(0.0, 0.0);
 }
 
 @compute @workgroup_size(8, 8)
@@ -322,61 +330,132 @@ fn applyPhacelleErosion(@builtin(global_invocation_id) gid: vec3u) {
     let idx = gid.y * N + gid.x;
     let h0 = hNorm(x, y);
 
-    // Compute smoothed finite-difference gradient in normalized UV space
-    let hL = hNorm(x - 2, y);
-    let hR = hNorm(x + 2, y);
-    let hU = hNorm(x, y - 2);
-    let hD = hNorm(x, y + 2);
-    let gx = (hR - hL) * N_F * 0.25;
-    let gy = (hD - hU) * N_F * 0.25;
+    // Smoothed finite-difference gradient in normalized UV space (step = 3 cells ~ eps=0.024 in GLSL)
+    let hL = hNorm(x - 3, y);
+    let hR = hNorm(x + 3, y);
+    let hU = hNorm(x, y - 3);
+    let hD = hNorm(x, y + 3);
+    let gx = (hR - hL) * (N_F / 6.0);
+    let gy = (hD - hU) * (N_F / 6.0);
 
-    let seedOffset = vec2f(
-        fract(params.seed * 0.1031) * 256.0,
-        fract(params.seed * 0.0973) * 256.0
+    let seedVec = vec2f(
+        fract(params.seed * 0.1031) * 256.0 + 11.3,
+        fract(params.seed * 0.0973) * 256.0 + 23.7
     );
-    let p = vec2f(f32(x) / N_F, f32(y) / N_F) + seedOffset;
+    let uv = vec2f(f32(x) / N_F, f32(y) / N_F);
+    let ep = uv * 0.85;
 
     let scale = clamp(params.erosionScale, 0.03, 0.45);
-    var strength = params.erosionStrength * scale;
-    var fadeTarget = clamp((h0 - 0.35) * 2.5, -1.0, 1.0);
-    var heightAndSlope = vec3f(h0, gx, gy);
-    var freq = 1.0 / (scale * 0.7);
-    let slopeLength = max(length(vec2f(gx, gy)), 1e-6);
+    let cellSc = clamp(select(params.cellScale, 0.62, params.cellScale <= 0.01), 0.25, 1.5);
+    let normFactor = clamp(select(params.normalization, 0.65, params.normalization <= 0.01), 0.0, 1.0);
+    let lac = clamp(select(params.lacunarity, 1.80, params.lacunarity <= 0.5), 1.2, 3.0);
+    let gn = clamp(select(params.gain, 0.68, params.gain <= 0.05), 0.2, 0.9);
+    let det = clamp(select(params.detail, 0.84, params.detail <= 0.05), 0.2, 2.5);
+    let rimAmt = clamp(params.plateauRim, 0.0, 0.6);
 
-    let roundingForInput = mix(params.creaseRounding, params.ridgeRounding, clamp01(fadeTarget + 0.5)) * 0.1;
-    var combiMask = easeOut(smoothStart(slopeLength * 1.25, roundingForInput * 1.25));
-    var gullySlope = mix(vec2f(gx, gy), (vec2f(gx, gy) / slopeLength) * params.assumedSlope, 0.85);
-    var roundingMult = 1.0;
-
-    let octs = clamp(i32(params.erosionOctaves), 1, 6);
-    for (var i: i32 = 0; i < octs; i = i + 1) {
-        let ph = phacelleNoise(p * freq, safeNorm(gullySlope), 0.7, 0.25, 0.5, true);
-        let sideDeriv = ph.zw * -freq;
-        let sloping = abs(ph.y);
-
-        gullySlope = gullySlope + sign(ph.y) * sideDeriv * strength * params.gullyWeight;
-        let gullies = vec3f(ph.x, ph.y * sideDeriv.x, ph.y * sideDeriv.y);
-        let fadedGullies = mix(vec3f(fadeTarget, 0.0, 0.0), gullies * params.gullyWeight, combiMask);
-
-        heightAndSlope = heightAndSlope + fadedGullies * strength;
-        fadeTarget = fadedGullies.x;
-
-        let roundingOct = mix(params.creaseRounding, params.ridgeRounding, clamp01(ph.x + 0.5)) * roundingMult;
-        let newMask = easeOut(smoothStart(sloping * 1.25, roundingOct * 1.25));
-        combiMask = powInv(combiMask, 1.5) * newMask;
-
-        strength = strength * 0.5;
-        freq = freq * 2.0;
-        roundingMult = roundingMult * 2.0;
-    }
-
-    let deltaNorm = heightAndSlope.x - h0;
-    let outMeters = clamp((h0 + deltaNorm) * MAX_HEIGHT, 0.0, MAX_HEIGHT);
-    dstHeights[idx] = toFixedHeight(outMeters);
+    // Plateau-rim & cliff-wall erosion modulation (from GLSL erodedHeightAndRidge)
+    let rimThresh = 0.42 + 0.14 * rimAmt;
+    let slopeMag = length(vec2f(gx, gy));
+    let inBasin = 1.0 - smoothstep(rimThresh - 0.06, rimThresh + 0.14, h0);
+    let onRimWall = smoothstep(0.18, 0.75, slopeMag);
+    let plateauMask = mix(1.0, clamp(max(inBasin, onRimWall * 0.85), 0.18, 1.0), rimAmt);
 
     let curAux = aux[idx];
-    let erodedDepth = max(0.0, -deltaNorm * MAX_HEIGHT);
-    aux[idx] = vec4f(curAux.x, curAux.y + erodedDepth * 0.25, curAux.z, clamp01(fadeTarget * 0.5 + 0.5));
+    let influenceMask = clamp01(select(1.0, curAux.z, curAux.z > 0.001));
+    let effStrength = params.erosionStrength * plateauMask * influenceMask;
+
+    let baseHS = vec3f(h0, gx * 0.75, gy * 0.75);
+    let octs = clamp(i32(params.erosionOctaves), 1, 6);
+
+    var deltaNorm = 0.0;
+    var ridgeMap = 0.0;
+
+    if (params.erosionMode == 1u) {
+        // MODE 1: Classic Clay John / Fewes Gavoronoise Frequency-Approach Erosion Filter
+        let tiles = 1.0 / max(scale * cellSc * 1.35, 0.02);
+        let slopeStrength = 1.6 + params.gullyWeight * 2.8;
+        let branchStrength = 1.0 + det * 1.25;
+        let dir = baseHS.zy * vec2f(1.0, -1.0) * slopeStrength;
+
+        var hAcc = vec3f(0.0, 0.0, 0.0);
+        var a = 0.5 * mix(1.0, smoothstep(0.10, 0.48, h0), clamp01(params.ridgeRounding * 2.2));
+        var f = 1.0;
+
+        for (var eo: i32 = 0; eo < octs; eo = eo + 1) {
+            let octSeed = seedVec + vec2f(f32(eo) * 19.1, f32(eo) * 29.3);
+            let branchDir = dir + hAcc.zy * vec2f(1.0, -1.0) * branchStrength;
+            let er = gavoronoiseErosion(ep * tiles * f, branchDir, normFactor, octSeed);
+            hAcc = hAcc + er * a * vec3f(1.0, f, f);
+            a = a * gn;
+            f = f * lac;
+        }
+
+        deltaNorm = hAcc.x * effStrength * 0.75;
+        ridgeMap = clamp(hAcc.x * 1.4, -1.0, 1.0) * plateauMask;
+    } else {
+        // MODE 0: Runevision 2026 Advanced Terrain Erosion Filter (Phacelle Noise)
+        var strength = effStrength * scale;
+        var fadeTarget = clamp((h0 - 0.38) * 2.6 - rimAmt * inBasin * 0.85, -1.0, 1.0);
+        var hAndS = baseHS;
+        let safeScale = max(scale * cellSc, 0.005);
+        var freq = 1.0 / safeScale;
+        let slopeLength = max(length(baseHS.yz), 1e-6);
+        var roundingMult = 1.0;
+
+        // onset = vec4(1.25, 1.25, 2.8, 1.5), assumedSlope = vec2(assumedSlope, 0.78)
+        let roundingForInput = mix(params.creaseRounding, params.ridgeRounding, clamp01(fadeTarget + 0.5)) * 0.1;
+        var combiMask = easeOut(smoothStart(slopeLength * 1.25, roundingForInput * 1.25));
+        var ridgeMapCombiMask = easeOut(slopeLength * 2.8);
+        var ridgeMapFadeTarget = fadeTarget;
+        var gullySlope = mix(baseHS.yz, (baseHS.yz / slopeLength) * max(params.assumedSlope, 0.2), 0.78);
+
+        for (var eo: i32 = 0; eo < octs; eo = eo + 1) {
+            let octSeed = seedVec + vec2f(f32(eo) * 17.3, f32(eo) * 31.7);
+            let ph = phacelleNoiseSeeded(ep * freq, safeNorm(gullySlope), cellSc, 0.25, normFactor, octSeed);
+            let pZw = ph.zw * (-freq);
+            let sloping = abs(ph.y);
+
+            // Straight gullies: sign(sin) fakes constant triangle-wave sides so child gullies branch cleanly
+            let sgn = select(select(0.0, -1.0, ph.y < 0.0), 1.0, ph.y > 0.0);
+            gullySlope = gullySlope + sgn * pZw * strength * params.gullyWeight;
+
+            let octaveHS = vec3f(ph.x, ph.y * pZw.x, ph.y * pZw.y);
+            let faded = mix(vec3f(fadeTarget, 0.0, 0.0), octaveHS * params.gullyWeight, combiMask);
+            hAndS = hAndS + faded * strength;
+            fadeTarget = faded.x;
+
+            let roundingForOctave = mix(params.creaseRounding, params.ridgeRounding, clamp01(ph.x + 0.5)) * roundingMult;
+            let newMask = easeOut(smoothStart(sloping * 1.25, roundingForOctave * 1.25));
+            combiMask = powInv(combiMask, det) * newMask;
+
+            ridgeMapFadeTarget = mix(ridgeMapFadeTarget, octaveHS.x, ridgeMapCombiMask);
+            ridgeMapCombiMask = ridgeMapCombiMask * easeOut(sloping * 1.5);
+
+            strength = strength * gn;
+            freq = freq * lac;
+            roundingMult = roundingMult * 2.0;
+        }
+
+        // Scale height delta (matching GLSL er.x * 2.4..3.2 coupling while staying proportional to relief)
+        deltaNorm = (hAndS.x - baseHS.x) * 2.35;
+        ridgeMap = ridgeMapFadeTarget * (1.0 - ridgeMapCombiMask) * plateauMask;
+    }
+
+    var hOut = h0 + deltaNorm;
+
+    // Post-erosion ridgeMap-coupled Laplacian unsharp mask (from GLSL mainImage)
+    if (abs(params.laplacianWeight) > 0.001) {
+        let eps = 3.0 / N_F;
+        let lapRaw = ((hL + hR + hU + hD) - 4.0 * h0) / eps;
+        let lap = tanh((lapRaw - ridgeMap * 2.2) * 0.35);
+        hOut = hOut - params.laplacianWeight * 0.085 * lap * influenceMask;
+    }
+
+    let outMeters = clamp(hOut * MAX_HEIGHT, 0.0, MAX_HEIGHT);
+    dstHeights[idx] = toFixedHeight(outMeters);
+
+    let erodedDepth = max(0.0, (h0 - hOut) * MAX_HEIGHT);
+    aux[idx] = vec4f(curAux.x, curAux.y + erodedDepth * 0.25, curAux.z, clamp01(ridgeMap * 0.5 + 0.5));
 }
 `;
 

@@ -107,19 +107,124 @@ export const PALETTE_SAHARA_DESERT = 6;
 export const PALETTE_NAMIB_RED = 7;
 export const PALETTE_OUTBACK_PURNULULU = 8;
 export const PALETTE_POLAR_FJORD = 9;
+export const PALETTE_BRYCE_CANYON = 10;
+export const PALETTE_NEUTRAL_CLAY = 11;
+
+export const CUSTOM_PALETTES_STORAGE_KEY = "terrain-gen.webgpu.customPalettes";
 
 export const MATERIAL_PALETTES = [
+    { value: PALETTE_NEUTRAL_CLAY, group: "Studio & Geometry", label: "Neutral Clay (Geometry Only)" },
     { value: PALETTE_ALPINE_SUMMER, group: "Alpine & Mountain", label: "Alpine Dolomites (Summer)" },
     { value: PALETTE_ALPINE_WINTER, group: "Alpine & Mountain", label: "Alpine & Himalayan (Winter Snow)" },
     { value: PALETTE_POLAR_FJORD, group: "Alpine & Mountain", label: "Subpolar Basalt & Glaciers" },
     { value: PALETTE_ZHANGJIAJIE_SUMMER, group: "Karst & Subtropical", label: "Zhangjiajie Karst (Lush Summer)" },
     { value: PALETTE_ZHANGJIAJIE_WINTER, group: "Karst & Subtropical", label: "Zhangjiajie Karst (Winter Frost)" },
     { value: PALETTE_TROPICAL_TEPUIS, group: "Karst & Subtropical", label: "Tropical Island & Guiana Tepui" },
-    { value: PALETTE_ARIZONA_SUMMER, group: "Arid, Canyon & Outback", label: "Dry Summer Arizona (Red Rock)" },
-    { value: PALETTE_OUTBACK_PURNULULU, group: "Arid, Canyon & Outback", label: "Australian Outback (Purnululu)" },
+    { value: PALETTE_ARIZONA_SUMMER, group: "Arid, Canyon & Outback", label: "Grand Canyon & Red Rock (Stratified)" },
+    { value: PALETTE_BRYCE_CANYON, group: "Arid, Canyon & Outback", label: "Bryce Canyon & Painted Desert (Pink/Cream)" },
+    { value: PALETTE_OUTBACK_PURNULULU, group: "Arid, Canyon & Outback", label: "Australian Outback (Purnululu & Flinders)" },
     { value: PALETTE_SAHARA_DESERT, group: "Arid, Canyon & Outback", label: "Golden Sahara & Sudan Dunes" },
     { value: PALETTE_NAMIB_RED, group: "Arid, Canyon & Outback", label: "Namib Red Oxide Dunes & Pans" },
 ];
+
+export const DEFAULT_PALETTE_SWATCHES = {
+    [PALETTE_NEUTRAL_CLAY]: {
+        colors: ["#b8b3ab", "#bdb8b0", "#c2bdb5", "#aca79f", "#ccc7bf"],
+        rockType: 0,
+        cliffScale: 1.0,
+        foldStrength: 0.0,
+        outcropExposure: 0.0,
+        snowLineM: 2500,
+    },
+    [PALETTE_ALPINE_SUMMER]: {
+        colors: ["#335729", "#527d38", "#948a7d", "#91877d", "#ccc0b3"],
+        rockType: 0,
+        cliffScale: 0.9,
+        foldStrength: 1.25,
+        outcropExposure: 0.62,
+        snowLineM: 1150,
+    },
+    [PALETTE_ALPINE_WINTER]: {
+        colors: ["#aebddb", "#ccdcf0", "#e3edfa", "#4a5261", "#f5faff"],
+        rockType: 1,
+        cliffScale: 1.0,
+        foldStrength: 1.15,
+        outcropExposure: 0.45,
+        snowLineM: 120,
+    },
+    [PALETTE_ARIZONA_SUMMER]: {
+        colors: ["#a37352", "#857354", "#bd6940", "#bf4a2b", "#d6b58a"],
+        rockType: 0,
+        cliffScale: 1.05,
+        foldStrength: 1.35,
+        outcropExposure: 0.78,
+        snowLineM: 2050,
+    },
+    [PALETTE_ZHANGJIAJIE_SUMMER]: {
+        colors: ["#244a21", "#336b2b", "#4a8036", "#7a6959", "#38732b"],
+        rockType: 2,
+        cliffScale: 1.25,
+        foldStrength: 1.1,
+        outcropExposure: 0.35,
+        snowLineM: 2400,
+    },
+    [PALETTE_ZHANGJIAJIE_WINTER]: {
+        colors: ["#7a8a9c", "#adbccf", "#d9e6f5", "#616675", "#f2f7ff"],
+        rockType: 2,
+        cliffScale: 1.25,
+        foldStrength: 1.1,
+        outcropExposure: 0.4,
+        snowLineM: 280,
+    },
+    [PALETTE_TROPICAL_TEPUIS]: {
+        colors: ["#c2b080", "#266126", "#387530", "#7a4f4a", "#474247"],
+        rockType: 0,
+        cliffScale: 1.0,
+        foldStrength: 1.05,
+        outcropExposure: 0.55,
+        snowLineM: 2400,
+    },
+    [PALETTE_SAHARA_DESERT]: {
+        colors: ["#6b5e4f", "#c29e6b", "#e0b878", "#8f6b4d", "#f2d191"],
+        rockType: 0,
+        cliffScale: 1.1,
+        foldStrength: 1.2,
+        outcropExposure: 0.5,
+        snowLineM: 2500,
+    },
+    [PALETTE_NAMIB_RED]: {
+        colors: ["#d6cfc2", "#c79461", "#db7542", "#73574a", "#eb6936"],
+        rockType: 3,
+        cliffScale: 1.1,
+        foldStrength: 1.25,
+        outcropExposure: 0.45,
+        snowLineM: 2500,
+    },
+    [PALETTE_OUTBACK_PURNULULU]: {
+        colors: ["#945938", "#757845", "#bd6e3d", "#9e5433", "#d19461"],
+        rockType: 0,
+        cliffScale: 1.55,
+        foldStrength: 1.4,
+        outcropExposure: 0.76,
+        snowLineM: 2500,
+    },
+    [PALETTE_POLAR_FJORD]: {
+        colors: ["#26292e", "#5c7a33", "#4a4f57", "#40454d", "#e0f0fc"],
+        rockType: 3,
+        cliffScale: 1.2,
+        foldStrength: 1.1,
+        outcropExposure: 0.55,
+        snowLineM: 620,
+    },
+    [PALETTE_BRYCE_CANYON]: {
+        colors: ["#b88a7a", "#9e7a70", "#db8561", "#db5e3d", "#ebd6bd"],
+        rockType: 0,
+        cliffScale: 1.35,
+        foldStrength: 1.45,
+        outcropExposure: 0.88,
+        snowLineM: 2100,
+    },
+};
 
 // Default simulation parameters (real-world units)
 export const DEFAULT_PARAMS = {
@@ -134,5 +239,5 @@ export const DEFAULT_PARAMS = {
     baseHeight: 800,          // metres of relief in the generated base noise
     batchSeed: 0,            // varies per erosion batch so droplets take new paths
     renderMode: RENDER_LIT,
-    materialPalette: PALETTE_ALPINE_SUMMER,
+    materialPalette: PALETTE_NEUTRAL_CLAY,
 };

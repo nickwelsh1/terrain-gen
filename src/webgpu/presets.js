@@ -4,14 +4,17 @@
 
 import {
     MAX_BIOME_LAYERS,
+    PALETTE_NEUTRAL_CLAY,
     PALETTE_ALPINE_SUMMER,
     PALETTE_ALPINE_WINTER,
     PALETTE_ARIZONA_SUMMER,
+    PALETTE_BRYCE_CANYON,
     PALETTE_ZHANGJIAJIE_SUMMER,
     PALETTE_TROPICAL_TEPUIS,
     PALETTE_SAHARA_DESERT,
     PALETTE_NAMIB_RED,
     PALETTE_OUTBACK_PURNULULU,
+    DEFAULT_PALETTE_SWATCHES,
 } from "./constants.js";
 
 const PRESET_DEFAULT_PALETTE = {
@@ -21,6 +24,7 @@ const PRESET_DEFAULT_PALETTE = {
     "roraima-tepui": PALETTE_TROPICAL_TEPUIS,
     "monument-valley-buttes": PALETTE_ARIZONA_SUMMER,
     "grand-canyon-gorge": PALETTE_ARIZONA_SUMMER,
+    "bryce-canyon-hoodoos": PALETTE_BRYCE_CANYON,
     "grand-mesa-canyons": PALETTE_ARIZONA_SUMMER,
     "zhangjiajie-karst": PALETTE_ZHANGJIAJIE_SUMMER,
     "bungle-bungles-domes": PALETTE_OUTBACK_PURNULULU,
@@ -52,13 +56,21 @@ export function defaultSimulations(overrides = {}) {
     const base = {
         "sim.phacelleErosion": {
             enabled: false,
-            erosionStrength: 0.16,
-            erosionScale: 0.14,
-            erosionOctaves: 4,
-            gullyWeight: 0.5,
-            ridgeRounding: 0.12,
-            creaseRounding: 0.05,
+            erosionMode: 0,
+            erosionStrength: 0.22,
+            erosionScale: 0.125,
+            erosionOctaves: 3,
+            gullyWeight: 0.57,
+            ridgeRounding: 0.38,
+            creaseRounding: 0.13,
             assumedSlope: 0.7,
+            cellScale: 0.62,
+            normalization: 0.65,
+            lacunarity: 1.8,
+            gain: 0.68,
+            detail: 0.84,
+            laplacianWeight: 0.65,
+            plateauRim: 0.22,
         },
         "sim.thermalTalus": {
             enabled: false,
@@ -102,18 +114,97 @@ export function defaultSimulations(overrides = {}) {
     return base;
 }
 
+export function defaultMaskParams(overrides = {}) {
+    return {
+        sourceStep: 0,
+        maskSource: 0,
+        contrast: 1.0,
+        bias: 0.0,
+        minAltM: -20,
+        maxAltM: 320,
+        featherAltM: 65,
+        minSlopeDeg: 0,
+        maxSlopeDeg: 26,
+        featherSlopeDeg: 9,
+        curvatureBias: -0.3,
+        warpAmpM: 70,
+        warpFreq: 1.25,
+        invertMask: 0,
+        blurRadius: 2,
+        blurIterations: 2,
+        ...overrides,
+    };
+}
+
+export function defaultMaterialSlot(slot = 1, paletteId = PALETTE_NEUTRAL_CLAY, overrides = {}) {
+    const swatchPreset = DEFAULT_PALETTE_SWATCHES[paletteId] || DEFAULT_PALETTE_SWATCHES[PALETTE_NEUTRAL_CLAY];
+    const defaultMask =
+        slot === 1
+            ? defaultMaskParams({
+                  sourceStep: 0,
+                  maskSource: 1,
+                  contrast: 1.0,
+                  bias: 0.5,
+                  minAltM: -50,
+                  maxAltM: 2500,
+                  maxSlopeDeg: 90,
+                  curvatureBias: 0,
+                  warpAmpM: 0,
+              })
+            : defaultMaskParams({
+                  sourceStep: 0,
+                  maskSource: 3,
+                  contrast: 1.25,
+                  bias: 0.0,
+                  minAltM: -20,
+                  maxAltM: 450,
+                  maxSlopeDeg: 32,
+                  curvatureBias: -0.25,
+                  warpAmpM: 55,
+              });
+    return {
+        enabled: slot === 1 ? true : Boolean(overrides.enabled ?? false),
+        paletteId,
+        opacity: overrides.opacity ?? 1.0,
+        colors: Array.isArray(overrides.colors) ? [...overrides.colors] : [...swatchPreset.colors],
+        shader: {
+            rockType: swatchPreset.rockType,
+            cliffScale: swatchPreset.cliffScale,
+            foldStrength: swatchPreset.foldStrength,
+            outcropExposure: swatchPreset.outcropExposure,
+            snowLineM: swatchPreset.snowLineM,
+            ...(overrides.shader || {}),
+        },
+        maskParams: {
+            ...defaultMask,
+            ...(overrides.maskParams || {}),
+        },
+    };
+}
+
 export function createDefaultOverlayLayer(index = 2, overrides = {}) {
+    const shapers = defaultShapers(overrides.shapers || {});
+    if (overrides.detail) {
+        shapers["shape.surfaceDetail"] = {
+            ...shapers["shape.surfaceDetail"],
+            ...overrides.detail,
+        };
+    }
     return {
         id: `layer${index}`,
-        name: overrides.name || `Layer ${index}: Biome Overlay`,
+        name: overrides.name || `Layer ${index}: Secondary Terrain`,
         enabled: overrides.enabled ?? false,
         generatorId: overrides.generatorId || "gen.duneField",
         generatorParams: {
             crestMode: 0,
+            baseHeight: 115,
             duneHeight: 115,
+            frequency: 1.0,
             duneWavelength: 190,
             sizeVariation: 0.75,
+            scaleVariation: 0.75,
             windDirection: 40,
+            orientationDeg: 40,
             brinkPosition: 0.74,
             draaHeight: 35,
             draaWavelength: 850,
@@ -129,22 +220,21 @@ export function createDefaultOverlayLayer(index = 2, overrides = {}) {
             shadowAngle: 14,
             ...(overrides.generatorParams || {}),
         },
-        shapers: defaultShapers(overrides.shapers || {}),
-        maskParams: {
+        shapers,
+        detailGeneratorId: overrides.detailGeneratorId || "shape.surfaceDetail",
+        detailMaskParams: defaultMaskParams({
+            sourceStep: 0,
+            maskSource: 0,
+            contrast: 1.0,
+            bias: 0.15,
             minAltM: -20,
-            maxAltM: 320,
-            featherAltM: 65,
-            minSlopeDeg: 0,
-            maxSlopeDeg: 26,
-            featherSlopeDeg: 9,
-            curvatureBias: -0.3,
-            warpAmpM: 70,
-            warpFreq: 1.25,
-            invertMask: 0,
-            blurRadius: 2,
-            blurIterations: 2,
-            ...(overrides.maskParams || {}),
-        },
+            maxAltM: 1800,
+            maxSlopeDeg: 55,
+            curvatureBias: 0.0,
+            warpAmpM: 35,
+            ...(overrides.detailMaskParams || {}),
+        }),
+        maskParams: defaultMaskParams(overrides.maskParams || {}),
         blendParams: {
             blendMode: 0,
             opacity: 1.0,
@@ -165,7 +255,7 @@ export function normalizeStack(stack) {
     if (!Array.isArray(stack.layers) || stack.layers.length === 0) {
         const l1 = stack.layer1 || {
             id: "layer1",
-            name: "Layer 1: Base Terrain",
+            name: "Layer 1: Broad Terrain",
             enabled: true,
             generatorId: "gen.ridgeFbm",
             generatorParams: { baseHeight: 1500 },
@@ -183,9 +273,36 @@ export function normalizeStack(stack) {
     stack.layers.forEach((layer, idx) => {
         layer.id = `layer${idx + 1}`;
         if (!layer.name) {
-            layer.name = idx === 0 ? "Layer 1: Base Terrain" : `Layer ${idx + 1}: Biome Overlay`;
+            layer.name = idx === 0 ? "Layer 1: Broad Terrain" : `Layer ${idx + 1}: Secondary Terrain`;
         }
         layer.shapers = defaultShapers(layer.shapers || {});
+        layer.detailGeneratorId = layer.detailGeneratorId || "shape.surfaceDetail";
+        layer.detailMaskParams = defaultMaskParams({
+            sourceStep: idx === 0 ? 1 : 0,
+            maskSource: 0,
+            contrast: 1.0,
+            bias: 0.2,
+            minAltM: -20,
+            maxAltM: 2200,
+            maxSlopeDeg: 58,
+            curvatureBias: 0.0,
+            warpAmpM: 35,
+            ...(layer.detailMaskParams || {}),
+        });
+        // Synchronize universal parameter aliases (baseHeight <-> duneHeight, frequency <-> cellScale, orientationDeg <-> windDirection)
+        if (layer.generatorParams) {
+            if (layer.generatorParams.duneHeight !== undefined && layer.generatorParams.baseHeight === undefined) {
+                layer.generatorParams.baseHeight = layer.generatorParams.duneHeight;
+            } else if (layer.generatorParams.baseHeight !== undefined && layer.generatorParams.duneHeight === undefined) {
+                layer.generatorParams.duneHeight = layer.generatorParams.baseHeight;
+            }
+            if (layer.generatorParams.cellScale !== undefined && layer.generatorParams.frequency === undefined) {
+                layer.generatorParams.frequency = layer.generatorParams.cellScale;
+            }
+            if (layer.generatorParams.windDirection !== undefined && layer.generatorParams.orientationDeg === undefined) {
+                layer.generatorParams.orientationDeg = layer.generatorParams.windDirection;
+            }
+        }
         if (idx >= 1) {
             const defOverlay = createDefaultOverlayLayer(idx + 1);
             layer.maskParams = { ...defOverlay.maskParams, ...(layer.maskParams || {}) };
@@ -195,9 +312,28 @@ export function normalizeStack(stack) {
     stack.layer1 = stack.layers[0];
     stack.layer2 = stack.layers[1];
     stack.simulations = defaultSimulations(stack.simulations || {});
+    stack.erosionMask = defaultMaskParams({
+        sourceStep: 2,
+        maskSource: 0,
+        contrast: 1.0,
+        bias: 0.35,
+        minAltM: -50,
+        maxAltM: 2500,
+        maxSlopeDeg: 90,
+        curvatureBias: 0.0,
+        warpAmpM: 25,
+        ...(stack.erosionMask || {}),
+    });
+    const suggestedPalette = PRESET_DEFAULT_PALETTE[stack.id] ?? PALETTE_ALPINE_SUMMER;
+    stack.suggestedMaterialPalette = suggestedPalette;
     if (stack.materialPalette === undefined) {
-        stack.materialPalette = PRESET_DEFAULT_PALETTE[stack.id] ?? PALETTE_ALPINE_SUMMER;
+        stack.materialPalette = PALETTE_NEUTRAL_CLAY;
     }
+    const existingMats = stack.materials || {};
+    stack.materials = {
+        material1: defaultMaterialSlot(1, stack.materialPalette, existingMats.material1 || {}),
+        material2: defaultMaterialSlot(2, PALETTE_SAHARA_DESERT, existingMats.material2 || {}),
+    };
     return stack;
 }
 
@@ -256,29 +392,45 @@ export const PRESETS = [
                 generatorParams: {
                     landformMode: 1, // Tabular Carbonate Massif (Dolomites)
                     baseHeight: 1650,
-                    frequency: 2.1,
-                    ridgeWeight: 0.65,
-                    ridgeSharpness: 2.7,
-                    scaleVariation: 0.7,
-                    warpAmplitude: 0.32,
-                    octaves: 6,
-                    lacunarity: 2.0,
-                    gain: 0.5,
-                    warpFrequency: 1.8,
-                    secondRangeWeight: 0.35,
+                    frequency: 2.15,
+                    ridgeWeight: 0.62,
+                    ridgeSharpness: 2.4,
+                    scaleVariation: 0.65,
+                    warpAmplitude: 0.08,
+                    octaves: 3,
+                    lacunarity: 2.75,
+                    gain: 0.48,
+                    warpFrequency: 0.75,
+                    secondRangeWeight: 0.32,
                     secondRangeAngle: 65,
-                    heightCurve: 1.5,
+                    heightCurve: 1.35,
                 },
                 shapers: defaultShapers({
                     "shape.fold": { enabled: true, directionDeg: 125, steepen: 0.95, gentle: 0.6, minAltM: 220, maxAltM: 1700, strength: 0.75 },
                     "shape.glacialCarve": { enabled: true, carveDepthM: 75, valleyWidth: 2, apexSharpen: 0.85, altitudeGateM: 320, strength: 0.85 },
-                    "shape.surfaceDetail": { enabled: true, boulderHeightM: 22, boulderScale: 14, caprockRoughnessM: 18, basinHummocksM: 12, strength: 0.9 },
+                    "shape.surfaceDetail": { enabled: true, boulderHeightM: 20, boulderScale: 14, caprockRoughnessM: 16, basinHummocksM: 10, strength: 0.85 },
                 }),
             },
             createDefaultOverlayLayer(2, { enabled: false }),
         ],
         simulations: defaultSimulations({
-            "sim.phacelleErosion": { enabled: true, erosionStrength: 0.16, erosionScale: 0.14, erosionOctaves: 4 },
+            "sim.phacelleErosion": {
+                enabled: true,
+                erosionMode: 0,
+                erosionStrength: 0.22,
+                erosionScale: 0.125,
+                erosionOctaves: 3,
+                gullyWeight: 0.57,
+                ridgeRounding: 0.38,
+                creaseRounding: 0.13,
+                cellScale: 0.62,
+                normalization: 0.65,
+                lacunarity: 1.8,
+                gain: 0.68,
+                detail: 0.84,
+                laplacianWeight: 0.67,
+                plateauRim: 0.26,
+            },
             "sim.thermalTalus": { enabled: true, talusReposeDeg: 33, bedrockReposeDeg: 68, iterations: 12, transferRate: 0.26, weatheringRate: 0.42 },
         }),
     },
@@ -298,29 +450,45 @@ export const PRESETS = [
                 generatorParams: {
                     landformMode: 0, // Tectonic Mountain Range
                     baseHeight: 2150,
-                    frequency: 2.6,
-                    ridgeWeight: 0.72,
-                    ridgeSharpness: 2.8,
-                    scaleVariation: 0.78,
-                    warpAmplitude: 0.35,
-                    octaves: 7,
-                    lacunarity: 2.05,
-                    gain: 0.52,
-                    warpFrequency: 1.9,
-                    secondRangeWeight: 0.48,
+                    frequency: 2.35,
+                    ridgeWeight: 0.74,
+                    ridgeSharpness: 2.5,
+                    scaleVariation: 0.72,
+                    warpAmplitude: 0.06,
+                    octaves: 3,
+                    lacunarity: 2.85,
+                    gain: 0.48,
+                    warpFrequency: 0.7,
+                    secondRangeWeight: 0.46,
                     secondRangeAngle: 58,
-                    heightCurve: 1.55,
+                    heightCurve: 1.42,
                 },
                 shapers: defaultShapers({
                     "shape.fold": { enabled: true, directionDeg: 110, steepen: 0.85, gentle: 0.55, minAltM: 250, maxAltM: 2200, strength: 0.7 },
                     "shape.glacialCarve": { enabled: true, carveDepthM: 95, valleyWidth: 3, apexSharpen: 1.15, altitudeGateM: 350, strength: 0.9 },
-                    "shape.surfaceDetail": { enabled: true, boulderHeightM: 20, boulderScale: 16, caprockRoughnessM: 20, basinHummocksM: 10, strength: 0.8 },
+                    "shape.surfaceDetail": { enabled: true, boulderHeightM: 18, boulderScale: 16, caprockRoughnessM: 18, basinHummocksM: 10, strength: 0.75 },
                 }),
             },
             createDefaultOverlayLayer(2, { enabled: false }),
         ],
         simulations: defaultSimulations({
-            "sim.phacelleErosion": { enabled: true, erosionStrength: 0.18, erosionScale: 0.15, erosionOctaves: 5 },
+            "sim.phacelleErosion": {
+                enabled: true,
+                erosionMode: 0,
+                erosionStrength: 0.24,
+                erosionScale: 0.125,
+                erosionOctaves: 3,
+                gullyWeight: 0.58,
+                ridgeRounding: 0.36,
+                creaseRounding: 0.12,
+                cellScale: 0.62,
+                normalization: 0.65,
+                lacunarity: 1.8,
+                gain: 0.69,
+                detail: 0.84,
+                laplacianWeight: 0.72,
+                plateauRim: 0.22,
+            },
             "sim.windDrift": { enabled: true, windDirectionDeg: 55, minAltitudeM: 520, snowSupplyM: 1.2, iterations: 12, transportRate: 0.7, depositionRate: 1.25 },
         }),
     },
@@ -480,7 +648,7 @@ export const PRESETS = [
         id: "grand-canyon-gorge",
         group: "Mesas, Tepuis & Canyons",
         name: "Grand Canyon & Island in the Sky",
-        description: "Dendritic meandering river gorge with branching side tributaries incised through compound cliff-and-bench horizontal strata.",
+        description: "Diagonal meandering river gorge with branching side tributaries incised through 2-billion-year folded, faulted & tilted strata.",
         recommendedAreaM: 5120,
         seed: 108,
         layers: [
@@ -493,6 +661,8 @@ export const PRESETS = [
                     formationMode: 0, // Dendritic Trunk & Tributary Gorge
                     baseHeight: 1380,
                     cellScale: 2.8,
+                    orientationDeg: 35,
+                    warpFrequency: 2.8,
                     blockRelief: 0.78,
                     canyonWidth: 0.26,
                     canyonDepth: 0.88,
@@ -503,7 +673,7 @@ export const PRESETS = [
                     roughness: 0.22,
                 },
                 shapers: defaultShapers({
-                    "shape.terrace": { enabled: true, stepHeightM: 68, sharpness: 0.84, strength: 0.85, strataTiltM: 28, strataAngleDeg: 25, strataWarpM: 20 },
+                    "shape.terrace": { enabled: true, stepHeightM: 68, sharpness: 0.84, strength: 0.85, strataTiltM: 45, strataAngleDeg: 35, strataWarpM: 28 },
                     "shape.surfaceDetail": { enabled: true, boulderHeightM: 22, boulderScale: 14, caprockRoughnessM: 22, basinHummocksM: 14, strength: 0.9 },
                 }),
             },
@@ -512,6 +682,81 @@ export const PRESETS = [
         simulations: defaultSimulations({
             "sim.phacelleErosion": { enabled: true, erosionStrength: 0.12, erosionScale: 0.13, erosionOctaves: 4 },
             "sim.thermalTalus": { enabled: true, talusReposeDeg: 34, bedrockReposeDeg: 68, iterations: 12, transferRate: 0.26, weatheringRate: 0.4 },
+        }),
+    },
+    {
+        id: "bryce-canyon-hoodoos",
+        group: "Mesas, Tepuis & Canyons",
+        name: "Bryce Canyon Amphitheater & Hoodoos",
+        description: "Stepped pink-and-cream Claron limestone amphitheater filled with tiered hoodoo spires, lavender Chinle badland beds, and Ponderosa pine rims.",
+        recommendedAreaM: 2560,
+        seed: 256,
+        layers: [
+            {
+                id: "layer1",
+                name: "Layer 1: Stepped Pink-Cliff Amphitheater",
+                enabled: true,
+                generatorId: "gen.voronoiBlock",
+                generatorParams: {
+                    formationMode: 0,
+                    baseHeight: 1120,
+                    cellScale: 3.6,
+                    orientationDeg: 125,
+                    warpFrequency: 3.2,
+                    blockRelief: 0.84,
+                    canyonWidth: 0.32,
+                    canyonDepth: 0.86,
+                    jitter: 0.9,
+                    blockTilt: 0.12,
+                    fractureOctaves: 3,
+                    warpAmplitude: 0.44,
+                    roughness: 0.28,
+                },
+                shapers: defaultShapers({
+                    "shape.terrace": { enabled: true, stepHeightM: 44, sharpness: 0.86, strength: 0.82, strataTiltM: 48, strataAngleDeg: 55, strataWarpM: 32 },
+                    "shape.surfaceDetail": { enabled: true, boulderHeightM: 24, boulderScale: 18, caprockRoughnessM: 26, basinHummocksM: 14, strength: 0.92 },
+                }),
+            },
+            createDefaultOverlayLayer(2, {
+                name: "Layer 2: Amphitheater Hoodoo Spires",
+                enabled: true,
+                generatorId: "gen.ridgeFbm",
+                generatorParams: {
+                    landformMode: 2, // Karst / Hoodoo Pillars & Fins
+                    baseHeight: 420,
+                    frequency: 4.8,
+                    orientationDeg: 125,
+                    ridgeWeight: 0.82,
+                    ridgeSharpness: 3.2,
+                    scaleVariation: 0.75,
+                    warpAmplitude: 0.25,
+                },
+                maskParams: {
+                    minAltM: 120,
+                    maxAltM: 880,
+                    featherAltM: 95,
+                    minSlopeDeg: 8,
+                    maxSlopeDeg: 75,
+                    featherSlopeDeg: 10,
+                    curvatureBias: 0.15,
+                    warpAmpM: 60,
+                    warpFreq: 1.8,
+                    invertMask: 0,
+                    blurRadius: 1,
+                    blurIterations: 1,
+                },
+                blendParams: {
+                    blendMode: 3, // Masked Additive
+                    opacity: 0.85,
+                    blendDepthM: 45,
+                    blendSmoothM: 16,
+                    heightOffsetM: 0,
+                    markSediment: 0,
+                },
+            }),
+        ],
+        simulations: defaultSimulations({
+            "sim.phacelleErosion": { enabled: true, erosionStrength: 0.14, erosionScale: 0.11, erosionOctaves: 5 },
         }),
     },
     {
@@ -637,7 +882,7 @@ export const PRESETS = [
         id: "wilpena-pound",
         group: "Karst & Australian Landmarks",
         name: "Wilpena Pound (Flinders Ranges)",
-        description: "Synclinal oval amphitheater of inward-dipping quartzite strata with sheer outward escarpments, serrated hogback cuesta ridges, and a breached outlet gorge.",
+        description: "Boat-shaped synclinal amphitheater of inward-dipping Rawnsley Quartzite strata with St Mary Peak & Rawnsley Bluff escarpments, bowled interior floor, and flanking strike ridges.",
         recommendedAreaM: 5120,
         seed: 404,
         layers: [
@@ -648,25 +893,37 @@ export const PRESETS = [
                 generatorId: "gen.islandCaldera",
                 generatorParams: {
                     landformMode: 1, // Synclinal Ring (Wilpena Pound)
-                    baseHeight: 1160,
+                    baseHeight: 305,
+                    frequency: 1.75,
+                    orientationDeg: 25,
                     islandRadius: 0.86,
                     calderaRadius: 0.32,
                     calderaDepth: 0.72,
-                    coastWarp: 0.22,
-                    rimSharpness: 1.9,
-                    radialGullies: 0.45,
+                    coastWarp: 0.18,
+                    rimSharpness: 2.1,
+                    radialGullies: 0.3,
                     falloffMix: 0.9,
                 },
+                detailMaskParams: {
+                    maskSource: 0, // Combined Range (Alt + Slope)
+                },
                 shapers: defaultShapers({
-                    "shape.fold": { enabled: true, directionDeg: 35, steepen: 0.8, gentle: 0.55, minAltM: 100, maxAltM: 1200, strength: 0.65 },
-                    "shape.surfaceDetail": { enabled: true, boulderHeightM: 18, boulderScale: 14, caprockRoughnessM: 18, basinHummocksM: 16, strength: 0.9 },
+                    "shape.fold": { enabled: true, directionDeg: 35, steepen: 0.65, gentle: 0.5, minAltM: 120, maxAltM: 1200, strength: 0.5 },
+                    "shape.surfaceDetail": { enabled: true, boulderHeightM: 6, boulderScale: 16, caprockRoughnessM: 8, basinHummocksM: 5, strength: 0.55 },
                 }),
             },
-            createDefaultOverlayLayer(2, { enabled: false }),
+            createDefaultOverlayLayer(2, {
+                enabled: false,
+                maskParams: {
+                    maskSource: 5, // Erosion & Sediment Map
+                    contrast: 0.55,
+                    bias: 0.45,
+                },
+            }),
         ],
         simulations: defaultSimulations({
-            "sim.phacelleErosion": { enabled: true, erosionStrength: 0.14, erosionScale: 0.13, erosionOctaves: 4 },
-            "sim.thermalTalus": { enabled: true, talusReposeDeg: 34, bedrockReposeDeg: 66, iterations: 8, transferRate: 0.24, weatheringRate: 0.32 },
+            "sim.phacelleErosion": { enabled: true, erosionStrength: 0.08, erosionScale: 0.16, erosionOctaves: 4 },
+            "sim.thermalTalus": { enabled: true, talusReposeDeg: 33, bedrockReposeDeg: 64, iterations: 8, transferRate: 0.22, weatheringRate: 0.28 },
         }),
     },
 

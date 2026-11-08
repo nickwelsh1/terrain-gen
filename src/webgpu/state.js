@@ -3,7 +3,7 @@
 // buffer, ping-pong aux buffers (vec4f: [water, sediment, maskA, maskB]),
 // hardness, analysis buffers, and the droplet simulation buffer.
 
-import { createStorageBuffer } from "@babylonjs/lite";
+import { createStorageBuffer, updateStorageBuffer } from "@babylonjs/lite";
 import {
     GRID_CELLS,
     DROPLET_BUFFER_BYTES,
@@ -31,6 +31,9 @@ export class TerrainState {
         this.buffers.heightA = createStorageBuffer(engine, zeroI32, "heightA");
         this.buffers.heightB = createStorageBuffer(engine, zeroI32, "heightB");
 
+        // Snapshot of Layer 1 Broad Terrain before overlay layers
+        this.buffers.baseLayerHeight = createStorageBuffer(engine, zeroI32, "baseLayerHeight");
+
         // Snapshot of composite base terrain before global erosion/simulations
         this.buffers.baseHeight = createStorageBuffer(engine, zeroI32, "baseHeight");
 
@@ -48,6 +51,10 @@ export class TerrainState {
         this.buffers.normals = createStorageBuffer(engine, zeroU32, "normals");
         this.buffers.slopes = createStorageBuffer(engine, zeroU32, "slopes");
         this.buffers.aspects = createStorageBuffer(engine, zeroU32, "aspects");
+
+        // Material 1 & Material 2 configuration + custom color swatches (32 vec4f = 128 f32)
+        this.materialData = new Float32Array(32 * 4);
+        this.buffers.materials = createStorageBuffer(engine, this.materialData, "materials");
 
         // Droplet buffer for hydraulic particle simulation
         if (device) {
@@ -74,8 +81,26 @@ export class TerrainState {
         return this.activeHeight;
     }
 
+    get baseLayerHeight() {
+        return this.buffers.baseLayerHeight;
+    }
+
     get baseHeight() {
         return this.buffers.baseHeight;
+    }
+
+    get materials() {
+        return this.buffers.materials;
+    }
+
+    updateMaterials(floatArray) {
+        if (!this.materialData) {
+            this.materialData = new Float32Array(32 * 4);
+        }
+        this.materialData.set(floatArray.subarray(0, this.materialData.length));
+        if (this.engine && this.buffers.materials) {
+            updateStorageBuffer(this.engine, this.buffers.materials, this.materialData);
+        }
     }
 
     get layerScratch() {
@@ -123,6 +148,7 @@ export class TerrainState {
 
     getStorageBuffers() {
         return {
+            baseLayerHeight: this.buffers.baseLayerHeight,
             baseHeight: this.buffers.baseHeight,
             erodedHeight: this.activeHeight,
             heightA: this.buffers.heightA,
@@ -135,6 +161,7 @@ export class TerrainState {
             normals: this.buffers.normals,
             slopes: this.buffers.slopes,
             aspects: this.buffers.aspects,
+            materials: this.buffers.materials,
         };
     }
 }

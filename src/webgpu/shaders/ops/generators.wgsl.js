@@ -34,6 +34,10 @@ struct RidgeFbmParams {
     scaleVariation: f32,     // [0..1] breaks up repetitive ridge spacing
     seed: f32,
     clearAux: u32,
+    orientationDeg: f32,     // [0..360] rotates primary mountain range / massif / karst canyon axis
+    _pad0: f32,
+    _pad1: f32,
+    _pad2: f32,
 };
 
 @group(0) @binding(0) var<uniform> params: RidgeFbmParams;
@@ -55,7 +59,12 @@ fn generateHeightmap(@builtin(global_invocation_id) gid: vec3u) {
     let sharp = max(params.ridgeSharpness, 0.5);
     let scaleVar = clamp01(params.scaleVariation);
 
-    let uv = vec2f(f32(x) / N_F, f32(y) / N_F);
+    let rawUv = vec2f(f32(x) / N_F, f32(y) / N_F);
+    let orientRad = params.orientationDeg * PI / 180.0;
+    let oCos = cos(orientRad);
+    let oSin = sin(orientRad);
+    let cUv = rawUv - vec2f(0.5, 0.5);
+    let uv = vec2f(cUv.x * oCos - cUv.y * oSin, cUv.x * oSin + cUv.y * oCos) + vec2f(0.5, 0.5);
 
     // Low-frequency spatial modulation of scale & amplitude to prevent repetitive noise
     let macroMod = fbmEx(uv.x * 1.3 + 11.0, uv.y * 1.3 + 29.0, seed + 5.0, 3, 2.0, 0.5);
@@ -67,40 +76,53 @@ fn generateHeightmap(@builtin(global_invocation_id) gid: vec3u) {
 
     let wf = max(params.warpFrequency, 0.2);
     let wa = params.warpAmplitude;
-    let warpX = (fbmEx(nx * wf + 50.0, ny * wf, seed + 13.0, 4, 2.0, 0.5) - 0.5) * 2.0 * wa;
-    let warpY = (fbmEx(nx * wf, ny * wf + 50.0, seed + 19.0, 4, 2.0, 0.5) - 0.5) * 2.0 * wa;
-    let wx = nx + warpX;
-    let wy = ny + warpY;
+    // 2-stage iterated Inigo Quilez domain warp (from GLSL reference)
+    let warpedP = domainWarpIQ(vec2f(nx, ny), seed + 13.0, wa, wf, 2, gain);
+    let wx = warpedP.x;
+    let wy = warpedP.y;
+    let warpX = wx - nx;
+    let warpY = wy - ny;
 
     var h = 0.0;
     var initSediment = 0.0;
+    var initMask = 1.0;
 
     if (params.landformMode == 1u) {
         // MODE 1: Tabular Carbonate Massif (Alpine Dolomites — Tre Cime / Seceda / Tofane)
-        // Massive uplifted reef blocks separated by deep glacial saddles, with a 33° scree apron
-        // at the base and sheer vertical dolomitic cliff walls crowned by jagged spires (torri).
+        // Combines Perlin-Worley cellular reef massifs + octave-rotated Musgrave ridges
+        // with the GLSL applyPlateauRim() incised scree-basin to sheer-cliff plateau transfer.
         let rWeight = clamp01(params.ridgeWeight);
-        let mUv = uv * (baseFreq * 0.65 * localFreqMult) + vec2f(warpX * 0.4, warpY * 0.4);
+        let mUv = uv * (baseFreq * 0.72 * localFreqMult) + vec2f(warpX * 0.35, warpY * 0.35);
         let vMassif = voronoi2D(mUv, 0.85, seed + 17.0);
-        let ridgeSpine = ridgedEx(wx * 0.65 + 40.0, wy * 0.65 + 40.0, seed + 7.0, 5, lac, gain, sharp);
-        let massifCore = clamp01(
-            (1.0 - vMassif.x * 0.95) * (1.0 - rWeight * 0.45) + ridgeSpine * (0.35 + rWeight * 0.55)
-        );
+        let pwMassif = fbmPerlinWorley(vec2f(wx * 0.78, wy * 0.78), seed + 5.0, max(oct - 1, 2), lac, gain);
+        let ridgeSpine = ridgedEx(wx * 0.72 + 40.0, wy * 0.72 + 40.0, seed + 7.0, oct, lac, gain, sharp);
 
-        // Valley floor & broad dolomitic scree apron [0.0 .. 0.42]
-        let valleyBase = fbmEx(wx * 0.5, wy * 0.5, seed + 3.0, 4, 2.0, 0.5) * 0.20;
-        let screeApron = smoothstep(0.16, 0.46, massifCore) * 0.34;
+        // Blend Perlin-Worley reef block, Voronoi massif core, and Musgrave ridge spine
+        let blockCore = mix(pwMassif, 1.0 - vMassif.x * 0.88, 0.42);
+        let rawMassif = clamp01(mix(blockCore, ridgeSpine, 0.32 + rWeight * 0.48) * (0.88 + 0.24 * ampEnvelope));
 
-        // Cliff steepness controlled by Peak sharpness (sharp)
-        let wallHalfSpan = clamp(0.12 / max(sharp * 0.6, 0.5), 0.025, 0.14);
-        let cliffWall = smoothstep(0.48 - wallHalfSpan, 0.48 + wallHalfSpan, massifCore);
-        // Jagged dolomitic towers (torri), clefts, and inclined bedding ledges on the massif top
-        let spires = ridgedEx(wx * 2.4, wy * 2.4, seed + 71.0, 5, 2.1, 0.55, max(sharp * 1.3, 1.2));
-        let strataBenches = floor(spires * 6.0) / 6.0 * 0.25 + spires * 0.75;
+        // GLSL Plateau-Rim transfer: concave incised valley/scree ramp below rim, uplifted reef table above rim
+        let rimAmount = clamp(0.22 + 0.20 * rWeight, 0.14, 0.45);
+        let rimThresh = 0.42 + 0.14 * rimAmount;
+        let rimShaped = applyPlateauRim(rawMassif, rimAmount);
 
-        h = valleyBase + screeApron + cliffWall * (0.38 + (0.28 + 0.22 * rWeight) * strataBenches);
-        h = clamp01(h * (0.85 + 0.3 * ampEnvelope));
-        initSediment = screeApron * (1.0 - cliffWall) * params.baseHeight * 0.18;
+        // Steep dolomitic cliff wall transition around rimThresh controlled by Peak sharpness (sharp)
+        let wallHalfSpan = clamp(0.11 / max(sharp * 0.65, 0.5), 0.022, 0.13);
+        let cliffWall = smoothstep(rimThresh - wallHalfSpan, rimThresh + wallHalfSpan, rawMassif);
+        let screeApron = smoothstep(rimThresh - 0.24, rimThresh + 0.02, rawMassif) * (1.0 - cliffWall * 0.75);
+
+        // Craggy dolomitic towers (torri) and stepped carbonate bedding ledges on the massif crown
+        let spires = ridgedEx(wx * 1.85, wy * 1.85, seed + 71.0, min(oct, 4), 2.15, 0.52, max(sharp * 1.15, 1.2));
+        let strataBenches = floor(spires * 6.0) / 6.0 * 0.22 + spires * 0.78;
+
+        let rawH = mix(rimShaped, rimShaped * 0.76 + cliffWall * (0.18 + 0.20 * strataBenches), 0.65);
+        let curve = max(params.heightCurve, 0.3);
+        h = clamp01(pow(clamp01(rawH), curve * 0.78) * 1.08);
+
+        // Rim-wall & scree-basin erosion focus mask (from GLSL plateauMask)
+        let inBasin = 1.0 - smoothstep(rimThresh - 0.06, rimThresh + 0.14, rawMassif);
+        initMask = mix(1.0, clamp(max(inBasin, cliffWall * 0.9), 0.22, 1.0), rimAmount);
+        initSediment = screeApron * params.baseHeight * 0.16;
     } else if (params.landformMode == 2u) {
         // MODE 2: Fenglin Karst Pillars & Quartz-Sandstone Needles (Zhangjiajie / Guilin)
         // All 4 primary sliders directly shape the karst formations:
@@ -119,10 +141,11 @@ fn generateHeightmap(@builtin(global_invocation_id) gid: vec3u) {
         let v2 = voronoi2D(kp * 1.85 + vec2f(7.3, 4.1), 0.92, seed + 67.0);
         let v3 = voronoi2D(kp * 3.10 + vec2f(13.7, 9.4), 0.85, seed + 103.0);
 
-        // Winding canyon gorge floor
-        let gorgeChannel = smoothstep(0.18, 0.72, fbmEx(uv.x * 1.8 + 5.0, uv.y * 1.8 + 11.0, seed + 3.0, 3, 2.0, 0.5));
+        // Winding canyon gorge floor scaled by baseFreq
+        let gorgeFreq = max(baseFreq * 0.75, 0.6);
+        let gorgeChannel = smoothstep(0.18, 0.72, fbmEx(uv.x * gorgeFreq + 5.0, uv.y * gorgeFreq + 11.0, seed + 3.0, 3, 2.0, 0.5));
         let valleyFloor = 0.05 + 0.12 * gorgeChannel
-                        + 0.04 * fbmEx(uv.x * 6.0, uv.y * 6.0, seed + 11.0, 3, 2.0, 0.5);
+                        + 0.04 * fbmEx(uv.x * gorgeFreq * 3.2, uv.y * gorgeFreq * 3.2, seed + 11.0, 3, 2.0, 0.5);
 
         // Ridge crest weight controls what fraction of cells host a pillar (from 25% sparse to 85% dense)
         let survivalThreshold1 = clamp(0.72 - rWeight * 0.58, 0.12, 0.78);
@@ -190,36 +213,52 @@ fn generateHeightmap(@builtin(global_invocation_id) gid: vec3u) {
 
         let curve = max(params.heightCurve, 0.3);
         h = pow(clamp01(origH), curve);
+    } else if (params.landformMode == 4u) {
+        // MODE 4: Evolved Ridged Plateau-Rim Massif (Direct GLSL Genotype Port)
+        // Low-octave rotated Musgrave ridged + Perlin-Worley hybrid with applyPlateauRim()
+        // and inverted gorge/massif contrast curve for dramatic high-relief peaks.
+        let rWeight = clamp01(params.ridgeWeight);
+        let ridgeRaw = ridgedEx(wx, wy, seed + 7.0, oct, lac, gain, max(sharp * 0.85, 1.0));
+        let pwRaw = fbmPerlinWorley(vec2f(wx * 0.85, wy * 0.85), seed + 19.0, oct, lac, gain);
+        let rawH = mix(pwRaw, 1.0 - ridgeRaw, rWeight);
+        let rimAmount = 0.22;
+        let rimH = applyPlateauRim(rawH, rimAmount);
+        let curved = pow(clamp01(rimH), max(params.heightCurve * 0.65, 0.4));
+        h = clamp01(((curved - 0.5) * 0.96 + 0.55) * (0.88 + 0.22 * ampEnvelope));
     } else {
         // MODE 0: Tectonic High-Mountain Range (Himalayas / Karakoram / Alps)
-        let baseFbm = fbmEx(wx, wy, seed, oct, lac, gain);
-        let ridge1 = ridgedEx(wx + 100.0, wy + 100.0, seed + 7.0, max(oct - 1, 2), lac, gain, sharp);
+        // Uses octave-rotated Musgrave ridged chains + Perlin-Worley massif structure + incised gorge envelope
+        // so macro slopes remain coherent for Phacelle / Gavoronoise gully branching.
+        let baseMassif = fbmPerlinWorley(vec2f(wx, wy), seed, oct, lac, gain);
+        let ridge1 = ridgedEx(wx + 100.0, wy + 100.0, seed + 7.0, oct, lac, gain, sharp);
 
         let angRad = params.secondRangeAngle * PI / 180.0;
         let ca = cos(angRad);
         let sa = sin(angRad);
         let rx2 = wx * ca - wy * sa;
         let ry2 = wx * sa + wy * ca;
-        let ridge2 = ridgedEx(rx2 * 0.85 + 210.0, ry2 * 0.85 + 140.0, seed + 41.0, max(oct - 1, 2), lac, gain, sharp);
+        let ridge2 = ridgedEx(rx2 * 0.88 + 210.0, ry2 * 0.88 + 140.0, seed + 41.0, oct, lac, gain, sharp);
 
-        let combinedRidge = mix(ridge1, max(ridge1, ridge2 * 0.94), clamp01(params.secondRangeWeight));
-        let rawMix = mix(baseFbm, combinedRidge, clamp01(params.ridgeWeight));
+        // Inverted low-octave crease network carves deep tectonic river gorges between massif blocks
+        let gorgeCrease = 1.0 - ridgedEx(wx * 0.75 + 55.0, wy * 0.75 + 85.0, seed + 59.0, min(oct, 2), lac, gain, 1.8);
 
-        // Fine craggy detail
-        let fine = (fbmEx(wx * 2.4, wy * 2.4, seed + 23.0, 4, 2.0, 0.5) - 0.38) * 0.16;
+        let combinedRidge = mix(ridge1, max(ridge1, ridge2 * 0.95), clamp01(params.secondRangeWeight));
+        let tectonicCore = mix(combinedRidge, combinedRidge * (0.55 + 0.65 * gorgeCrease), 0.45);
+        let rawMix = mix(baseMassif, tectonicCore, clamp01(params.ridgeWeight));
 
-        // Normalize raw noise range (~[0.12, 0.78]) into full [0, 1] before applying heightCurve
-        // so that peaks genuinely reach baseHeight instead of being crushed to 25%!
-        let normalized = clamp01((rawMix + fine - 0.10) / 0.68) * ampEnvelope;
+        // Incise low basins while preserving soaring pyramidal peak relief
+        let rimInjected = applyPlateauRim(clamp01((rawMix - 0.08) / 0.78), 0.16);
+        let normalized = clamp01(rimInjected * ampEnvelope);
         let curve = max(params.heightCurve, 0.3);
-        h = clamp01(pow(clamp01(normalized), curve) * 1.15);
+        let shaped = pow(clamp01(normalized), curve) * 1.12;
+        h = clamp01((shaped - 0.5) * 0.96 + 0.54);
     }
 
     let relief = clamp(params.baseHeight, 0.0, MAX_HEIGHT);
     heights[idx] = toFixedHeight(h * relief);
 
     if (params.clearAux != 0u) {
-        aux[idx] = vec4f(0.0, initSediment, 1.0, 0.0);
+        aux[idx] = vec4f(0.0, initSediment, initMask, 0.0);
     }
 }
 `;
@@ -253,6 +292,10 @@ struct DuneFieldParams {
     sizeVariation: f32,      // [0..1] breaks up uniform wavelength & height across the desert
     seed: f32,
     writeSediment: u32,
+    frequency: f32,          // [0.25..4.0] global scale / frequency multiplier for dunes, draa & meanders
+    _pad0: f32,
+    _pad1: f32,
+    _pad2: f32,
 };
 
 @group(0) @binding(0) var<uniform> params: DuneFieldParams;
@@ -303,14 +346,15 @@ fn evaluateDuneSystem(worldPosM: vec2f, windRad: f32) -> vec3f {
 
     let uv = worldPosM / WORLD_M;
     let sizeVar = clamp01(params.sizeVariation);
+    let freqScale = select(max(params.frequency, 0.25), 1.0, params.frequency <= 0.01);
 
     // Multi-scale spatial variation in sand supply, dune height, and spacing
-    let supplyNoise = fbmEx(uv.x * 1.6 + 19.0, uv.y * 1.6 + 43.0, seed + 3.0, 3, 2.0, 0.5);
-    let scaleNoise = fbmEx(uv.x * 0.9 + 83.0, uv.y * 0.9 + 17.0, seed + 9.0, 2, 2.0, 0.5);
+    let supplyNoise = fbmEx(uv.x * 1.6 * freqScale + 19.0, uv.y * 1.6 * freqScale + 43.0, seed + 3.0, 3, 2.0, 0.5);
+    let scaleNoise = fbmEx(uv.x * 0.9 * freqScale + 83.0, uv.y * 0.9 * freqScale + 17.0, seed + 9.0, 2, 2.0, 0.5);
     let localHeightMult = mix(1.0, 0.25 + 1.25 * smoothstep(0.18, 0.82, supplyNoise), sizeVar);
     let localWaveMult = mix(1.0, 0.68 + 0.72 * scaleNoise, sizeVar * 0.75);
 
-    let warpFreq = max(params.warpFrequency, 0.2);
+    let warpFreq = max(params.warpFrequency * freqScale, 0.2);
     let warpAmp = params.warpAmplitude;
     let warpVec = vec2f(
         (fbmEx(uv.x * warpFreq * 3.5 + 37.0, uv.y * warpFreq * 3.5, seed + 13.0, 3, 2.0, 0.5) - 0.5) * warpAmp,
@@ -320,18 +364,18 @@ fn evaluateDuneSystem(worldPosM: vec2f, windRad: f32) -> vec3f {
     let warpedWorldM = warpedUv * WORLD_M;
 
     // 1. Primary Draa (Mega-dune) underlying wave + rocky/gravel desert floor undulation
-    var draaMeters = (fbmEx(uv.x * 2.2, uv.y * 2.2, seed + 61.0, 4, 2.0, 0.5) - 0.35) * 14.0;
+    var draaMeters = (fbmEx(uv.x * 2.2 * freqScale, uv.y * 2.2 * freqScale, seed + 61.0, 4, 2.0, 0.5) - 0.35) * 14.0;
     if (params.draaHeight > 0.5) {
         let draaRad = windRad + params.draaAngleOffset * PI / 180.0;
         let draaWind = vec2f(cos(draaRad), sin(draaRad));
-        let draaWaveM = max(params.draaWavelength, 250.0) * localWaveMult;
+        let draaWaveM = max((params.draaWavelength / freqScale) * localWaveMult, 150.0);
         let draaDownwind = dot(warpedWorldM, draaWind) / draaWaveM;
         let draaPhase = fract(draaDownwind + seed * 0.07);
         let draaProf = asymmetricDuneProfile(draaPhase, clamp(params.brinkPosition + 0.04, 0.55, 0.90), params.stossPower, params.leePower);
         draaMeters = max(0.0, draaMeters) + draaProf.x * params.draaHeight * (0.55 + 0.65 * supplyNoise);
     }
 
-    let waveM = max(params.duneWavelength * localWaveMult, 30.0);
+    let waveM = max((params.duneWavelength / freqScale) * localWaveMult, 25.0);
     let cyclesPerTile = WORLD_M / waveM;
 
     var rawDune01 = 0.0;
@@ -342,7 +386,7 @@ fn evaluateDuneSystem(worldPosM: vec2f, windRad: f32) -> vec3f {
         // Overlapping staggered cellular grid of individual crescent dunes with varying sizes
         let downwindM = dot(worldPosM, windDir);
         let crosswindM = dot(worldPosM, crestDir);
-        let cellSizeM = max(params.duneWavelength * 1.35, 60.0);
+        let cellSizeM = max((params.duneWavelength / freqScale) * 1.35, 45.0);
         let bGrid = vec2f(downwindM / cellSizeM, crosswindM / cellSizeM);
         let bInt = floor(bGrid);
         let bFrac = fract(bGrid);
@@ -428,9 +472,8 @@ fn evaluateDuneSystem(worldPosM: vec2f, windRad: f32) -> vec3f {
     }
 
     let reposeRad = clamp(params.angleOfRepose, 25.0, 42.0) * PI / 180.0;
-    let leeRunM = waveM * max(1.0 - params.brinkPosition, 0.12);
-    let maxReposeHeightM = tan(reposeRad) * leeRunM * 1.45;
-    let effDuneHeightM = min(params.duneHeight, maxReposeHeightM);
+    let reposeSteepening = clamp(tan(reposeRad) / tan(33.0 * PI / 180.0), 0.75, 1.35);
+    let effDuneHeightM = max(params.duneHeight, 0.0) * mix(1.0, reposeSteepening, isSlipFace * 0.25);
 
     let mesoMeters = rawDune01 * effDuneHeightM;
     return vec3f(max(0.0, draaMeters + mesoMeters), isSlipFace, rawDune01);
@@ -501,7 +544,7 @@ ${COMMON_WGSL}
 struct VoronoiBlockParams {
     formationMode: u32,      // 0=Dendritic Canyon (Grand Canyon), 1=Isolated Buttes (Monument Valley), 2=Table Tepui (Roraima), 3=Beehive Domes (Bungle Bungles)
     baseHeight: f32,
-    cellScale: f32,
+    cellScale: f32,          // Terrain frequency (scale)
     blockRelief: f32,
     canyonWidth: f32,
     canyonDepth: f32,
@@ -512,6 +555,9 @@ struct VoronoiBlockParams {
     roughness: f32,
     seed: f32,
     clearAux: u32,
+    orientationDeg: f32,     // [0..360] rotates canyon / tepui / butte / joint-grid axis (e.g. 45° diagonal canyon)
+    warpFrequency: f32,      // Distortion / meander frequency
+    _pad0: f32,
 };
 
 @group(0) @binding(0) var<uniform> params: VoronoiBlockParams;
@@ -526,12 +572,19 @@ fn generateVoronoiBlocks(@builtin(global_invocation_id) gid: vec3u) {
 
     let idx = y * N + x;
     let seed = params.seed;
-    let uv = vec2f(f32(x) / N_F, f32(y) / N_F);
-    let scale = max(params.cellScale, 0.5);
-    let warpAmp = params.warpAmplitude;
+    let rawUv = vec2f(f32(x) / N_F, f32(y) / N_F);
+    let orientRad = params.orientationDeg * PI / 180.0;
+    let oCos = cos(orientRad);
+    let oSin = sin(orientRad);
+    let cUv = rawUv - vec2f(0.5, 0.5);
+    let uv = vec2f(cUv.x * oCos - cUv.y * oSin, cUv.x * oSin + cUv.y * oCos) + vec2f(0.5, 0.5);
 
-    let wx = (fbmEx(uv.x * 2.8 + 19.0, uv.y * 2.8, seed + 11.0, 4, 2.0, 0.5) - 0.5) * warpAmp;
-    let wy = (fbmEx(uv.x * 2.8, uv.y * 2.8 + 47.0, seed + 23.0, 4, 2.0, 0.5) - 0.5) * warpAmp;
+    let scale = max(params.cellScale, 0.4);
+    let warpAmp = params.warpAmplitude;
+    let wFreq = select(max(params.warpFrequency, 0.4), 2.8, params.warpFrequency <= 0.01);
+
+    let wx = (fbmEx(uv.x * wFreq + 19.0, uv.y * wFreq, seed + 11.0, 4, 2.0, 0.5) - 0.5) * warpAmp;
+    let wy = (fbmEx(uv.x * wFreq, uv.y * wFreq + 47.0, seed + 23.0, 4, 2.0, 0.5) - 0.5) * warpAmp;
     let wUv = uv + vec2f(wx, wy);
 
     var h = 0.0;
@@ -539,11 +592,14 @@ fn generateVoronoiBlocks(@builtin(global_invocation_id) gid: vec3u) {
     var maskOut = 1.0;
 
     if (params.formationMode == 0u) {
-        // MODE 0: Dendritic Trunk & Tributary Gorge (Grand Canyon / Island in the Sky)
-        // A sinuous meandering main river canyon with branching multi-scale side gorges
-        // incised through a compound cliff-bench horizontal plateau.
-        let trunkMeander = (fbmEx(uv.x * 1.8 + 7.0, uv.y * 1.2, seed + 5.0, 3, 2.0, 0.5) - 0.5) * 0.45 * (0.5 + warpAmp);
-        let trunkDist = abs((uv.y - 0.5) + trunkMeander + (uv.x - 0.5) * params.blockTilt * 0.5);
+        // MODE 0: Dendritic Trunk & Tributary Gorge (Grand Canyon / Island in the Sky / Bryce Canyon)
+        // Rotatable via orientationDeg so the main canyon can run diagonally across the tile,
+        // and scalable via cellScale (Terrain frequency) & warpFrequency!
+        let freqRatio = scale / 2.8;
+        let meanderFreq = max(wFreq * 0.65 * freqRatio, 0.4);
+        let trunkMeander = (fbmEx(uv.x * meanderFreq + 7.0, uv.y * meanderFreq * 0.7, seed + 5.0, 3, 2.0, 0.5) - 0.5) * 0.45 * (0.5 + warpAmp);
+        let rawTrunkCoord = (uv.y - 0.5) * max(freqRatio, 0.35) + trunkMeander + (uv.x - 0.5) * params.blockTilt * 0.5;
+        let trunkDist = select(abs(sin(rawTrunkCoord * PI)) / PI, abs(rawTrunkCoord), freqRatio <= 1.35);
 
         // Branching side tributaries via multi-octave ridged valleys oriented toward the trunk
         let trib1 = abs(fbmEx(wUv.x * scale * 1.4, wUv.y * scale * 0.9, seed + 31.0, 3, 2.0, 0.5) - 0.5) * 2.0;
@@ -569,8 +625,8 @@ fn generateVoronoiBlocks(@builtin(global_invocation_id) gid: vec3u) {
         let cliffBench = stepFloor + smoothstep(0.15, 0.78, stepFrac) / steps;
         plateau = mix(plateau, cliffBench, clamp01(params.blockRelief));
 
-        // Plateau top undulation, buttes, and rock roughness
-        let rimDetail = (fbmEx(uv.x * 8.0, uv.y * 8.0, seed + 101.0, 4, 2.0, 0.5) - 0.45) * params.roughness;
+        // Plateau top undulation, buttes, and rock roughness scaled with frequency
+        let rimDetail = (fbmEx(uv.x * scale * 2.8, uv.y * scale * 2.8, seed + 101.0, 4, 2.0, 0.5) - 0.45) * params.roughness;
         h = clamp01((1.0 - params.canyonDepth) + params.canyonDepth * plateau + rimDetail * (0.3 + 0.7 * plateau));
         initSediment = (1.0 - mainGorge) * 16.0;
         maskOut = plateau;
@@ -639,8 +695,9 @@ fn generateVoronoiBlocks(@builtin(global_invocation_id) gid: vec3u) {
     } else if (params.formationMode == 2u) {
         // MODE 2: Sheer Table-Top Tepui (Mount Roraima / Guiana Highlands)
         // A monumental flat-topped vertical-walled quartzite table mountain rising from a
-        // stepped talus pedestal and jungle highland floor, with a fractured labyrinth summit.
-        let c = (uv - vec2f(0.5, 0.5)) * 2.0;
+        // stepped talus pedestal and jungle highland floor, rotatable & scalable via sliders.
+        let tepuiScale = clamp(scale / 2.4, 0.4, 3.2);
+        let c = (uv - vec2f(0.5, 0.5)) * 2.0 * tepuiScale;
         let rotAngle = 0.55;
         let rc = vec2f(c.x * cos(rotAngle) - c.y * sin(rotAngle), (c.x * sin(rotAngle) + c.y * cos(rotAngle)) * 1.35);
 
@@ -723,6 +780,11 @@ struct IslandCalderaParams {
     falloffMix: f32,
     seed: f32,
     clearAux: u32,
+    frequency: f32,          // Terrain / detail frequency (scale)
+    orientationDeg: f32,     // [0..360] rotates synclinal oval ring, outlet gorge & caldera asymmetry
+    _pad0: f32,
+    _pad1: f32,
+    _pad2: f32,
 };
 
 @group(0) @binding(0) var<uniform> params: IslandCalderaParams;
@@ -737,52 +799,105 @@ fn generateIslandCaldera(@builtin(global_invocation_id) gid: vec3u) {
 
     let idx = y * N + x;
     let seed = params.seed;
-    let uv = vec2f(f32(x) / N_F, f32(y) / N_F);
+    let rawUv = vec2f(f32(x) / N_F, f32(y) / N_F);
+    let orientRad = params.orientationDeg * PI / 180.0;
+    let oCos = cos(orientRad);
+    let oSin = sin(orientRad);
+    let cUv = rawUv - vec2f(0.5, 0.5);
+    let uv = vec2f(cUv.x * oCos - cUv.y * oSin, cUv.x * oSin + cUv.y * oCos) + vec2f(0.5, 0.5);
     let centered = (uv - vec2f(0.5, 0.5)) * 2.0;
 
+    let freq = select(max(params.frequency, 0.4), 2.5, params.frequency <= 0.01);
+    let freqRatio = freq / 2.5;
+
     let wAmp = params.coastWarp;
-    let wx = (fbmEx(uv.x * 3.5 + 17.0, uv.y * 3.5, seed + 11.0, 4, 2.0, 0.5) - 0.5) * 2.0 * wAmp;
-    let wy = (fbmEx(uv.x * 3.5, uv.y * 3.5 + 43.0, seed + 29.0, 4, 2.0, 0.5) - 0.5) * 2.0 * wAmp;
+    let wx = (fbmEx(uv.x * 3.5 * freqRatio + 17.0, uv.y * 3.5 * freqRatio, seed + 11.0, 4, 2.0, 0.5) - 0.5) * 2.0 * wAmp;
+    let wy = (fbmEx(uv.x * 3.5 * freqRatio, uv.y * 3.5 * freqRatio + 43.0, seed + 29.0, 4, 2.0, 0.5) - 0.5) * 2.0 * wAmp;
     let wp = centered + vec2f(wx, wy);
 
     var h = 0.0;
     var maskVal = 0.0;
 
     if (params.landformMode == 1u) {
-        // MODE 1: Synclinal Structural Amphitheater (Wilpena Pound, Flinders Ranges, South Australia)
-        // An elongated oval ring of inward-dipping quartzite strata:
-        // - Steep outward-facing scarp cliff around the oval perimeter
-        // - Gentle inward-dipping dip slope descending into the central Pound basin
-        // - Serrated cuesta hogback peaks along the rim + eastern outlet gorge breach
+        // MODE 1: Synclinal Structural Amphitheater (Wilpena Pound / Ikara, Flinders Ranges, South Australia)
+        // Boat-shaped bilobed syncline of inward-dipping Rawnsley Quartzite beds with a continuous,
+        // asymmetric cuesta rim (highest at St Mary Peak & Rawnsley Bluff), sheer outward escarpments,
+        // gently bowled interior basin floor, eastern outlet gorge breach, and flanking strike ridges.
         let rot = 0.42;
-        let ep = vec2f(
-            (wp.x * cos(rot) - wp.y * sin(rot)) * 0.82,
-            (wp.x * sin(rot) + wp.y * cos(rot)) * 1.28
+        let baseEp = vec2f(
+            (wp.x * cos(rot) - wp.y * sin(rot)) * 0.88,
+            (wp.x * sin(rot) + wp.y * cos(rot)) * 1.34
         );
-        let rOval = length(ep);
-        let rimR = clamp(params.islandRadius * 0.72, 0.35, 0.78);
 
-        var ringElev = 0.0;
+        // Bilobed boat-shaped synclinal outline: slightly wider northern/southern lobes with a gentle medial waist
+        let waistPinch = 1.0 + 0.14 * (1.0 - smoothstep(0.0, 0.55, abs(baseEp.x))) - 0.08 * baseEp.x;
+        let ep = vec2f(baseEp.x, baseEp.y * waistPinch);
+        let angle = atan2(ep.y, ep.x);
+
+        // Low-order non-periodic structural warp of the syncline rim (zero high-frequency cogwheel teeth!)
+        let rimMacroWarp = (fbmEx(cos(angle) * 0.9 + 7.1, sin(angle) * 0.9 + 13.7, seed + 19.0, 3, 2.0, 0.5) - 0.5) * 0.14 * (0.5 + wAmp);
+        let rOval = length(ep) + rimMacroWarp;
+        let rimR = clamp(params.islandRadius * 0.72, 0.36, 0.78);
+
+        // Smooth asymmetric rim crest elevation around the perimeter:
+        // Rises highest on the north-west / north-east bluff (St Mary Peak) and south-east bluff (Rawnsley Bluff)
+        let stMaryBluff = 0.76 + 0.24 * smoothstep(-0.6, 0.85, cos(angle - 0.55));
+        let rimUndulation = (fbmEx(uv.x * 1.8 * freqRatio + 5.0, uv.y * 1.8 * freqRatio + 11.0, seed + 31.0, 3, 2.0, 0.5) - 0.5) * 0.16;
+        // Subtle flatiron dip-slope facets controlled by radialGullies (smooth asymmetric waves, not spiky teeth)
+        let flatironPhase = fract(angle * round(5.0 * freqRatio) / TAU + wx * 0.65);
+        let flatironFacet = (smoothstep(0.0, 0.72, flatironPhase) - 0.35) * 0.08 * clamp01(params.radialGullies);
+        let crestHeight = clamp(stMaryBluff + rimUndulation + flatironFacet, 0.52, 1.05);
+
+        // Narrow water-gap outlet gorge breach on the eastern flank (Wilpena Creek Gorge)
+        let breachDist = abs(angle - 0.32);
+        let gorgeBreach = smoothstep(0.045, 0.19, breachDist);
+
+        // Gently undulating outback plain & interior basin floor base
+        let plainFloor = 0.10 + 0.045 * fbmEx(uv.x * 2.4 * freqRatio + 3.0, uv.y * 2.4 * freqRatio + 9.0, seed + 47.0, 3, 2.0, 0.5);
+
+        var ringElev = plainFloor;
         if (rOval < rimR) {
-            // Inside the Pound: gentle inward synclinal dip slope curving down to a flat-ish basin floor
+            // Inside the Pound: smooth concave inward-dipping quartzite bedding slope (14°–22°)
+            // grading into a flat-ish bowled interior basin floor
             let innerT = clamp01(rOval / rimR);
-            ringElev = 0.14 + 0.82 * pow(innerT, max(params.rimSharpness * 1.25, 1.6));
+            let dipCurve = pow(innerT, max(params.rimSharpness * 1.35, 1.85));
+            // Subtle dip-slope bedding steps along the inward incline
+            let dipSteps = sin(innerT * 18.0) * 0.008 * innerT * (1.0 - innerT);
+            // Axial creek channel draining the interior basin toward the eastern gorge breach
+            let creekDist = abs(ep.y - 0.04 * sin(ep.x * 3.0));
+            let axialCreek = (1.0 - smoothstep(0.0, 0.16, creekDist)) * (1.0 - innerT * 0.5) * 0.035;
+            let interiorBasin = plainFloor + 0.03 * (1.0 - innerT) - axialCreek;
+            ringElev = interiorBasin + (crestHeight * 0.84 * dipCurve + dipSteps) * mix(0.08, 1.0, gorgeBreach);
         } else {
-            // Outside the Pound: steep outward-facing escarpment scarp + secondary outer hogback cuesta ring
+            // Outside the Pound: steep upper quartzite cliff escarpment (45°–65°) dropping onto a 30° talus apron
             let outerDist = rOval - rimR;
-            let scarpDrop = exp(-outerDist * 9.5);
-            let outerHogback = exp(-pow((outerDist - 0.22) / 0.075, 2.0)) * 0.42;
-            ringElev = 0.10 + 0.86 * max(scarpDrop, outerHogback);
+            let cliffWall = exp(-outerDist * 13.5) * 0.62;
+            let talusPediment = exp(-outerDist * 4.2) * 0.24;
+            let mainEscarpment = (cliffWall + talusPediment) * crestHeight * mix(0.08, 1.0, gorgeBreach);
+
+            // Discontinuous parallel flanking homoclinal strike ridges (ABC Range / Bunyeroo style)
+            // Gated primarily to the lateral NE/SW flanks so it never forms an artificial 360° bullseye ring!
+            let lateralFlankGate = pow(abs(sin(angle + 0.15)), 1.6) * smoothstep(0.18, 0.45, breachDist);
+            let strikeDist1 = outerDist - 0.19;
+            let strikeRidge1 = select(
+                exp(-strikeDist1 * 11.0),
+                exp(-strikeDist1 * strikeDist1 / 0.0032),
+                strikeDist1 < 0.0
+            ) * 0.34 * lateralFlankGate;
+            let strikeDist2 = outerDist - 0.34;
+            let strikeRidge2 = select(
+                exp(-strikeDist2 * 10.0),
+                exp(-strikeDist2 * strikeDist2 / 0.0038),
+                strikeDist2 < 0.0
+            ) * 0.21 * lateralFlankGate * clamp01(params.radialGullies + 0.35);
+
+            ringElev = plainFloor + max(mainEscarpment, max(strikeRidge1, strikeRidge2));
         }
 
-        // Serrated quartzite hogback peaks & dip-slope gullies around the rim
-        let angle = atan2(ep.y, ep.x);
-        let hogbackNotches = 0.78 + 0.22 * abs(sin(angle * 18.0 + wx * 6.0));
-        // Narrow outlet gorge breach on one side (like Edeowie / Wilpena Creek gorge)
-        let gorgeBreach = smoothstep(0.06, 0.24, abs(angle - 0.35));
-
-        let detail = ridgedEx(uv.x * 5.0, uv.y * 5.0, seed + 37.0, 4, 2.0, 0.5, 1.8) * 0.22;
-        h = clamp01(ringElev * hogbackNotches * mix(0.22, 1.0, gorgeBreach) + detail * 0.5);
+        // Subtle weathered sandstone/quartzite surface texture (smooth fBm, no spiky cones)
+        let rockWeathered = (fbmEx(uv.x * 6.0 * freqRatio, uv.y * 6.0 * freqRatio, seed + 73.0, 3, 2.0, 0.5) - 0.5)
+                          * 0.035 * smoothstep(0.18, 0.55, ringElev);
+        h = clamp01(ringElev + rockWeathered);
         maskVal = select(0.0, 1.0 - clamp01(rOval / rimR), rOval < rimR);
     } else {
         // MODE 0: Volcanic Caldera Island
@@ -803,10 +918,10 @@ fn generateIslandCaldera(@builtin(global_invocation_id) gid: vec3u) {
         }
 
         let angle = atan2(wp.y, wp.x);
-        let radialWave = abs(sin(angle * 14.0 + fbmEx(uv.x * 5.0, uv.y * 5.0, seed + 61.0, 3, 2.0, 0.5) * 4.0));
+        let radialWave = abs(sin(angle * round(14.0 * freqRatio) + fbmEx(uv.x * 5.0 * freqRatio, uv.y * 5.0 * freqRatio, seed + 61.0, 3, 2.0, 0.5) * 4.0));
         let gullyFactor = mix(1.0, 0.72 + 0.28 * radialWave, clamp01(params.radialGullies) * flankT * (1.0 - flankT * 0.5));
 
-        let noiseTex = ridgedEx(uv.x * 4.5, uv.y * 4.5, seed + 5.0, 5, 2.0, 0.5, 1.8);
+        let noiseTex = ridgedEx(uv.x * 4.5 * freqRatio, uv.y * 4.5 * freqRatio, seed + 5.0, 5, 2.0, 0.5, 1.8);
         h = clamp01(cone * gullyFactor * (0.65 + 0.35 * noiseTex));
         maskVal = clamp01(flankT);
     }
