@@ -88,7 +88,7 @@ describe("WebGPU Terrain Compositor Architecture", () => {
             }
         });
 
-        it("exposes all 4 dune crest modes (Phacelle, Warped fBm, Sudan Barchans, Namib Star Dunes) and geological landform modes", () => {
+        it("exposes all 4 dune crest modes (Phacelle, Warped fBm, Sudan Barchans, Namib Star Dunes), geological landform modes, and frequency/rotation sliders", () => {
             expect(MAX_HEIGHT_M).toBeGreaterThanOrEqual(2500);
 
             const duneOp = registry.get("gen.duneField");
@@ -100,10 +100,31 @@ describe("WebGPU Terrain Compositor Architecture", () => {
                 { value: 2, label: "Barchan Crescents (Sudan)" },
                 { value: 3, label: "Pyramidal Star Dunes (Namib)" },
             ]);
+            expect(duneOp.paramSchema.find((p) => p.key === "frequency")?.tier).toBe("primary");
+            expect(duneOp.paramSchema.find((p) => p.key === "windDirection")?.tier).toBe("primary");
 
             const voronoiOp = registry.get("gen.voronoiBlock");
             const formationParam = voronoiOp.paramSchema.find((p) => p.key === "formationMode");
             expect(formationParam.options.map((o) => o.value)).toEqual([0, 1, 2, 3]);
+            expect(voronoiOp.paramSchema.find((p) => p.key === "cellScale")?.tier).toBe("primary");
+            expect(voronoiOp.paramSchema.find((p) => p.key === "orientationDeg")?.tier).toBe("primary");
+            expect(voronoiOp.paramSchema.find((p) => p.key === "warpFrequency")?.tier).toBe("primary");
+
+            const ridgeOp = registry.get("gen.ridgeFbm");
+            expect(ridgeOp.paramSchema.find((p) => p.key === "frequency")?.tier).toBe("primary");
+            expect(ridgeOp.paramSchema.find((p) => p.key === "orientationDeg")?.tier).toBe("primary");
+            const mountainModeParam = ridgeOp.paramSchema.find((p) => p.key === "landformMode");
+            expect(mountainModeParam.options.map((o) => o.value)).toEqual([0, 1, 2, 3, 4]);
+
+            const phacelleOp = registry.get("sim.phacelleErosion");
+            const erosionModeParam = phacelleOp.paramSchema.find((p) => p.key === "erosionMode");
+            expect(erosionModeParam.options.map((o) => o.value)).toEqual([0, 1]);
+            expect(phacelleOp.paramSchema.find((p) => p.key === "laplacianWeight")?.tier).toBe("primary");
+            expect(phacelleOp.uniformSchema.byteLength).toBe(64);
+
+            const calderaOp = registry.get("gen.islandCaldera");
+            expect(calderaOp.paramSchema.find((p) => p.key === "frequency")?.tier).toBe("primary");
+            expect(calderaOp.paramSchema.find((p) => p.key === "orientationDeg")?.tier).toBe("primary");
         });
     });
 
@@ -140,9 +161,9 @@ describe("WebGPU Terrain Compositor Architecture", () => {
         });
     });
 
-    describe("12 Real-World Landmark Presets & Dynamic N-Layer Stack", () => {
-        it("ships 14 valid landmark presets that round-trip through JSON serialization", () => {
-            expect(PRESETS.length).toBe(14);
+    describe("15 Real-World Landmark Presets & Dynamic N-Layer Stack", () => {
+        it("ships 15 valid landmark presets that round-trip through JSON serialization", () => {
+            expect(PRESETS.length).toBe(15);
             const expectedPresetIds = [
                 "classic-fbm-mountains",
                 "alpine-dolomites",
@@ -150,6 +171,7 @@ describe("WebGPU Terrain Compositor Architecture", () => {
                 "roraima-tepui",
                 "monument-valley-buttes",
                 "grand-canyon-gorge",
+                "bryce-canyon-hoodoos",
                 "grand-mesa-canyons",
                 "zhangjiajie-karst",
                 "bungle-bungles-domes",

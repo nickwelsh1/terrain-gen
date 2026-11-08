@@ -9,6 +9,7 @@ import {
     createMeshFromData,
     createShaderMaterial,
     attachControl,
+    setCameraLimits,
     addToScene,
     registerScene,
     startEngine,
@@ -16,7 +17,7 @@ import {
     setShaderStorageBuffer,
 } from "@babylonjs/lite";
 
-import { N, SCENE_AREA, SCENE_MAX_HEIGHT } from "./constants.js";
+import { N, SCENE_AREA, SCENE_MAX_HEIGHT, PALETTE_NEUTRAL_CLAY } from "./constants.js";
 import { RENDER_VERTEX_SOURCE as VS_SRC } from "./shaders/render.wgsl.js";
 import { RENDER_FRAGMENT_SOURCE as FS_SRC } from "./shaders/render.wgsl.js";
 import { WALL_VERTEX_SOURCE, WALL_FRAGMENT_SOURCE } from "./shaders/wall.wgsl.js";
@@ -32,7 +33,21 @@ export async function createRenderer(canvas, pipeline, engine) {
     camera.beta = Math.PI / 3;
     camera.radius = SCENE_AREA * 1.5;
     camera.target = { x: 0, y: SCENE_MAX_HEIGHT * 0.3, z: 0 };
+    setCameraLimits(camera, {
+        lowerRadiusLimit: SCENE_AREA * 0.12,
+        upperRadiusLimit: SCENE_AREA * 4.0,
+        lowerBetaLimit: 0.05,
+        upperBetaLimit: Math.PI * 0.48,
+    });
     attachControl(camera, canvas, scene);
+    canvas.addEventListener("wheel", (e) => {
+        if ((e.deltaY < 0 && camera.inertialRadiusOffset < 0) || (e.deltaY > 0 && camera.inertialRadiusOffset > 0)) {
+            camera.inertialRadiusOffset = 0;
+        }
+        if (e.deltaY < 0 && camera.radius <= camera.lowerRadiusLimit + 1e-3) {
+            camera.inertialRadiusOffset = 0;
+        }
+    });
 
     // Light
     addToScene(scene, createHemisphericLight([0, 1, 0], 1.0));
@@ -61,6 +76,7 @@ export async function createRenderer(canvas, pipeline, engine) {
             { name: "normals", type: "array<u32>" },
             { name: "slopes", type: "array<u32>" },
             { name: "aux", type: "array<vec4f>" },
+            { name: "materials", type: "array<vec4f>" },
         ],
         backFaceCulling: false,
         depthWrite: true,
@@ -102,6 +118,9 @@ export async function createRenderer(canvas, pipeline, engine) {
         setShaderStorageBuffer(renderMaterial, "normals", sbs.normals);
         setShaderStorageBuffer(renderMaterial, "slopes", sbs.slopes);
         setShaderStorageBuffer(renderMaterial, "aux", sbs.aux);
+        if (sbs.materials) {
+            setShaderStorageBuffer(renderMaterial, "materials", sbs.materials);
+        }
         setShaderStorageBuffer(wallMaterial, "heights", sbs.erodedHeight);
     }
 
@@ -111,9 +130,9 @@ export async function createRenderer(canvas, pipeline, engine) {
         pipeline.setOnBuffersChanged(() => syncBuffers());
     }
 
-    // Set initial render mode & material palette
+    // Set initial render mode & default neutral clay material palette
     setShaderUniform(renderMaterial, "renderMode", 0);
-    setShaderUniform(renderMaterial, "materialPalette", 0);
+    setShaderUniform(renderMaterial, "materialPalette", PALETTE_NEUTRAL_CLAY);
 
     // Register and start
     await registerScene(scene);

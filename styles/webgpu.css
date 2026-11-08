@@ -62,6 +62,10 @@ body {
     backdrop-filter: blur(10px);
 }
 
+#webgpu-ui {
+    width: 340px;
+}
+
 #erosion-ui,
 #dunes-ui {
     width: 320px;
@@ -415,6 +419,191 @@ body {
 #dunes-ui .pass-toggle.disabled {
     opacity: 0.4;
     pointer-events: none;
+}
+
+/* Step headers, inline summary toggles, floating (i) shader hints, mask preview thumbnails & colour swatches */
+#webgpu-ui .step-label {
+    font-size: 0.72rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: var(--accent);
+    margin: 10px 0 4px 0;
+    padding-left: 6px;
+    border-left: 2px solid var(--accent);
+}
+
+#webgpu-ui .step-label:first-child {
+    margin-top: 2px;
+}
+
+#webgpu-ui .control-row {
+    position: relative;
+}
+
+#webgpu-ui .label-title {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+}
+
+#webgpu-ui .info-btn {
+    width: 15px;
+    height: 15px;
+    min-width: 15px;
+    padding: 0;
+    margin: 0;
+    border-radius: 50%;
+    font-size: 0.66rem;
+    font-family: Georgia, serif;
+    font-style: italic;
+    font-weight: 700;
+    line-height: 13px;
+    text-align: center;
+    color: var(--text-muted);
+    background: hsla(0, 0%, 100%, 0.06);
+    border: 1px solid var(--border-strong);
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+#webgpu-ui .info-btn:hover,
+#webgpu-ui .info-btn[aria-expanded="true"] {
+    color: var(--bg);
+    background: var(--accent);
+    border-color: var(--accent);
+}
+
+#webgpu-ui .shader-hint-popover {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    z-index: 250;
+    padding: 8px 10px;
+    border-radius: 6px;
+    background: hsl(240, 6%, 11%);
+    border: 1px solid var(--accent);
+    box-shadow: 0 8px 24px hsla(0, 0%, 0%, 0.8);
+    font-size: 0.74rem;
+    line-height: 1.35;
+    color: var(--text);
+}
+
+#webgpu-ui .shader-hint-popover .hint-row {
+    margin-bottom: 3px;
+}
+
+#webgpu-ui .shader-hint-popover .hint-key {
+    color: var(--text-muted);
+}
+
+#webgpu-ui .shader-hint-popover code {
+    color: var(--accent);
+    font-family: monospace;
+    font-size: 0.72rem;
+}
+
+#webgpu-ui .shader-hint-popover .hint-desc {
+    margin-top: 4px;
+    color: var(--text);
+}
+
+#webgpu-ui .summary-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    margin: 0;
+    cursor: pointer;
+}
+
+#webgpu-ui .summary-toggle input[type="checkbox"] {
+    margin: 0;
+    width: 13px;
+    height: 13px;
+}
+
+#webgpu-ui .mask-preview-box {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    margin: 4px 0 8px 0;
+}
+
+#webgpu-ui .mask-preview-canvas {
+    width: 200px;
+    height: 200px;
+    border-radius: 6px;
+    border: 1px solid var(--border-strong);
+    background: #111;
+    image-rendering: pixelated;
+}
+
+#webgpu-ui .mask-preview-caption {
+    font-size: 0.68rem;
+    color: var(--text-muted);
+    font-family: monospace;
+}
+
+#webgpu-ui .mask-primary-controls {
+    width: 100%;
+    min-width: 0;
+}
+
+#webgpu-ui .preset-file-actions {
+    margin-top: 6px;
+}
+
+#webgpu-ui .swatch-strip {
+    display: flex;
+    gap: 4px;
+    margin: 6px 0;
+}
+
+#webgpu-ui .swatch-item {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    margin: 0;
+    font-size: 0.68rem;
+    color: var(--text-muted);
+}
+
+#webgpu-ui .swatch-item input[type="color"] {
+    width: 100%;
+    height: 24px;
+    padding: 0;
+    border: 1px solid var(--border-strong);
+    border-radius: 4px;
+    background: transparent;
+    cursor: pointer;
+}
+
+#webgpu-ui .btn-like.import-palette-label {
+    flex: 1;
+    justify-content: center;
+    background: var(--accent-subtle);
+    color: var(--accent);
+    border: 1px solid var(--border-strong);
+    border-radius: 6px;
+    padding: 6px 0;
+    cursor: pointer;
+    font-size: 0.8rem;
+    margin: 0;
+    text-align: center;
+}
+
+#webgpu-ui .btn-like.import-palette-label:hover {
+    background: hsla(50, 100%, 67%, 0.25);
+    border-color: var(--accent);
+}
+
+#webgpu-ui button:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
 }
 
 /* Scrollbars for panels */

@@ -99,6 +99,55 @@ fn valueNoise01(x: f32, y: f32, seed: f32) -> f32 {
     return (valueNoise(x, y, seed) - 0.5) * 2.0;
 }
 
+// Inter-octave 2D rotation (~36.87 deg 3-4-5 right triangle) to break axial grid alignment
+fn octRotate(p: vec2f) -> vec2f {
+    return vec2f(0.8 * p.x + 0.6 * p.y, -0.6 * p.x + 0.8 * p.y);
+}
+
+// Quintic-fade 2D gradient Perlin noise in [-1, 1]
+fn perlinNoise2D(p: vec2f, seed: vec2f) -> f32 {
+    let pi = floor(p);
+    let pf = fract(p);
+    let w = pf * pf * pf * (pf * (pf * 6.0 - 15.0) + 10.0);
+
+    let a = dot(hash22f(pi + seed), pf);
+    let b = dot(hash22f(pi + vec2f(1.0, 0.0) + seed), pf - vec2f(1.0, 0.0));
+    let c = dot(hash22f(pi + vec2f(0.0, 1.0) + seed), pf - vec2f(0.0, 1.0));
+    let d = dot(hash22f(pi + vec2f(1.0, 1.0) + seed), pf - vec2f(1.0, 1.0));
+
+    return clamp(mix(mix(a, b, w.x), mix(c, d, w.x), w.y) * 1.41421356, -1.0, 1.0);
+}
+
+// Worley F1 and F2 distances in vec2f(F1, F2)
+fn worleyF(p: vec2f, seed: vec2f) -> vec2f {
+    let pi = floor(p);
+    let pf = fract(p);
+    var f1 = 8.0;
+    var f2 = 8.0;
+    for (var i: i32 = -1; i <= 1; i = i + 1) {
+        for (var j: i32 = -1; j <= 1; j = j + 1) {
+            let g = vec2f(f32(i), f32(j));
+            let o = hash22f(pi + g + seed) * 0.5 + 0.5;
+            let r = g + o - pf;
+            let d = dot(r, r);
+            if (d < f1) {
+                f2 = f1;
+                f1 = d;
+            } else if (d < f2) {
+                f2 = d;
+            }
+        }
+    }
+    return vec2f(sqrt(f1), sqrt(f2));
+}
+
+// Perlin-Worley hybrid base noise in [0, 1] (blocky cellular massifs fused with gradient ridges)
+fn perlinWorleyBase(p: vec2f, seed: vec2f) -> f32 {
+    let per = perlinNoise2D(p, seed) * 0.5 + 0.5;
+    let wor = 1.0 - clamp01(worleyF(p * 1.7, seed + vec2f(3.1, 7.7)).x);
+    return clamp01(mix(per, wor, 0.55) + 0.15 * (per - 0.5));
+}
+
 // Analytical-derivative 2D gradient noise: returns (value, d/dx, d/dy)
 fn noised(p: vec2f) -> vec3f {
     let i = floor(p);
@@ -124,22 +173,80 @@ fn noised(p: vec2f) -> vec3f {
     return vec3f(value, deriv.x, deriv.y);
 }
 
-// Configurable fBm with variable octaves, lacunarity, and gain
+// Configurable octave-rotated gradient Perlin fBm with variable octaves, lacunarity, and gain
 fn fbmEx(x: f32, y: f32, seed: f32, octaves: i32, lacunarity: f32, gain: f32) -> f32 {
     var value = 0.0;
-    var amplitude = 0.5;
-    var frequency = 1.0;
+    var amplitude = 1.0;
     var sum = 0.0;
     let oct = clamp(octaves, 1, 8);
+    var sp = vec2f(x, y);
+    let seedVec = floor(fract(vec2f(seed * 0.1031, seed * 0.1737)) * 256.0);
 
     for (var i: i32 = 0; i < oct; i = i + 1) {
-        value = value + amplitude * valueNoise01(x * frequency, y * frequency, seed + f32(i) * 17.0);
+        let octSeed = seedVec + vec2f(f32(i) * 17.3, f32(i) * 31.7);
+        let n = perlinNoise2D(sp, octSeed) * 0.5 + 0.5;
+        value = value + amplitude * n;
         sum = sum + amplitude;
         amplitude = amplitude * gain;
-        frequency = frequency * lacunarity;
+        sp = octRotate(sp) * lacunarity;
     }
 
-    return value / max(sum, 1e-6);
+    return clamp01(value / max(sum, 1e-6));
+}
+
+// Perlin-Worley hybrid fBm with inter-octave rotation (ideal for Dolomite carbonate massifs)
+fn fbmPerlinWorley(p: vec2f, seed: f32, octaves: i32, lacunarity: f32, gain: f32) -> f32 {
+    var value = 0.0;
+    var amplitude = 1.0;
+    var sum = 0.0;
+    let oct = clamp(octaves, 1, 8);
+    var sp = p;
+    let seedVec = floor(fract(vec2f(seed * 0.1031, seed * 0.1737)) * 256.0);
+
+    for (var i: i32 = 0; i < oct; i = i + 1) {
+        let octSeed = seedVec + vec2f(f32(i) * 19.1, f32(i) * 29.3);
+        let n = perlinWorleyBase(sp, octSeed);
+        value = value + amplitude * n;
+        sum = sum + amplitude;
+        amplitude = amplitude * gain;
+        sp = octRotate(sp) * lacunarity;
+    }
+
+    return clamp01(value / max(sum, 1e-6));
+}
+
+// 2-stage iterated Inigo Quilez domain warp: p + intensity * (r * 2 - 1) where r = fbm(p + 4*q)
+fn domainWarpIQ(p: vec2f, seed: f32, intensity: f32, freq: f32, octs: i32, persistence: f32) -> vec2f {
+    if (intensity < 0.0001) {
+        return p;
+    }
+    let q = vec2f(
+        fbmEx(p.x * freq + 5.2, p.y * freq + 1.3, seed + 11.0, octs, 2.0, persistence),
+        fbmEx(p.x * freq + 6.8, p.y * freq + 4.1, seed + 23.0, octs, 2.0, persistence)
+    );
+    let r = vec2f(
+        fbmEx(p.x * freq + 4.0 * q.x + 1.7, p.y * freq + 4.0 * q.y + 9.2, seed + 37.0, octs, 2.0, persistence),
+        fbmEx(p.x * freq + 4.0 * q.x + 8.3, p.y * freq + 4.0 * q.y + 2.8, seed + 53.0, octs, 2.0, persistence)
+    );
+    return p + intensity * (r * 2.0 - 1.0);
+}
+
+// Plateau-rim transfer function: incises basins below rim and lifts/undulates high tabular massifs above rim
+fn applyPlateauRim(h: f32, rimAmount: f32) -> f32 {
+    if (rimAmount <= 0.001) {
+        return h;
+    }
+    let rim = 0.42 + 0.14 * rimAmount;
+    let plateauFloor = mix(rim, 0.66, rimAmount * 0.82);
+    if (h >= rim) {
+        let t = (h - rim) / max(1.0 - rim, 1e-4);
+        let undulation = pow(clamp01(t), 0.85);
+        return mix(h, plateauFloor + (1.0 - plateauFloor) * undulation, rimAmount);
+    } else {
+        let t = clamp01(h / max(rim, 1e-4));
+        let incised = t * t * (3.0 - 2.0 * t) * pow(max(t, 1e-4), 0.55 + 0.85 * rimAmount);
+        return mix(h, incised * plateauFloor, rimAmount);
+    }
 }
 
 // Standard 6-octave fBm compatible with heightmap.wgsl.js
@@ -159,28 +266,29 @@ fn fbm(x: f32, y: f32, seed: f32) -> f32 {
     return value / sum;
 }
 
-// Ridged multifractal with configurable octaves and sharpness
+// Musgrave-style octave-rotated ridged multifractal with configurable octaves and sharpness
 fn ridgedEx(x: f32, y: f32, seed: f32, octaves: i32, lacunarity: f32, gain: f32, sharpness: f32) -> f32 {
     var value = 0.0;
-    var amplitude = 0.5;
-    var frequency = 1.0;
+    var amplitude = 1.0;
     var weight = 1.0;
     var sum = 0.0;
     let oct = clamp(octaves, 1, 8);
+    var sp = vec2f(x, y);
+    let seedVec = floor(fract(vec2f(seed * 0.1031, seed * 0.1737)) * 256.0);
 
     for (var i: i32 = 0; i < oct; i = i + 1) {
-        var n = valueNoise(x * frequency, y * frequency, seed + f32(i) * 31.0);
-        n = 1.0 - abs(n * 2.0 - 1.0);
+        let octSeed = seedVec + vec2f(f32(i) * 23.7, f32(i) * 41.3);
+        var n = 1.0 - abs(perlinNoise2D(sp, octSeed));
         n = pow(clamp(n, 0.0001, 1.0), sharpness);
         n = n * weight;
         weight = clamp(n * 2.0, 0.0, 1.0);
         value = value + amplitude * n;
         sum = sum + amplitude;
         amplitude = amplitude * gain;
-        frequency = frequency * lacunarity;
+        sp = octRotate(sp) * lacunarity;
     }
 
-    return value / max(sum, 1e-6);
+    return clamp01(value / max(sum, 1e-6));
 }
 
 fn ridged(x: f32, y: f32, seed: f32) -> f32 {
@@ -241,6 +349,77 @@ fn phacelleNoise(
 
     let normalized = interpolated / max(magnitude, 1e-6);
     return vec4f(normalized.x, normalized.y, sideDir.x, sideDir.y);
+}
+
+// Per-octave seeded Phacelle Noise (Runevision 2026 Advanced Terrain Erosion Filter)
+fn phacelleNoiseSeeded(
+    p: vec2f,
+    normDir: vec2f,
+    freq: f32,
+    offsetCycles: f32,
+    normalization: f32,
+    seed: vec2f
+) -> vec4f {
+    let sideDir = normDir.yx * vec2f(-1.0, 1.0) * freq * TAU;
+    let offset = offsetCycles * TAU;
+
+    let pInt = floor(p);
+    let pFrac = fract(p);
+
+    var phaseDir = vec2f(0.0, 0.0);
+    var weightSum = 0.0;
+
+    for (var i: i32 = -1; i <= 2; i = i + 1) {
+        for (var j: i32 = -1; j <= 2; j = j + 1) {
+            let gridOffset = vec2f(f32(i), f32(j));
+            let gridPoint = pInt + gridOffset;
+            let randomOffset = hash22f(gridPoint + seed) * 0.5;
+            let v = pFrac - gridOffset - randomOffset;
+
+            let sqrDist = dot(v, v);
+            let weight = max(exp(-sqrDist * 2.0) - 0.01111, 0.0);
+            weightSum = weightSum + weight;
+
+            let waveInput = dot(v, sideDir) + offset;
+            phaseDir = phaseDir + vec2f(cos(waveInput), sin(waveInput)) * weight;
+        }
+    }
+
+    let interpolated = phaseDir / max(weightSum, 1e-5);
+    let magRaw = length(interpolated);
+    let magnitude = max(max(1.0 - normalization, magRaw), 1e-5);
+    let normalized = interpolated / magnitude;
+    return vec4f(normalized.x, normalized.y, sideDir.x, sideDir.y);
+}
+
+// Clay John / Fewes 4x4 cellular Gavoronoise directional wave kernel.
+// Returns vec3f(cosWave, dWave/dx, dWave/dy).
+fn gavoronoiseErosion(p: vec2f, dir: vec2f, normalization: f32, seed: vec2f) -> vec3f {
+    let ip = floor(p);
+    let fp = fract(p);
+    var va = vec3f(0.0, 0.0, 0.0);
+    var wt = 0.0;
+
+    for (var i: i32 = -2; i <= 1; i = i + 1) {
+        for (var j: i32 = -2; j <= 1; j = j + 1) {
+            let o = vec2f(f32(i), f32(j));
+            let h = hash22f(ip - o + seed) * 0.5;
+            let pp = fp + o - h;
+            let d = dot(pp, pp);
+            let w = exp(-d * 2.0);
+            wt = wt + w;
+            let mag = dot(pp, dir);
+            let deriv = -sin(mag * TAU) * dir;
+            va = va + vec3f(cos(mag * TAU), deriv.x, deriv.y) * w;
+        }
+    }
+
+    var res = va / max(wt, 1e-5);
+    if (normalization > 0.01) {
+        let waveAmp = clamp(abs(res.x), max(1.0 - normalization * 0.7, 0.25), 1.0);
+        res.x = res.x / max(waveAmp, 0.25);
+    }
+    return res;
 }
 
 // 2D Voronoi / Cellular evaluation:

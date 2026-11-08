@@ -42,6 +42,9 @@ export async function main() {
         onPresetChange(presetId) {
             return pipeline.setPreset(presetId);
         },
+        onLoadStack(stackObj) {
+            return pipeline.loadStack(stackObj);
+        },
         onScopedParamChange(scope, key, value) {
             pipeline.updateScopedParam(scope, key, value);
         },
