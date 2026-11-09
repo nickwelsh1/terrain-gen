@@ -213,6 +213,8 @@
             monochromatic: { label: 'Monochromatic', desc: 'Variations of a single base hue using tints, shades, and tones. Clean, elegant, and deeply unified.' }
         };
 
+        const DEFAULT_PALETTE = ['#52525a', '#181729', '#573d46', '#a16759', '#8a410c'];
+
         let images = [];
         const settings = {
             colorCount: 5,
@@ -229,7 +231,7 @@
         let selectedPaletteId = null;
         let palettes = [];
         let activePalette = null;
-        const line = { start: null, end: null, dragging: null };
+        const line = { start: null, end: null, dragging: null, dragPointerId: null };
         let dragMarker = null;
 
         const els = {
@@ -408,6 +410,48 @@
             return { x: clamp((px - view.offX) / view.dw, 0, 1), y: clamp((py - view.offY) / view.dh, 0, 1) };
         }
 
+        function visibleNormBounds(view = getImageView()) {
+            if (!view) return { x0: 0, y0: 0, x1: 1, y1: 1 };
+            return {
+                x0: clamp(-view.offX / view.dw, 0, 1),
+                y0: clamp(-view.offY / view.dh, 0, 1),
+                x1: clamp((view.vw - view.offX) / view.dw, 0, 1),
+                y1: clamp((view.vh - view.offY) / view.dh, 0, 1)
+            };
+        }
+
+        function safeCapture(el, pointerId) {
+            try { el?.setPointerCapture(pointerId); } catch { /* pointer already released */ }
+        }
+
+        function restoreCapture() {
+            if (dragMarker) {
+                safeCapture(els.overlay.querySelector(`g.point-marker[data-idx="${dragMarker.idx}"]`), dragMarker.pointerId);
+            }
+            if (line.dragging && line.dragPointerId != null) {
+                safeCapture(els.overlay.querySelector(`.line-handle[data-line-key="${line.dragging}"]`), line.dragPointerId);
+            }
+        }
+
+        function paintMarker(idx) {
+            const view = getImageView();
+            const g = els.overlay.querySelector(`g.point-marker[data-idx="${idx}"]`);
+            if (!view || !g || !activePalette) { renderOverlay(); return; }
+            const p = activePalette.points[idx];
+            const pos = normToView(p.x, p.y, view);
+            const cPos = normToView(p.x + (p.ox ?? 0), p.y + (p.oy ?? 0), view);
+            const circle = g.querySelector('circle');
+            circle.setAttribute('cx', cPos.x);
+            circle.setAttribute('cy', cPos.y);
+            circle.setAttribute('fill', formatColor(activePalette.colors[idx].color, 'hex'));
+            const poly = g.querySelector('polygon');
+            if (poly) {
+                const ang = Math.atan2(-(cPos.y - pos.y), -(cPos.x - pos.x));
+                const perp = ang + Math.PI / 2;
+                poly.setAttribute('points', `${cPos.x + Math.cos(perp) * 6},${cPos.y + Math.sin(perp) * 6} ${cPos.x - Math.cos(perp) * 6},${cPos.y - Math.sin(perp) * 6} ${pos.x},${pos.y}`);
+            }
+        }
+
         function rgbToColor(r, g, b, a = 255) {
             return { mode: 'rgb', r: r / 255, g: g / 255, b: b / 255, alpha: a / 255 };
         }
@@ -487,11 +531,12 @@
                 const centers = kmeans(pixels, k, 15);
                 return centers.map((c, i) => ({ color: c, point: points[Math.min(i, points.length - 1)] }));
             } else {
-                return points.map(({ x, y }) => {
+                return points.map((p) => {
+                    const { x, y } = p;
                     const sx = Math.floor(clamp(x, 0, 1) * (w - 1));
                     const sy = Math.floor(clamp(y, 0, 1) * (h - 1));
                     const data = ctx.getImageData(sx, sy, 1, 1).data;
-                    return { color: rgbToColor(data[0], data[1], data[2]), point: { x, y } };
+                    return { color: rgbToColor(data[0], data[1], data[2]), point: { x, y, ox: p.ox, oy: p.oy } };
                 });
             }
         }
@@ -541,7 +586,7 @@
             return { x: best[0] * (r + 10), y: best[1] * (r + 10) };
         }
 
-        function generatePoints(method, count, w, h) {
+        function generatePoints(method, count, w, h, view = null) {
             const pts = [];
             const n = clamp(count, 1, 100);
             if (method === 'diagonal/') {
@@ -596,8 +641,17 @@
                     }
                 }
             }
+            let bx = 0, by = 0, bw = w, bh = h;
+            if (view && method !== 'line') {
+                const b = visibleNormBounds(view);
+                for (const p of pts) {
+                    p.x = b.x0 + p.x * (b.x1 - b.x0);
+                    p.y = b.y0 + p.y * (b.y1 - b.y0);
+                }
+                bx = b.x0 * w; by = b.y0 * h; bw = (b.x1 - b.x0) * w; bh = (b.y1 - b.y0) * h;
+            }
             return pts.map(p => {
-                const off = getPointOffset(p.x * w, p.y * h, w, h);
+                const off = getPointOffset(p.x * w - bx, p.y * h - by, bw, bh);
                 return { x: p.x, y: p.y, ox: off.x / w, oy: off.y / h };
             });
         }
@@ -644,7 +698,7 @@
             } else if (method === 'line' && (!line.start || !line.end)) {
                 return null;
             } else {
-                const pts = generatePoints(method, settings.colorCount, w, h);
+                const pts = generatePoints(method, settings.colorCount, w, h, getImageView());
                 if (pts.length) data = sampleColors(els.mainImage, pts, settings.useKMeans, settings.colorCount);
             }
             return data.length ? {
@@ -668,6 +722,20 @@
                 colors: data.map(d => ({ color: d.color })),
                 points: data.map(d => d.point)
             };
+        }
+
+        function seedDefaultPalette() {
+            const n = DEFAULT_PALETTE.length;
+            palettes = [{
+                id: uid(),
+                name: 'Default palette',
+                method: 'diagonal/',
+                harmony: 'none',
+                colorCount: n,
+                colors: DEFAULT_PALETTE.map(h => ({ color: culori.parse(h) })),
+                points: DEFAULT_PALETTE.map((_, i) => ({ x: n === 1 ? 0.5 : i / (n - 1), y: 0.5 }))
+            }];
+            selectedPaletteId = palettes[0].id;
         }
 
         function getSelectedImage() { return images.find(i => i.id === selectedImageId); }
@@ -807,7 +875,8 @@
                         c.setAttribute('cx', pos.x); c.setAttribute('cy', pos.y); c.setAttribute('r', 10);
                         c.setAttribute('fill', 'white'); c.setAttribute('stroke', 'var(--accent)'); c.setAttribute('stroke-width', 2);
                         c.setAttribute('class', 'line-handle');
-                        c.onpointerdown = (e) => { line.dragging = k; e.target.setPointerCapture(e.pointerId); };
+                        c.setAttribute('data-line-key', k);
+                        c.onpointerdown = (e) => { line.dragging = k; line.dragPointerId = e.pointerId; e.target.setPointerCapture(e.pointerId); };
                         c.onpointermove = (e) => {
                             if (line.dragging !== k) return;
                             const v = getImageView();
@@ -818,7 +887,10 @@
                             const end = line.dragging === 'end' ? p : line.end;
                             updateLine(start, end);
                         };
-                        c.onpointerup = () => { line.dragging = null; };
+                        const endDrag = () => { if (line.dragging === k) { line.dragging = null; line.dragPointerId = null; } };
+                        c.onpointerup = endDrag;
+                        c.onpointercancel = endDrag;
+                        c.onlostpointercapture = endDrag;
                         svg.appendChild(c);
                     });
                 }
@@ -846,11 +918,14 @@
                     poly.setAttribute('fill', 'white');
                     g.appendChild(poly);
                 }
-                g.onpointerdown = (e) => { e.preventDefault(); const pt = svgPoint(e); dragMarker = { idx: i, start: pt, orig: { x: p.x, y: p.y } }; g.setPointerCapture(e.pointerId); };
+                g.onpointerdown = (e) => { e.preventDefault(); const pt = svgPoint(e); dragMarker = { idx: i, start: pt, orig: { x: p.x, y: p.y }, pointerId: e.pointerId }; g.setPointerCapture(e.pointerId); };
                 g.onpointermove = (e) => { if (dragMarker && dragMarker.idx === i) moveMarker(i, e); };
-                g.onpointerup = () => { if (settings.useKMeans && dragMarker && dragMarker.idx === i) updateKMeansMarker(i); dragMarker = null; };
+                g.onpointerup = () => { if (dragMarker && dragMarker.idx === i) { if (settings.useKMeans) updateKMeansMarker(i); dragMarker = null; } };
+                g.onpointercancel = () => { if (dragMarker && dragMarker.idx === i) dragMarker = null; };
+                g.onlostpointercapture = () => { if (dragMarker && dragMarker.idx === i) dragMarker = null; };
                 svg.appendChild(g);
             });
+            restoreCapture();
         }
 
         function svgPoint(evt) {
@@ -866,8 +941,9 @@
             const start = dragMarker.start;
             const dx = (pt.x - start.x) / view.dw;
             const dy = (pt.y - start.y) / view.dh;
-            activePalette.points[idx].x = clamp(dragMarker.orig.x + dx, 0, 1);
-            activePalette.points[idx].y = clamp(dragMarker.orig.y + dy, 0, 1);
+            const b = visibleNormBounds(view);
+            activePalette.points[idx].x = clamp(dragMarker.orig.x + dx, b.x0, b.x1);
+            activePalette.points[idx].y = clamp(dragMarker.orig.y + dy, b.y0, b.y1);
             if (settings.method === 'line') {
                 const linePts = activePalette.points;
                 const first = linePts[0], last = linePts[linePts.length - 1];
@@ -878,7 +954,11 @@
                 const s = sampleSingleColor(activePalette.points[idx].x, activePalette.points[idx].y);
                 activePalette.colors[idx].color = s.color;
             }
-            renderOverlay();
+            if (settings.method === 'line') {
+                renderOverlay();
+            } else {
+                paintMarker(idx);
+            }
             renderActivePalette();
         }
 
@@ -895,7 +975,7 @@
             line.start = start;
             line.end = end;
             const w = els.mainImage.naturalWidth, h = els.mainImage.naturalHeight;
-            const pts = generatePoints('line', activePalette.colorCount, w, h);
+            const pts = generatePoints('line', activePalette.colorCount, w, h, getImageView());
             activePalette.points = pts;
             activePalette.colors = sampleColors(els.mainImage, pts, settings.useKMeans, activePalette.colorCount);
             renderOverlay();
@@ -1231,7 +1311,7 @@
             els.blur.onchange = () => { settings.blur = els.blur.checked; saveState(); updateImageFilter(); updateActivePalette(); };
             els.blurRadius.oninput = () => { settings.blurRadius = +els.blurRadius.value; els.blurVal.textContent = settings.blurRadius; saveState(); updateImageFilter(); updateActivePalette(); };
             els.invert.onchange = () => { settings.invert = els.invert.checked; saveState(); updateImageFilter(); updateActivePalette(); };
-            els.fitImage.onchange = () => { settings.fit = els.fitImage.checked; saveState(); applyFit(); renderOverlay(); };
+            els.fitImage.onchange = () => { settings.fit = els.fitImage.checked; saveState(); applyFit(); updateActivePalette(); };
 
             const dz = els.dropZone;
             dz.ondragover = (e) => { e.preventDefault(); dz.classList.add('dragover'); };
@@ -1262,6 +1342,7 @@
         async function init() {
             if (typeof lucide !== 'undefined') lucide.createIcons();
             await loadState();
+            if (!palettes.length) seedDefaultPalette();
             bindSettings();
             setupEvents();
             new ResizeObserver(() => { if (selectedImageId) renderOverlay(); }).observe(els.viewer);
