@@ -347,6 +347,34 @@ fn evaluateBarchanCrescent(u: f32, v: f32, brink: f32, hornLength: f32) -> vec2f
     return vec2f(h, prof.y);
 }
 
+// Analytical-derivative octave-rotated fBm returning (value, d/dx, d/dy).
+// Used by the Namib star-dune mega-draa dome field so phacelle arm directions
+// follow exact terrain slopes instead of fixed global angles.
+fn analyticalFbm(p: vec2f, freq: f32, octaves: i32, lacunarity: f32, gain: f32, seed: f32) -> vec3f {
+    var n = vec3f(0.0, 0.0, 0.0);
+    var nf = freq;
+    var na = 1.0;
+    var r0 = vec2f(1.0, 0.0);
+    var r1 = vec2f(0.0, 1.0);
+    var seedShift = vec2f(fract(seed * 0.1031) * 97.0, fract(seed * 0.1737) * 131.0);
+    let oct = clamp(octaves, 1, 6);
+    for (var i: i32 = 0; i < oct; i = i + 1) {
+        let rp = vec2f(dot(r0, p), dot(r1, p)) * nf + seedShift;
+        let s = noised(rp);
+        let gx = (r0.x * s.y + r1.x * s.z) * nf;
+        let gy = (r0.y * s.y + r1.y * s.z) * nf;
+        n = n + vec3f(s.x, gx, gy) * na;
+        na = na * gain;
+        nf = nf * lacunarity;
+        let nr0 = vec2f(0.8 * r0.x - 0.6 * r1.x, 0.8 * r0.y - 0.6 * r1.y);
+        let nr1 = vec2f(0.6 * r0.x + 0.8 * r1.x, 0.6 * r0.y + 0.8 * r1.y);
+        r0 = nr0;
+        r1 = nr1;
+        seedShift = seedShift + vec2f(17.3, 31.7);
+    }
+    return n;
+}
+
 fn evaluateDuneSystem(worldPosM: vec2f, windRad: f32) -> vec3f {
     let seed = params.seed;
     let windDir = vec2f(cos(windRad), sin(windRad));
@@ -373,7 +401,9 @@ fn evaluateDuneSystem(worldPosM: vec2f, windRad: f32) -> vec3f {
 
     // 1. Primary Draa (Mega-dune) underlying wave + rocky/gravel desert floor undulation
     var draaMeters = (fbmEx(uv.x * 2.2 * freqScale, uv.y * 2.2 * freqScale, seed + 61.0, 4, 2.0, 0.5) - 0.35) * 14.0;
-    if (params.draaHeight > 0.5) {
+    // crestMode 3 (Namib star dunes) replaces the 1D sawtooth with analytical
+    // sand-dome massifs inside its own branch — other modes keep this wave.
+    if (params.draaHeight > 0.5 && params.crestMode != 3u) {
         let draaRad = windRad + params.draaAngleOffset * PI / 180.0;
         let draaWind = vec2f(cos(draaRad), sin(draaRad));
         let draaWaveM = max((params.draaWavelength / freqScale) * localWaveMult, 150.0);
@@ -421,34 +451,75 @@ fn evaluateDuneSystem(worldPosM: vec2f, windRad: f32) -> vec3f {
             }
         }
     } else if (params.crestMode == 3u) {
-        // MODE 3: Pyramidal Star Dunes (Namib / Grand Erg Oriental)
-        // 3 intersecting wind directions forming radiating sinuous crest arms that peak at star junctions
-        var armSum = 0.0;
-        var armMax = 0.0;
-        var slipAcc = 0.0;
-        let angles = array<f32, 3>(0.0, 2.05, -2.05);
-        let weights = array<f32, 3>(1.0, 0.78, 0.72);
+        // MODE 3: Namib Star Dunes — radiating Phacelle arms driven by the
+        // analytical slope of broad sand-dome mega-draa massifs.
+        // An analytical-derivative dome field (rotated, gently elongated fBm)
+        // replaces the 1D conveyor sawtooth, and phacelle stripe direction
+        // follows each dome's local gradient so crest lines converge into
+        // unique multi-arm pyramidal peaks instead of a repeating 3-angle Moire lattice.
+        let domeWaveM = max((params.draaWavelength / freqScale) * localWaveMult, 300.0);
+        let domeCycles = WORLD_M / (domeWaveM * 1.5);
+        let draRad3 = windRad + params.draaAngleOffset * PI / 180.0;
+        let dc3 = cos(draRad3);
+        let ds3 = sin(draRad3);
+        let dp3 = warpedWorldM / WORLD_M;
+        let domeN = analyticalFbm(
+            vec2f(dc3 * dp3.x - ds3 * dp3.y, (ds3 * dp3.x + dc3 * dp3.y) * 1.45) * domeCycles,
+            1.0, 3, 2.1, 0.42, seed + 71.0
+        );
+        // Chain-rule gradient back into uv space (undo rotation + anisotropic stretch)
+        let domeSlopeVec = vec2f(
+            dc3 * domeN.y + 1.45 * ds3 * domeN.z,
+            -ds3 * domeN.y + 1.45 * dc3 * domeN.z
+        );
+        let domeEnv01 = clamp01(domeN.x * 0.5 + 0.5);
+        let domeShape = pow(clamp01(domeEnv01 * 1.15 - 0.05), 1.35);
+        let domeReliefM = max(params.duneHeight * 0.92, params.draaHeight * 0.85);
+        draaMeters = max(0.0, draaMeters) + domeShape * domeReliefM * mix(0.65, 1.30, localHeightMult);
 
-        for (var a: i32 = 0; a < 3; a = a + 1) {
-            let aRad = windRad + angles[a];
-            let aDir = vec2f(-sin(aRad), cos(aRad));
-            let cellDensity = max(cyclesPerTile * 0.32, 2.0);
-            let seedOff = vec2f(f32(a) * 31.7 + seed * 0.13, f32(a) * 19.3 + seed * 0.09);
-            let ph = phacelleNoise(warpedUv * cellDensity + seedOff, aDir, 1.0 / 0.35, 0.0, 0.55, true);
-            let angle = atan2(ph.y, ph.x);
-            let phase = fract(angle / TAU + 0.5);
-            let prof = asymmetricDuneProfile(phase, 0.62, params.stossPower, params.leePower);
-            let env = smoothstep(0.05, 0.55, length(ph.xy));
-            let armH = prof.x * env * weights[a];
-            armSum = armSum + armH;
-            if (armH > armMax) {
-                armMax = armH;
-                slipAcc = prof.y;
-            }
+        // Arm direction = dome downslope (phacelle stripes run parallel to
+        // normDir, so crest lines radiate outward from each dome summit).
+        // Near-zero gradient at summits falls back to mean wind so arms converge.
+        let domeSlopeLen = length(domeSlopeVec);
+        let slopeGate01 = smoothstep(0.006, 0.10, domeSlopeLen);
+        let armVec = mix(windDir * 0.04, domeSlopeVec, slopeGate01);
+        let armDir = armVec / max(length(armVec), 1e-5);
+
+        let armCells = max(cyclesPerTile * (0.50 + 0.40 * sizeVar), 2.5);
+        let armSeedOff = vec2f(fract(seed * 0.1031) * 48.0 + 3.0, fract(seed * 0.0973) * 48.0 + 11.0);
+        let brinkArm = clamp(params.brinkPosition - 0.04, 0.55, 0.88);
+        let presence = 0.55 + 0.45 * slopeGate01;
+        var armSum = 0.0;
+        var bestArm = 0.0;
+        var slipFlag = 0.0;
+
+        // Primary star arms — cellFreq kept near 1.0 (Runevision artifact-free range)
+        let ph1 = phacelleNoise(warpedUv * armCells + armSeedOff, armDir, 0.9, 0.0, 0.5, true);
+        let phi1 = atan2(ph1.y, ph1.x);
+        let prof1 = asymmetricDuneProfile(fract(phi1 / TAU + 0.5), brinkArm, params.stossPower, params.leePower);
+        let w1 = smoothstep(0.03, 0.45, length(ph1.xy)) * presence;
+        armSum = armSum + prof1.x * w1;
+        if (prof1.x * w1 > bestArm) {
+            bestArm = prof1.x * w1;
+            slipFlag = prof1.y;
         }
-        // Star peak boost where 2 or 3 arms intersect
-        rawDune01 = (armMax * 0.65 + pow(clamp01(armSum * 0.48), 1.4) * 0.65) * localHeightMult;
-        isSlipFace = slipAcc;
+
+        // Secondary finer arms branching between the primary crests
+        let ph2 = phacelleNoise(warpedUv * armCells * 1.85 + armSeedOff * 1.7 + vec2f(23.0, 41.0), armDir, 0.55, 0.3, 0.5, true);
+        let phi2 = atan2(ph2.y, ph2.x);
+        let prof2 = asymmetricDuneProfile(fract(phi2 / TAU + 0.5), clamp(params.brinkPosition - 0.08, 0.5, 0.85), params.stossPower, params.leePower);
+        let w2 = smoothstep(0.03, 0.45, length(ph2.xy)) * presence * 0.55;
+        armSum = armSum + prof2.x * w2;
+        if (prof2.x * w2 > bestArm) {
+            bestArm = prof2.x * w2;
+            slipFlag = prof2.y;
+        }
+
+        // Interdune pans: arms live on the sand domes; the lowest basins stay flat
+        let panLo = mix(0.10, 0.40, clamp01(params.interduneFlatness));
+        let panGate = smoothstep(panLo, panLo + 0.30, domeEnv01);
+        rawDune01 = clamp01(armSum * (0.60 + 0.16 * sizeVar)) * panGate * clamp(localHeightMult, 0.45, 1.35);
+        isSlipFace = slipFlag;
     } else if (params.crestMode == 0u) {
         // MODE 0: Barchanoid Phacelle Phase-Defect Ridges (Y-junctions)
         let cellDensity = max(cyclesPerTile * 0.35, 2.0);
