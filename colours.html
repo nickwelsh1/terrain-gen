@@ -78,6 +78,13 @@
                 </div>
             </div>
 
+            <div class="fit-row shrink-0 flex items-center">
+                <label class="flex items-center gap-1.5 cursor-pointer select-none text-sm text-neutral-300">
+                    <input id="fitImage" type="checkbox" class="accent-[var(--accent)]" />
+                    <span>Fit image</span>
+                </label>
+            </div>
+
             <div id="controls" class="shrink-0 bg-neutral-900 border-t border-neutral-800 p-4">
                 <div class="flex flex-wrap gap-3 items-end text-sm">
                     <div class="flex flex-col gap-1">
@@ -215,7 +222,8 @@
             useKMeans: true,
             blur: false,
             blurRadius: 5,
-            invert: false
+            invert: false,
+            fit: false
         };
         let selectedImageId = null;
         let selectedPaletteId = null;
@@ -251,6 +259,7 @@
             blurRadiusBox: document.getElementById('blurRadiusBox'),
             blurRadius: document.getElementById('blurRadius'),
             blurVal: document.getElementById('blurVal'),
+            fitImage: document.getElementById('fitImage'),
             activePalette: document.getElementById('activePalette'),
             activeSwatches: document.getElementById('activeSwatches'),
             activeValues: document.getElementById('activeValues'),
@@ -281,12 +290,13 @@
 
         async function dbGetAll() {
             const db = await dbPromise;
+            const reqResult = (r) => new Promise((res, rej) => { r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });
             return new Promise((resolve, reject) => {
                 const tx = db.transaction(DB_STORE, 'readonly');
                 const store = tx.objectStore(DB_STORE);
-                const req = store.getAll();
-                const keys = store.getAllKeys();
-                Promise.all([req, keys]).then(([values, ks]) => resolve(Object.fromEntries(ks.map((k, i) => [k, values[i]])))).catch(reject);
+                Promise.all([reqResult(store.getAll()), reqResult(store.getAllKeys())])
+                    .then(([values, ks]) => resolve(Object.fromEntries(ks.map((k, i) => [k, values[i]]))))
+                    .catch(reject);
             });
         }
 
@@ -351,6 +361,9 @@
                 }));
                 const selPal = (payload.images || []).find(im => im.id === selectedImageId)?.selectedPaletteId;
                 selectedPaletteId = payload.selectedPaletteId || selPal || palettes[0]?.id || null;
+                if (images.length && !images.some(i => i.id === selectedImageId)) {
+                    selectedImageId = images[0].id;
+                }
             } catch (e) { console.error('load failed', e); }
         }
 
@@ -365,7 +378,34 @@
             els.blurRadius.value = settings.blurRadius;
             els.blurVal.textContent = settings.blurRadius;
             els.invert.checked = settings.invert;
+            els.fitImage.checked = !!settings.fit;
+            applyFit();
             toggleControls();
+        }
+
+        function applyFit() {
+            els.mainImage.classList.toggle('object-contain', settings.fit);
+            els.mainImage.classList.toggle('object-cover', !settings.fit);
+        }
+
+        function getImageView() {
+            const im = els.mainImage;
+            const r = els.viewer.getBoundingClientRect();
+            const nw = im.naturalWidth, nh = im.naturalHeight;
+            if (!r.width || !r.height || !nw || !nh) return null;
+            const s = settings.fit ? Math.min(r.width / nw, r.height / nh) : Math.max(r.width / nw, r.height / nh);
+            const dw = nw * s, dh = nh * s;
+            return { vw: r.width, vh: r.height, dw, dh, offX: (r.width - dw) / 2, offY: (r.height - dh) / 2 };
+        }
+
+        function normToView(u, v, view = getImageView()) {
+            if (!view) return { x: 0, y: 0 };
+            return { x: view.offX + u * view.dw, y: view.offY + v * view.dh };
+        }
+
+        function viewToNorm(px, py, view = getImageView()) {
+            if (!view) return { x: 0.5, y: 0.5 };
+            return { x: clamp((px - view.offX) / view.dw, 0, 1), y: clamp((py - view.offY) / view.dh, 0, 1) };
         }
 
         function rgbToColor(r, g, b, a = 255) {
@@ -650,7 +690,7 @@
                 images.push(image);
                 await dbPut(id, blob);
             }
-            if (images.length && !selectedImageId) selectedImageId = images[0].id;
+            if (images.length && !images.some(i => i.id === selectedImageId)) selectedImageId = images[0].id;
             saveState();
             renderThumbs();
             selectImage(selectedImageId);
@@ -734,25 +774,22 @@
             svg.innerHTML = '';
             if (!im) return;
             const viewerRect = els.viewer.getBoundingClientRect();
-            const imgRect = els.mainImage.getBoundingClientRect();
-            const left = imgRect.left - viewerRect.left;
-            const top = imgRect.top - viewerRect.top;
-            const w = imgRect.width, h = imgRect.height;
+            const w = viewerRect.width, h = viewerRect.height;
+            if (!w || !h) return;
+            const view = getImageView();
             svg.setAttribute('viewBox', `0 0 ${w} ${h}`);
-            svg.style.left = `${left}px`;
-            svg.style.top = `${top}px`;
-            svg.style.width = `${w}px`;
-            svg.style.height = `${h}px`;
+            svg.setAttribute('preserveAspectRatio', 'none');
+            if (!view) return;
 
             if (settings.method === 'line' && line.start && !line.end) {
-                const x = line.start.x * w, y = line.start.y * h;
+                const pos = normToView(line.start.x, line.start.y, view);
                 const c = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-                c.setAttribute('cx', x); c.setAttribute('cy', y); c.setAttribute('r', 10);
+                c.setAttribute('cx', pos.x); c.setAttribute('cy', pos.y); c.setAttribute('r', 10);
                 c.setAttribute('fill', 'white'); c.setAttribute('stroke', 'var(--accent)'); c.setAttribute('stroke-width', 2);
                 c.setAttribute('class', 'line-handle');
                 svg.appendChild(c);
                 const t = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-                t.setAttribute('x', x); t.setAttribute('y', y - 16); t.setAttribute('fill', 'white'); t.setAttribute('font-size', '12'); t.setAttribute('text-anchor', 'middle');
+                t.setAttribute('x', pos.x); t.setAttribute('y', pos.y - 16); t.setAttribute('fill', 'white'); t.setAttribute('font-size', '12'); t.setAttribute('text-anchor', 'middle');
                 t.textContent = 'Click to set end point';
                 svg.appendChild(t);
             }
@@ -762,16 +799,25 @@
             if (activePalette.method === 'line') {
                 const pts = activePalette.points;
                 if (pts && pts[0] && pts[pts.length - 1]) {
-                    const p1 = pts[0], p2 = pts[pts.length - 1];
-                    const x1 = p1.x * w, y1 = p1.y * h, x2 = p2.x * w, y2 = p2.y * h;
-                    svg.insertAdjacentHTML('beforeend', `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="white" stroke-width="2" stroke-dasharray="4 2"/>`);
-                    [[x1, y1, 'start'], [x2, y2, 'end']].forEach(([x, y, k]) => {
+                    const a = normToView(pts[0].x, pts[0].y, view);
+                    const b = normToView(pts[pts.length - 1].x, pts[pts.length - 1].y, view);
+                    svg.insertAdjacentHTML('beforeend', `<line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" stroke="white" stroke-width="2" stroke-dasharray="4 2"/>`);
+                    [[a, 'start'], [b, 'end']].forEach(([pos, k]) => {
                         const c = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-                        c.setAttribute('cx', x); c.setAttribute('cy', y); c.setAttribute('r', 10);
+                        c.setAttribute('cx', pos.x); c.setAttribute('cy', pos.y); c.setAttribute('r', 10);
                         c.setAttribute('fill', 'white'); c.setAttribute('stroke', 'var(--accent)'); c.setAttribute('stroke-width', 2);
                         c.setAttribute('class', 'line-handle');
                         c.onpointerdown = (e) => { line.dragging = k; e.target.setPointerCapture(e.pointerId); };
-                        c.onpointermove = (e) => { if (line.dragging === k) { const pt = svgPoint(e); const start = line.dragging === 'start' ? { x: pt.x / w, y: pt.y / h } : line.start; const end = line.dragging === 'end' ? { x: pt.x / w, y: pt.y / h } : line.end; updateLine(start, end); } };
+                        c.onpointermove = (e) => {
+                            if (line.dragging !== k) return;
+                            const v = getImageView();
+                            if (!v) return;
+                            const pt = svgPoint(e);
+                            const p = viewToNorm(pt.x, pt.y, v);
+                            const start = line.dragging === 'start' ? p : line.start;
+                            const end = line.dragging === 'end' ? p : line.end;
+                            updateLine(start, end);
+                        };
                         c.onpointerup = () => { line.dragging = null; };
                         svg.appendChild(c);
                     });
@@ -780,23 +826,22 @@
 
             activePalette.colors.forEach((col, i) => {
                 const p = activePalette.points[i] || { x: 0.5, y: 0.5 };
-                const px = p.x * w, py = p.y * h;
-                const ox = (p.ox ?? 0) * w, oy = (p.oy ?? 0) * h;
-                const cx = px + ox, cy = py + oy;
+                const pos = normToView(p.x, p.y, view);
+                const cPos = normToView(p.x + (p.ox ?? 0), p.y + (p.oy ?? 0), view);
                 const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
                 g.setAttribute('class', 'point-marker');
                 g.setAttribute('data-idx', i);
                 const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-                circle.setAttribute('cx', cx); circle.setAttribute('cy', cy); circle.setAttribute('r', settings.useKMeans ? 20 : 14);
+                circle.setAttribute('cx', cPos.x); circle.setAttribute('cy', cPos.y); circle.setAttribute('r', settings.useKMeans ? 20 : 14);
                 circle.setAttribute('fill', formatColor(col.color, 'hex'));
                 circle.setAttribute('stroke', getContrastText(col.color)); circle.setAttribute('stroke-width', 2);
                 g.appendChild(circle);
                 if (!settings.useKMeans) {
                     const poly = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
-                    const ang = Math.atan2(-oy, -ox);
+                    const ang = Math.atan2(-(cPos.y - pos.y), -(cPos.x - pos.x));
                     const perp = ang + Math.PI / 2;
-                    const tip = `${px},${py}`;
-                    const base = `${cx + Math.cos(perp) * 6},${cy + Math.sin(perp) * 6} ${cx - Math.cos(perp) * 6},${cy - Math.sin(perp) * 6}`;
+                    const tip = `${pos.x},${pos.y}`;
+                    const base = `${cPos.x + Math.cos(perp) * 6},${cPos.y + Math.sin(perp) * 6} ${cPos.x - Math.cos(perp) * 6},${cPos.y - Math.sin(perp) * 6}`;
                     poly.setAttribute('points', `${base} ${tip}`);
                     poly.setAttribute('fill', 'white');
                     g.appendChild(poly);
@@ -814,15 +859,13 @@
         }
 
         function moveMarker(idx, evt) {
-            if (!dragMarker) return;
-            const im = getSelectedImage();
-            if (!im || !activePalette) return;
+            if (!dragMarker || !activePalette) return;
+            const view = getImageView();
+            if (!view) return;
             const pt = svgPoint(evt);
             const start = dragMarker.start;
-            const rect = els.mainImage.getBoundingClientRect();
-            const w = rect.width, h = rect.height;
-            const dx = (pt.x - start.x) / w;
-            const dy = (pt.y - start.y) / h;
+            const dx = (pt.x - start.x) / view.dw;
+            const dy = (pt.y - start.y) / view.dh;
             activePalette.points[idx].x = clamp(dragMarker.orig.x + dx, 0, 1);
             activePalette.points[idx].y = clamp(dragMarker.orig.y + dy, 0, 1);
             if (settings.method === 'line') {
@@ -851,8 +894,7 @@
             if (!activePalette || activePalette.method !== 'line') return;
             line.start = start;
             line.end = end;
-            const rect = els.mainImage.getBoundingClientRect();
-            const w = rect.width, h = rect.height;
+            const w = els.mainImage.naturalWidth, h = els.mainImage.naturalHeight;
             const pts = generatePoints('line', activePalette.colorCount, w, h);
             activePalette.points = pts;
             activePalette.colors = sampleColors(els.mainImage, pts, settings.useKMeans, activePalette.colorCount);
@@ -1164,9 +1206,10 @@
         function onImageClick(e) {
             const im = getSelectedImage();
             if (!im || settings.method !== 'line') return;
-            const rect = els.mainImage.getBoundingClientRect();
-            const x = clamp(e.clientX - rect.left, 0, rect.width) / rect.width;
-            const y = clamp(e.clientY - rect.top, 0, rect.height) / rect.height;
+            const view = getImageView();
+            if (!view) return;
+            const pt = svgPoint(e);
+            const { x, y } = viewToNorm(pt.x, pt.y, view);
             if (!line.start) { line.start = { x, y }; renderOverlay(); }
             else if (!line.end) { line.end = { x, y }; updateActivePalette(); }
             else { line.start = { x, y }; line.end = null; renderOverlay(); }
@@ -1188,6 +1231,7 @@
             els.blur.onchange = () => { settings.blur = els.blur.checked; saveState(); updateImageFilter(); updateActivePalette(); };
             els.blurRadius.oninput = () => { settings.blurRadius = +els.blurRadius.value; els.blurVal.textContent = settings.blurRadius; saveState(); updateImageFilter(); updateActivePalette(); };
             els.invert.onchange = () => { settings.invert = els.invert.checked; saveState(); updateImageFilter(); updateActivePalette(); };
+            els.fitImage.onchange = () => { settings.fit = els.fitImage.checked; saveState(); applyFit(); renderOverlay(); };
 
             const dz = els.dropZone;
             dz.ondragover = (e) => { e.preventDefault(); dz.classList.add('dragover'); };
@@ -1220,7 +1264,7 @@
             await loadState();
             bindSettings();
             setupEvents();
-            window.addEventListener('resize', () => { if (selectedImageId) { renderOverlay(); renderActivePalette(); } });
+            new ResizeObserver(() => { if (selectedImageId) renderOverlay(); }).observe(els.viewer);
             renderThumbs();
             selectImage(selectedImageId);
         }
