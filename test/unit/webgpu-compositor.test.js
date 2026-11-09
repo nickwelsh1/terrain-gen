@@ -57,6 +57,7 @@ describe("WebGPU Terrain Compositor Architecture", () => {
         it("registers all required generators, shapers (including surfaceDetail), masks, blends, and simulations", () => {
             const expectedIds = [
                 "gen.ridgeFbm",
+                "gen.phacellePeaks",
                 "gen.duneField",
                 "gen.voronoiBlock",
                 "gen.islandCaldera",
@@ -121,6 +122,12 @@ describe("WebGPU Terrain Compositor Architecture", () => {
             expect(erosionModeParam.options.map((o) => o.value)).toEqual([0, 1]);
             expect(phacelleOp.paramSchema.find((p) => p.key === "laplacianWeight")?.tier).toBe("primary");
             expect(phacelleOp.uniformSchema.byteLength).toBe(64);
+
+            const phacellePeaksOp = registry.get("gen.phacellePeaks");
+            expect(phacellePeaksOp.paramSchema.find((p) => p.key === "landformMode")?.options.map((o) => o.value)).toEqual([0, 1, 2]);
+            expect(phacellePeaksOp.paramSchema.find((p) => p.key === "scaleVariation")?.tier).toBe("primary");
+            expect(phacellePeaksOp.paramSchema.find((p) => p.key === "valleyFloor")?.tier).toBe("primary");
+            expect(phacellePeaksOp.uniformSchema.byteLength).toBe(112);
 
             const calderaOp = registry.get("gen.islandCaldera");
             expect(calderaOp.paramSchema.find((p) => p.key === "frequency")?.tier).toBe("primary");

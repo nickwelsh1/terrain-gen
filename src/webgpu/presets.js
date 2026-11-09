@@ -289,14 +289,20 @@ export function normalizeStack(stack) {
             warpAmpM: 35,
             ...(layer.detailMaskParams || {}),
         });
-        // Synchronize universal parameter aliases (baseHeight <-> duneHeight, frequency <-> cellScale, orientationDeg <-> windDirection)
+        // Synchronize universal parameter aliases (baseHeight <-> duneHeight, frequency <-> heightFrequency/cellScale, orientationDeg <-> windDirection)
         if (layer.generatorParams) {
             if (layer.generatorParams.duneHeight !== undefined && layer.generatorParams.baseHeight === undefined) {
                 layer.generatorParams.baseHeight = layer.generatorParams.duneHeight;
             } else if (layer.generatorParams.baseHeight !== undefined && layer.generatorParams.duneHeight === undefined) {
                 layer.generatorParams.duneHeight = layer.generatorParams.baseHeight;
             }
-            if (layer.generatorParams.cellScale !== undefined && layer.generatorParams.frequency === undefined) {
+            if (layer.generatorParams.heightFrequency !== undefined && layer.generatorParams.frequency === undefined) {
+                layer.generatorParams.frequency = layer.generatorParams.heightFrequency;
+            } else if (
+                layer.generatorId === "gen.voronoiBlock" &&
+                layer.generatorParams.cellScale !== undefined &&
+                layer.generatorParams.frequency === undefined
+            ) {
                 layer.generatorParams.frequency = layer.generatorParams.cellScale;
             }
             if (layer.generatorParams.windDirection !== undefined && layer.generatorParams.orientationDeg === undefined) {
@@ -380,7 +386,7 @@ export const PRESETS = [
         id: "alpine-dolomites",
         group: "Mountains & Massifs",
         name: "Alpine Dolomites (Tre Cime & Seceda)",
-        description: "Towering 1650m tabular carbonate massifs with sheer vertical dolomitic walls, jagged torri spires, glacial U-valleys, and 33° scree cones.",
+        description: "Towering 1650m tabular carbonate massifs with sheer vertical dolomitic walls, jagged torri spires, wide alpine valleys, and 33° scree cones.",
         recommendedAreaM: 2560,
         seed: 42,
         layers: [
@@ -388,38 +394,49 @@ export const PRESETS = [
                 id: "layer1",
                 name: "Layer 1: Carbonate Reef Massifs",
                 enabled: true,
-                generatorId: "gen.ridgeFbm",
+                generatorId: "gen.phacellePeaks",
                 generatorParams: {
-                    landformMode: 1, // Tabular Carbonate Massif (Dolomites)
+                    landformMode: 1, // Tabular Massifs & Valleys (Dolomites)
                     baseHeight: 1650,
-                    frequency: 2.15,
-                    ridgeWeight: 0.62,
-                    ridgeSharpness: 2.4,
-                    scaleVariation: 0.65,
-                    warpAmplitude: 0.08,
-                    octaves: 3,
-                    lacunarity: 2.75,
-                    gain: 0.48,
-                    warpFrequency: 0.75,
-                    secondRangeWeight: 0.32,
-                    secondRangeAngle: 65,
-                    heightCurve: 1.35,
+                    heightFrequency: 2.3,
+                    orientationDeg: 25,
+                    scaleVariation: 0.82,
+                    valleyFloor: 0.68,
+                    erosionScale: 0.14,
+                    erosionStrength: 0.24,
+                    erosionOctaves: 5,
+                    heightOffset: -0.52,
+                    heightAmp: 0.15,
+                    heightOctaves: 3,
+                    heightLacunarity: 2.05,
+                    heightGain: 0.3,
+                    cellScale: 0.72,
+                    normalization: 0.52,
+                    lacunarity: 2.0,
+                    gain: 0.5,
+                    gullyWeight: 0.52,
+                    detail: 1.55,
+                    assumedSlope: 0.72,
+                    assumedSlopeAmount: 0.88,
+                    ridgeRounding: 0.08,
+                    creaseRounding: 0.06,
+                    heightOffsetFadeAmount: 0.35,
                 },
                 shapers: defaultShapers({
-                    "shape.fold": { enabled: true, directionDeg: 125, steepen: 0.95, gentle: 0.6, minAltM: 220, maxAltM: 1700, strength: 0.75 },
-                    "shape.glacialCarve": { enabled: true, carveDepthM: 75, valleyWidth: 2, apexSharpen: 0.85, altitudeGateM: 320, strength: 0.85 },
-                    "shape.surfaceDetail": { enabled: true, boulderHeightM: 20, boulderScale: 14, caprockRoughnessM: 16, basinHummocksM: 10, strength: 0.85 },
+                    "shape.fold": { enabled: false, directionDeg: 125, steepen: 0.45, gentle: 0.5, minAltM: 220, maxAltM: 1700, strength: 0.35 },
+                    "shape.glacialCarve": { enabled: false, carveDepthM: 45, valleyWidth: 2, apexSharpen: 0.25, altitudeGateM: 320, strength: 0.4 },
+                    "shape.surfaceDetail": { enabled: false, boulderHeightM: 8, boulderScale: 14, caprockRoughnessM: 6, basinHummocksM: 5, strength: 0.35 },
                 }),
             },
             createDefaultOverlayLayer(2, { enabled: false }),
         ],
         simulations: defaultSimulations({
             "sim.phacelleErosion": {
-                enabled: true,
+                enabled: false,
                 erosionMode: 0,
-                erosionStrength: 0.22,
-                erosionScale: 0.125,
-                erosionOctaves: 3,
+                erosionStrength: 0.16,
+                erosionScale: 0.28,
+                erosionOctaves: 4,
                 gullyWeight: 0.57,
                 ridgeRounding: 0.38,
                 creaseRounding: 0.13,
@@ -428,10 +445,10 @@ export const PRESETS = [
                 lacunarity: 1.8,
                 gain: 0.68,
                 detail: 0.84,
-                laplacianWeight: 0.67,
-                plateauRim: 0.26,
+                laplacianWeight: 0.3,
+                plateauRim: 0.3,
             },
-            "sim.thermalTalus": { enabled: true, talusReposeDeg: 33, bedrockReposeDeg: 68, iterations: 12, transferRate: 0.26, weatheringRate: 0.42 },
+            "sim.thermalTalus": { enabled: true, talusReposeDeg: 33, bedrockReposeDeg: 68, iterations: 8, transferRate: 0.18, weatheringRate: 0.28 },
         }),
     },
     {
@@ -446,50 +463,61 @@ export const PRESETS = [
                 id: "layer1",
                 name: "Layer 1: Tectonic Himalayan Range",
                 enabled: true,
-                generatorId: "gen.ridgeFbm",
+                generatorId: "gen.phacellePeaks",
                 generatorParams: {
-                    landformMode: 0, // Tectonic Mountain Range
+                    landformMode: 0, // Tectonic Range Chains (Himalayas)
                     baseHeight: 2150,
-                    frequency: 2.35,
-                    ridgeWeight: 0.74,
-                    ridgeSharpness: 2.5,
-                    scaleVariation: 0.72,
-                    warpAmplitude: 0.06,
-                    octaves: 3,
-                    lacunarity: 2.85,
-                    gain: 0.48,
-                    warpFrequency: 0.7,
-                    secondRangeWeight: 0.46,
-                    secondRangeAngle: 58,
-                    heightCurve: 1.42,
+                    heightFrequency: 2.1,
+                    orientationDeg: 35,
+                    scaleVariation: 0.85,
+                    valleyFloor: 0.48,
+                    erosionScale: 0.16,
+                    erosionStrength: 0.28,
+                    erosionOctaves: 5,
+                    heightOffset: -0.55,
+                    heightAmp: 0.18,
+                    heightOctaves: 3,
+                    heightLacunarity: 2.0,
+                    heightGain: 0.32,
+                    cellScale: 0.72,
+                    normalization: 0.5,
+                    lacunarity: 2.0,
+                    gain: 0.5,
+                    gullyWeight: 0.5,
+                    detail: 1.5,
+                    assumedSlope: 0.7,
+                    assumedSlopeAmount: 0.88,
+                    ridgeRounding: 0.06,
+                    creaseRounding: 0.04,
+                    heightOffsetFadeAmount: 0.25,
                 },
                 shapers: defaultShapers({
-                    "shape.fold": { enabled: true, directionDeg: 110, steepen: 0.85, gentle: 0.55, minAltM: 250, maxAltM: 2200, strength: 0.7 },
-                    "shape.glacialCarve": { enabled: true, carveDepthM: 95, valleyWidth: 3, apexSharpen: 1.15, altitudeGateM: 350, strength: 0.9 },
-                    "shape.surfaceDetail": { enabled: true, boulderHeightM: 18, boulderScale: 16, caprockRoughnessM: 18, basinHummocksM: 10, strength: 0.75 },
+                    "shape.fold": { enabled: false, directionDeg: 110, steepen: 0.4, gentle: 0.5, minAltM: 250, maxAltM: 2200, strength: 0.3 },
+                    "shape.glacialCarve": { enabled: false, carveDepthM: 55, valleyWidth: 2, apexSharpen: 0.3, altitudeGateM: 350, strength: 0.4 },
+                    "shape.surfaceDetail": { enabled: false, boulderHeightM: 8, boulderScale: 16, caprockRoughnessM: 6, basinHummocksM: 5, strength: 0.35 },
                 }),
             },
             createDefaultOverlayLayer(2, { enabled: false }),
         ],
         simulations: defaultSimulations({
             "sim.phacelleErosion": {
-                enabled: true,
+                enabled: false,
                 erosionMode: 0,
-                erosionStrength: 0.24,
-                erosionScale: 0.125,
-                erosionOctaves: 3,
+                erosionStrength: 0.18,
+                erosionScale: 0.3,
+                erosionOctaves: 4,
                 gullyWeight: 0.58,
-                ridgeRounding: 0.36,
+                ridgeRounding: 0.4,
                 creaseRounding: 0.12,
                 cellScale: 0.62,
                 normalization: 0.65,
                 lacunarity: 1.8,
                 gain: 0.69,
                 detail: 0.84,
-                laplacianWeight: 0.72,
-                plateauRim: 0.22,
+                laplacianWeight: 0.35,
+                plateauRim: 0.2,
             },
-            "sim.windDrift": { enabled: true, windDirectionDeg: 55, minAltitudeM: 520, snowSupplyM: 1.2, iterations: 12, transportRate: 0.7, depositionRate: 1.25 },
+            "sim.windDrift": { enabled: true, windDirectionDeg: 55, minAltitudeM: 520, snowSupplyM: 1.0, iterations: 10, transportRate: 0.6, depositionRate: 1.1 },
         }),
     },
 

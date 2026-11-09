@@ -681,3 +681,27 @@ body {
         border-radius: 12px 12px 0 0;
     }
 }
+
+/* Recommended world-extent hint for the active biome preset */
+#webgpu-ui .area-size-btn.recommended {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px var(--accent-subtle);
+    font-weight: 600;
+}
+
+#webgpu-ui .preset-area-hint button,
+#webgpu-ui .mask-inspect-btn {
+    margin-left: 6px;
+    padding: 2px 8px;
+    font-size: 0.72rem;
+    border: 1px solid var(--accent);
+    border-radius: 4px;
+    background: hsla(50, 100%, 67%, 0.12);
+    color: var(--accent);
+    cursor: pointer;
+}
+
+#webgpu-ui .preset-area-hint button:hover,
+#webgpu-ui .mask-inspect-btn:hover {
+    background: hsla(50, 100%, 67%, 0.28);
+}

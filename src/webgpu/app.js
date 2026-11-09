@@ -27,8 +27,8 @@ export async function main() {
     const pipeline = new TerrainPipeline(engine);
     await pipeline.init();
 
-    // 4. Generate initial terrain
-    pipeline.updateUniforms(DEFAULT_PARAMS);
+    // 4. Generate initial terrain (passFlags only — seed/relief/erosion params come from the active preset stack)
+    pipeline.updateUniforms({ passFlags: DEFAULT_PARAMS.passFlags });
     pipeline.generateMaps();
     pipeline.computeAnalysis();
 

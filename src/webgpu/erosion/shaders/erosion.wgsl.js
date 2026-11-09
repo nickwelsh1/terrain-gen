@@ -92,9 +92,9 @@ fn clamp01(x: f32) -> f32 {
 }
 
 fn hash22(x: vec2f) -> vec2f {
-    let k = vec2f(0.3183099, 0.3678794);
-    let p = x * k + k.yx;
-    return -1.0 + 2.0 * fract(16.0 * k * fract(p.x * p.y * (p.x + p.y)));
+    var p3 = fract(vec3f(x.x, x.y, x.x) * vec3f(0.1031, 0.1030, 0.0973));
+    p3 = p3 + dot(p3, p3.yzx + vec3f(33.33, 33.33, 33.33));
+    return -1.0 + 2.0 * fract((p3.xx + p3.yz) * p3.zy);
 }
 
 // Gradient noise returning value in x and analytical derivatives in yz.
