@@ -219,8 +219,16 @@ fn generateHeightmap(@builtin(global_invocation_id) gid: vec3u) {
         // and inverted gorge/massif contrast curve for dramatic high-relief peaks.
         let rWeight = clamp01(params.ridgeWeight);
         let ridgeRaw = ridgedEx(wx, wy, seed + 7.0, oct, lac, gain, max(sharp * 0.85, 1.0));
+        // Optional intersecting secondary tectonic range (Himalayan crossing chains)
+        let angRad4 = params.secondRangeAngle * PI / 180.0;
+        let ca4 = cos(angRad4);
+        let sa4 = sin(angRad4);
+        let rx4 = wx * ca4 - wy * sa4;
+        let ry4 = wx * sa4 + wy * ca4;
+        let ridgeRaw2 = ridgedEx(rx4 * 0.88 + 210.0, ry4 * 0.88 + 140.0, seed + 41.0, oct, lac, gain, max(sharp * 0.85, 1.0));
+        let combinedRidgeRaw = mix(ridgeRaw, max(ridgeRaw, ridgeRaw2 * 0.95), clamp01(params.secondRangeWeight));
         let pwRaw = fbmPerlinWorley(vec2f(wx * 0.85, wy * 0.85), seed + 19.0, oct, lac, gain);
-        let rawH = mix(pwRaw, 1.0 - ridgeRaw, rWeight);
+        let rawH = mix(pwRaw, 1.0 - combinedRidgeRaw, rWeight);
         let rimAmount = 0.22;
         let rimH = applyPlateauRim(rawH, rimAmount);
         let curved = pow(clamp01(rimH), max(params.heightCurve * 0.65, 0.4));

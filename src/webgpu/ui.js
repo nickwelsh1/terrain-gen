@@ -50,6 +50,7 @@ import { createDefaultRegistry } from "./operators/index.js";
 
 const LAYER_OPERATOR_IDS = [
     "gen.ridgeFbm",
+    "gen.phacellePeaks",
     "gen.voronoiBlock",
     "gen.duneField",
     "gen.islandCaldera",
@@ -371,6 +372,14 @@ function renderShaderHintPopover(paramDef) {
     };
 }
 
+// Formats scoped slider readouts to 3 decimals, trimming trailing zeros,
+// so preset values display exactly instead of snapping to the step grid.
+function fmtSliderVal(v) {
+    const n = Number(v);
+    if (!Number.isFinite(n)) return String(v);
+    return String(Math.round(n * 1000) / 1000);
+}
+
 function renderScopedParamControl(scope, paramDef, currentValue) {
     const val = currentValue !== undefined ? currentValue : paramDef.default;
     const { buttonHtml, popoverHtml } = renderShaderHintPopover(paramDef);
@@ -397,8 +406,8 @@ function renderScopedParamControl(scope, paramDef, currentValue) {
             <label>
                 <span class="label-title">${paramDef.label} ${buttonHtml}</span>
                 <input type="range" class="scoped-slider" data-scope="${scope}" data-param="${paramDef.key}"
-                    min="${paramDef.min}" max="${paramDef.max}" step="${paramDef.step}" value="${val}">
-                <span class="value" data-val-for="${scope}:${paramDef.key}">${val}</span>
+                    min="${paramDef.min}" max="${paramDef.max}" step="any" value="${val}">
+                <span class="value" data-val-for="${scope}:${paramDef.key}">${fmtSliderVal(val)}</span>
             </label>
             ${popoverHtml}
         </div>`;
@@ -612,6 +621,9 @@ export function createUI(container, callbacks = {}) {
 
     const customPalettes = loadCustomPalettes();
     let activeStack = normalizeStack(initialStack || getPresetById(DEFAULT_PRESET_ID));
+    const initSeed = activeStack.seed ?? DEFAULT_PARAMS.seed;
+    const initBaseH =
+        activeStack.layers?.[0]?.generatorParams?.baseHeight ?? DEFAULT_PARAMS.baseHeight;
 
     const RENDER_MODE_LABELS = {
         [RENDER_LIT]: "Lit",
@@ -648,7 +660,9 @@ export function createUI(container, callbacks = {}) {
                 <div class="ui-subdrawer-body">
                     <div class="mask-preview-box" title="Live 2D mask preview (white = active)">
                         <canvas class="mask-preview-canvas" data-mask-preview="${maskScope}" width="200" height="200"></canvas>
-                        <span class="mask-preview-caption">Mask 2D Preview (200 × 200)</span>
+                        <span class="mask-preview-caption">Mask 2D Preview (200 × 200)
+                            <button type="button" class="mask-inspect-btn" data-inspect-mask="${maskScope}" title="View the effective mask on the 3D terrain (switches render mode to Mask Inspector)">View on 3D</button>
+                        </span>
                     </div>
                     <div class="mask-primary-controls">
                         ${topDefs.map((p) => renderScopedParamControl(maskScope, p, maskParams?.[p.key])).join("")}
@@ -677,12 +691,18 @@ export function createUI(container, callbacks = {}) {
     function renderGeneratorExtraParams(scope, genId, paramsMap, excludeBaseHeight = false) {
         const op = registry.get(genId);
         if (!op) return "";
+        // Hide params that only apply to specific morphology modes (e.g. cross-range
+        // sliders are dead controls for landformMode 1 Dolomites / 2 Karst / 3 Classic)
+        const mode = Number(paramsMap?.landformMode);
+        const modeVisible = (p) =>
+            !Array.isArray(p.visibleForModes) || Number.isNaN(mode) || p.visibleForModes.includes(mode);
         const primary = op.paramSchema.filter(
             (p) =>
                 p.tier === "primary" &&
+                modeVisible(p) &&
                 !(excludeBaseHeight && (p.key === "baseHeight" || p.key === "duneHeight")),
         );
-        const advanced = op.paramSchema.filter((p) => p.tier === "advanced");
+        const advanced = op.paramSchema.filter((p) => p.tier === "advanced" && modeVisible(p));
         return `
             <div class="scoped-controls-group">
                 ${primary.map((p) => renderScopedParamControl(scope, p, paramsMap?.[p.key])).join("")}
@@ -999,6 +1019,7 @@ export function createUI(container, callbacks = {}) {
                     </select>
                 </label>
                 <div class="info-line" id="presetDesc">${activeStack.description || ""}</div>
+                <div class="info-line preset-area-hint" id="areaHint"></div>
                 <div class="preset-file-actions btn-group">
                     <button type="button" id="saveTerrainJsonBtn" title="Save all terrain &amp; material settings to a JSON file">Save JSON</button>
                     <label class="btn-like import-palette-label" id="openTerrainJsonBtn" title="Open terrain settings from a JSON file">
@@ -1041,14 +1062,14 @@ export function createUI(container, callbacks = {}) {
             <details class="ui-section ui-accordion" id="sectionTerrain" open>
                 <summary class="ui-summary">
                     <span class="summary-title">Layer 1: Broad &amp; Detail Terrain</span>
-                    <span class="summary-badge" id="terrainBadge">${DEFAULT_PARAMS.baseHeight}m · #${DEFAULT_PARAMS.seed}</span>
+                    <span class="summary-badge" id="terrainBadge">${initBaseH}m · #${initSeed}</span>
                 </summary>
                 <div class="ui-section-body">
                     <div class="step-label">1. Broad Terrain Layer</div>
                     <div class="control-row">
                         <label>
                             <span class="label-title">Seed value ${seedHint.buttonHtml}</span>
-                            <input type="number" id="seed" min="0" max="999999" value="${DEFAULT_PARAMS.seed}">
+                            <input type="number" id="seed" min="0" max="999999" value="${initSeed}">
                         </label>
                         ${seedHint.popoverHtml}
                     </div>
@@ -1066,8 +1087,8 @@ export function createUI(container, callbacks = {}) {
                     <div class="control-row">
                         <label>
                             <span class="label-title">Relief height (m) ${baseHeightHint.buttonHtml}</span>
-                            <input type="range" id="baseHeight" min="25" max="${MAX_HEIGHT_M}" step="5" value="${DEFAULT_PARAMS.baseHeight}">
-                            <span class="value" id="baseHeightVal">${DEFAULT_PARAMS.baseHeight}</span>
+                            <input type="range" id="baseHeight" min="25" max="${MAX_HEIGHT_M}" step="5" value="${initBaseH}">
+                            <span class="value" id="baseHeightVal">${initBaseH}</span>
                         </label>
                         ${baseHeightHint.popoverHtml}
                     </div>
@@ -1432,7 +1453,7 @@ export function createUI(container, callbacks = {}) {
                 const param = slider.dataset.param;
                 const val = Number.parseFloat(slider.value);
                 const span = panel.querySelector(`[data-val-for="${scope}:${param}"]`);
-                if (span) span.textContent = val;
+                if (span) span.textContent = fmtSliderVal(val);
 
                 applyLocalScopedUpdate(scope, param, val);
                 if (typeof onScopedParamChange === "function") {
@@ -1454,6 +1475,26 @@ export function createUI(container, callbacks = {}) {
                 if (typeof onScopedParamChange === "function") {
                     onScopedParamChange(scope, param, val);
                 }
+
+                // Morphology mode changed -> re-render that layer's generator controls
+                // so mode-conditional params (visibleForModes) appear/disappear live.
+                if (param === "landformMode") {
+                    const genControls = sel.closest("[id$='GenControls']");
+                    const lm = /^layer(\d+)\.gen$/.exec(scope || "");
+                    if (genControls && lm) {
+                        const layer = activeStack.layers[Number(lm[1]) - 1];
+                        if (layer) {
+                            genControls.innerHTML = renderGeneratorExtraParams(
+                                scope,
+                                layer.generatorId,
+                                layer.generatorParams,
+                                Number(lm[1]) === 1,
+                            );
+                            bindScopedControls(genControls);
+                        }
+                    }
+                }
+
                 updateAllMaskPreviews();
                 onRegenerate();
             });
@@ -1736,6 +1777,25 @@ export function createUI(container, callbacks = {}) {
         updateAllMaskPreviews();
     }
 
+    // Delegated clicks: mask "View on 3D" buttons and the recommended-area apply shortcut
+    panel.addEventListener("click", (e) => {
+        const recBtn = e.target.closest?.("#applyRecAreaBtn");
+        if (recBtn) {
+            const target = panel.querySelector(`.area-size-btn[data-area="${recBtn.dataset.area}"]`);
+            if (target) target.click();
+            return;
+        }
+        const inspectBtn = e.target.closest?.(".mask-inspect-btn");
+        if (inspectBtn) {
+            const radio = panel.querySelector(`input[name="renderMode"][value="${RENDER_MASK_INSPECTOR}"]`);
+            if (radio && !radio.checked) {
+                radio.checked = true;
+                radio.dispatchEvent(new Event("change", { bubbles: true }));
+            }
+        }
+    });
+
+    updateAreaHint();
     bindScopedControls(panel);
     bindOverlayLayerEvents(overlayLayersContainer);
     bindMaterialControls(panel.querySelector("#sectionMaterials"));
@@ -1761,11 +1821,31 @@ export function createUI(container, callbacks = {}) {
         onRegenerate();
     });
 
+    // Highlights the area-size button matching the preset's recommendedAreaM and
+    // shows a one-click "apply recommended extent" hint under the preset selector.
+    function updateAreaHint() {
+        const rec = Number(activeStack.recommendedAreaM);
+        const matches = rec && AREA_SIZES.includes(rec) && rec !== AREA_M;
+        panel.querySelectorAll(".area-size-btn").forEach((b) => {
+            const isRec = matches && Number(b.dataset.area) === rec;
+            b.classList.toggle("recommended", isRec);
+            if (isRec) b.title = "Recommended world extent for this biome";
+        });
+        const hintEl = panel.querySelector("#areaHint");
+        if (hintEl) {
+            hintEl.innerHTML = matches
+                ? `This biome was tuned for a ${(rec / 1000).toFixed(2).replace(/\.?0+$/, "")}km world extent &mdash; ` +
+                  `<button type="button" id="applyRecAreaBtn" data-area="${rec}">apply ${(rec / 1000).toFixed(2).replace(/\.?0+$/, "")}km</button>`
+                : "";
+        }
+    }
+
     function refreshAllUIFromActiveStack() {
         if (activeStack.id && presetSelect.querySelector(`option[value="${activeStack.id}"]`)) {
             presetSelect.value = activeStack.id;
         }
         presetDesc.textContent = activeStack.description || "";
+        updateAreaHint();
 
         const baseGenParams = activeStack.layers[0].generatorParams;
         const newBaseH = baseGenParams.baseHeight ?? baseGenParams.duneHeight ?? 1200;

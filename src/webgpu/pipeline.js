@@ -61,8 +61,33 @@ export class TerrainPipeline {
         this.registry = createDefaultRegistry();
         this.runner = new OperatorGraphRunner(this.device, this.registry, this.state);
         this.params = { ...DEFAULT_PARAMS };
-        this.stack = getPresetById(DEFAULT_PRESET_ID);
+        this.stack = getPresetById(TerrainPipeline._loadPersistedPresetId() || DEFAULT_PRESET_ID);
+        this._syncParamsFromStack();
         this.onBuffersChanged = null;
+    }
+
+    static _loadPersistedPresetId() {
+        if (typeof sessionStorage === "undefined") return null;
+        const id = sessionStorage.getItem("terrainPresetId");
+        return id && getPresetById(id) ? id : null;
+    }
+
+    static _persistPresetId(id) {
+        if (typeof sessionStorage !== "undefined" && id) {
+            sessionStorage.setItem("terrainPresetId", id);
+        }
+    }
+
+    _syncParamsFromStack() {
+        if (!this.stack) return;
+        this.params.seed = this.stack.seed ?? this.params.seed;
+        if (this.stack.layer1?.generatorParams?.baseHeight !== undefined) {
+            this.params.baseHeight = this.stack.layer1.generatorParams.baseHeight;
+        }
+        const dropSim = this.stack.simulations?.["sim.dropletErosion"];
+        if (dropSim) {
+            this.params = { ...this.params, ...dropSim };
+        }
     }
 
     async init() {
@@ -93,6 +118,7 @@ export class TerrainPipeline {
         const prevMat = this.stack?.materials ? JSON.parse(JSON.stringify(this.stack.materials)) : null;
         const prevPalette = this.stack?.materialPalette;
         this.stack = getPresetById(presetId);
+        TerrainPipeline._persistPresetId(presetId);
         // Preserve current material selection (e.g. Neutral Clay default) when switching presets
         if (prevMat) {
             this.stack.materials = prevMat;
@@ -100,14 +126,7 @@ export class TerrainPipeline {
         if (prevPalette !== undefined) {
             this.stack.materialPalette = prevPalette;
         }
-        this.params.seed = this.stack.seed;
-        if (this.stack.layer1.generatorParams.baseHeight !== undefined) {
-            this.params.baseHeight = this.stack.layer1.generatorParams.baseHeight;
-        }
-        const dropSim = this.stack.simulations["sim.dropletErosion"];
-        if (dropSim) {
-            this.params = { ...this.params, ...dropSim };
-        }
+        this._syncParamsFromStack();
         this.syncMaterialsBuffer();
         return this.stack;
     }
@@ -119,6 +138,9 @@ export class TerrainPipeline {
     loadStack(stackData) {
         const cloned = JSON.parse(JSON.stringify(stackData));
         this.stack = normalizeStack(cloned);
+        if (this.stack.id && getPresetById(this.stack.id)) {
+            TerrainPipeline._persistPresetId(this.stack.id);
+        }
         this.params.seed = this.stack.seed ?? 42;
         if (this.stack.layer1?.generatorParams?.baseHeight !== undefined) {
             this.params.baseHeight = this.stack.layer1.generatorParams.baseHeight;
