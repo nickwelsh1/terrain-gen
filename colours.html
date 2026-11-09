@@ -679,7 +679,7 @@
             });
         }
 
-        function generateHarmony(baseColor, type, n) {
+        function harmonyTargets(baseColor, type, n) {
             const c = culori.oklch(baseColor);
             const h0 = c.h || 0;
             const colors = [];
@@ -704,7 +704,49 @@
                     colors.push(culori.rgb({ ...c, l }));
                 }
             }
-            return colors.slice(0, n || colors.length).map(color => ({ color, point: { x: 0.5, y: 0.5 } }));
+            return colors.slice(0, n || colors.length);
+        }
+
+        function sampleImageGrid(img, bounds, gridSize = 24) {
+            const { canvas, ctx } = getFilteredCanvas(img, settings.blur, settings.blurRadius, settings.invert);
+            const w = canvas.width, h = canvas.height;
+            const px = ctx.getImageData(0, 0, w, h).data;
+            const samples = [];
+            for (let gy = 0; gy < gridSize; gy++) {
+                for (let gx = 0; gx < gridSize; gx++) {
+                    const u = bounds.x0 + (gx + 0.5) / gridSize * (bounds.x1 - bounds.x0);
+                    const v = bounds.y0 + (gy + 0.5) / gridSize * (bounds.y1 - bounds.y0);
+                    const i = (Math.floor(v * (h - 1)) * w + Math.floor(u * (w - 1))) * 4;
+                    samples.push({ color: rgbToColor(px[i], px[i + 1], px[i + 2], px[i + 3]), point: { x: u, y: v } });
+                }
+            }
+            return samples;
+        }
+
+        const harmonyDistance = culori.differenceEuclidean('oklab');
+        const HARMONY_MIN_DIFF = 0.2;
+
+        function matchHarmonyColors(targets, samples, chosen) {
+            const used = new Set();
+            for (const t of targets) {
+                let bestIdx = -1, bestD = Infinity;
+                let fallbackIdx = -1, fallbackD = Infinity;
+                for (let i = 0; i < samples.length; i++) {
+                    if (used.has(i)) continue;
+                    const d = harmonyDistance(t, samples[i].color);
+                    if (d < fallbackD) { fallbackD = d; fallbackIdx = i; }
+                    if (d >= bestD) continue;
+                    if (chosen.every(s => harmonyDistance(s.color, samples[i].color) >= HARMONY_MIN_DIFF)) {
+                        bestD = d;
+                        bestIdx = i;
+                    }
+                }
+                const idx = bestIdx >= 0 ? bestIdx : fallbackIdx;
+                if (idx < 0) break;
+                used.add(idx);
+                chosen.push(samples[idx]);
+            }
+            return chosen;
         }
 
         function generateActivePalette(overrideMethod = null) {
@@ -714,10 +756,18 @@
             let data = [];
             const method = overrideMethod || settings.method;
             if (method === 'harmony') {
-                const base = palettes.length && palettes[0].colors.length
-                    ? palettes[0].colors[0].color
-                    : { mode: 'rgb', r: 0.5, g: 0.5, b: 0.5 };
-                data = generateHarmony(base, settings.harmony, settings.colorCount);
+                const view = getImageView();
+                const bounds = visibleNormBounds(view);
+                const basePt = {
+                    x: bounds.x0 + Math.random() * (bounds.x1 - bounds.x0),
+                    y: bounds.y0 + Math.random() * (bounds.y1 - bounds.y0)
+                };
+                const base = sampleSingleColor(basePt.x, basePt.y).color;
+                const targets = harmonyTargets(base, settings.harmony, settings.colorCount);
+                if (settings.harmony !== 'analogous' && settings.harmony !== 'monochromatic') targets.shift();
+                const samples = sampleImageGrid(els.mainImage, bounds);
+                const chosen = matchHarmonyColors(targets, samples, [{ color: base, point: basePt }]);
+                data = chosen.slice(0, settings.colorCount);
             } else if (method === 'line' && (!line.start || !line.end)) {
                 return null;
             } else {
@@ -1328,7 +1378,7 @@
             els.addActiveBtn.onclick = addActivePalette;
             els.colorCount.oninput = () => { settings.colorCount = +els.colorCount.value; updateActivePalette(); };
             els.outputFormat.onchange = () => { settings.outputFormat = els.outputFormat.value; saveState(); renderActivePalette(); renderPalettes(); };
-            els.method.onchange = () => { settings.method = els.method.value; line.start = null; line.end = null; updateActivePalette(); };
+            els.method.onchange = () => { settings.method = els.method.value; line.start = null; line.end = null; toggleControls(); updateActivePalette(); };
             els.randomBtn.onclick = () => { line.start = null; line.end = null; updateActivePalette('random'); };
             els.harmony.onchange = () => { settings.harmony = els.harmony.value; updateActivePalette(); };
             els.useKMeans.onchange = () => { settings.useKMeans = els.useKMeans.checked; updateActivePalette(); };
