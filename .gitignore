@@ -9,3 +9,5 @@ coverage/
 .env
 .env.*
 *.local
+docs/runevision-example/
+

@@ -353,8 +353,13 @@ export class TerrainPipeline {
                         layer.generatorParams.baseHeight = Number(value);
                         if (layerIdx === 0) this.params.baseHeight = Number(value);
                     } else if (key === "frequency") {
-                        layer.generatorParams.cellScale = Number(value);
-                    } else if (key === "cellScale") {
+                        layer.generatorParams.heightFrequency = Number(value);
+                        if (layer.generatorId === "gen.voronoiBlock") {
+                            layer.generatorParams.cellScale = Number(value);
+                        }
+                    } else if (key === "heightFrequency") {
+                        layer.generatorParams.frequency = Number(value);
+                    } else if (key === "cellScale" && layer.generatorId === "gen.voronoiBlock") {
                         layer.generatorParams.frequency = Number(value);
                     } else if (key === "orientationDeg") {
                         layer.generatorParams.windDirection = Number(value);
