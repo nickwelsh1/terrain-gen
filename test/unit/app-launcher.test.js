@@ -14,6 +14,7 @@ describe('App Launcher Module', () => {
             expect(appIds).toContain('noisegallery');
             expect(appIds).toContain('colours');
             expect(appIds).toContain('tempterrain');
+            expect(appIds).toContain('genetic-shaders');
             expect(appIds).toContain('solargame');
             expect(appIds).toContain('exploregame');
             expect(appIds).toContain('sleep-doh');
