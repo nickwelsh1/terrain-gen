@@ -1,223 +1,139 @@
-// UI module: native HTML/CSS slider panel, stage toggles, render mode selector.
-// Binds directly to pipeline params — no virtual DOM.
+// UI module: native HTML/CSS slider panel generated from PARAM_SCHEMA.
+// Sections are shown/hidden according to the active generator mode.
 
 import {
+    PARAM_SCHEMA,
     DEFAULT_PARAMS,
-    STAGE_BASE_WAVEFORM,
-    STAGE_CREST_WARPING,
-    STAGE_PROFILE_MODIFIER,
-    STAGE_ANGLE_REPOSE,
-    STAGE_MICRO_DETAIL,
-    RENDER_HEIGHTMAP,
+    MODE_LABELS,
+    RENDER_LABELS,
     RENDER_LIT,
-    RENDER_NORMALS,
-    RENDER_STAGE_ISOLATION,
-    RENDER_SLOPE_HEATMAP,
-    RENDER_CURVATURE,
-    RENDER_WIREFRAME,
-    RENDER_DEBUG_NOISE,
     AREA_KM,
     MAX_HEIGHT_M,
     CELL_SPACING_M,
     N,
 } from "./constants.js";
 
+const MODE_HINTS = [
+    "Warped Voronoi edges are the crests, cells are pans, vertices become star peaks. Generations stack smaller networks on the flanks.",
+    "Runevision stacked-fade Phacelle stripes follow each sand dome's downslope, so arms radiate from summits and branch per octave.",
+    "Voronoi crest network as the base, with Phacelle arms branching on its windward flanks.",
+];
+
 export function createUI(container, callbacks) {
-    const {
-        onParamChange,
-        onRegenerate,
-        onRenderModeChange,
-        onPassToggle,
-    } = callbacks;
+    const { onParamChange, onRenderModeChange } = callbacks;
+    const params = { ...DEFAULT_PARAMS };
+
+    const groups = [];
+    for (const p of PARAM_SCHEMA) {
+        if (p.ui === "none") continue;
+        let g = groups.find((x) => x.name === p.group);
+        if (!g) {
+            g = { name: p.group, items: [] };
+            groups.push(g);
+        }
+        g.items.push(p);
+    }
+
+    const slider = (p) => `
+        <label data-modes="${p.modes.join(",")}">${p.label}
+            <input type="range" id="${p.key}" min="${p.min}" max="${p.max}" step="${p.step}" value="${p.value}">
+            <span class="value" id="${p.key}Val">${p.value}</span>
+        </label>`;
 
     const panel = document.createElement("div");
     panel.id = "dunes-ui";
     panel.innerHTML = `
-            <div class="ui-section">
-                <h3>Scale Info</h3>
-                <div class="info-line">Grid: ${N} × ${N}</div>
-                <div class="info-line">Area: ${AREA_KM} km × ${AREA_KM} km</div>
-                <div class="info-line">Height: 0–${MAX_HEIGHT_M} m</div>
-                <div class="info-line">Cell: ${CELL_SPACING_M} m</div>
+        <div class="ui-section">
+            <h3>Namib Star Dunes — Prototype</h3>
+            <div class="info-line">Grid ${N} × ${N} · ${AREA_KM} km · ${CELL_SPACING_M} m cells · 0–${MAX_HEIGHT_M} m</div>
+        </div>
+        <div class="ui-section">
+            <h3>Generator</h3>
+            ${MODE_LABELS.map((m) => `<label class="pass-toggle"><input type="radio" name="genMode" value="${m.value}" ${m.value === params.mode ? "checked" : ""}> ${m.label}</label>`).join("")}
+            <div class="info-line" id="modeHint">${MODE_HINTS[params.mode]}</div>
+        </div>
+        ${groups.map((g) => `
+        <div class="ui-section" data-group="${g.name}">
+            <h3>${g.name}</h3>
+            ${g.items.map(slider).join("")}
+        </div>`).join("")}
+        <div class="ui-section">
+            <h3>View</h3>
+            ${RENDER_LABELS.map((r) => `<label class="pass-toggle"><input type="radio" name="renderMode" value="${r.value}" ${r.value === RENDER_LIT ? "checked" : ""}> ${r.label}</label>`).join("")}
+        </div>
+        <div class="ui-section">
+            <h3>Seed</h3>
+            <label>Seed value
+                <input type="number" id="seed" min="0" max="999999" value="${params.seed}">
+            </label>
+            <div class="btn-group">
+                <button id="randomSeedBtn">Random seed</button>
+                <button id="resetBtn">Reset defaults</button>
             </div>
-
-            <div class="ui-section">
-                <h3>Stage 1: Base Waveform & Orientation</h3>
-                <label class="pass-toggle" data-pass="baseWaveform">
-                    <input type="checkbox" id="stageBaseWaveform" checked> Enable
-                </label>
-                <label>Wind direction (degrees)
-                    <input type="range" id="windDirection" min="0" max="360" step="1" value="${DEFAULT_PARAMS.windDirection}">
-                    <span class="value" id="windDirectionVal">${DEFAULT_PARAMS.windDirection}</span>
-                </label>
-                <label>Ridge spacing
-                    <input type="range" id="ridgeSpacing" min="0.1" max="2.0" step="0.1" value="${DEFAULT_PARAMS.ridgeSpacing}">
-                    <span class="value" id="ridgeSpacingVal">${DEFAULT_PARAMS.ridgeSpacing}</span>
-                </label>
-                <label>Ridge sharpness
-                    <input type="range" id="ridgeSharpness" min="0.5" max="2.0" step="0.1" value="${DEFAULT_PARAMS.ridgeSharpness}">
-                    <span class="value" id="ridgeSharpnessVal">${DEFAULT_PARAMS.ridgeSharpness}</span>
-                </label>
-            </div>
-
-            <div class="ui-section">
-                <h3>Stage 2: Sinuous Crest Warping</h3>
-                <label class="pass-toggle" data-pass="crestWarping">
-                    <input type="checkbox" id="stageCrestWarping" checked> Enable
-                </label>
-                <label>Warp frequency
-                    <input type="range" id="warpFrequency" min="0.5" max="5.0" step="0.1" value="${DEFAULT_PARAMS.warpFrequency}">
-                    <span class="value" id="warpFrequencyVal">${DEFAULT_PARAMS.warpFrequency}</span>
-                </label>
-                <label>Warp amplitude
-                    <input type="range" id="warpAmplitude" min="0.0" max="1.0" step="0.05" value="${DEFAULT_PARAMS.warpAmplitude}">
-                    <span class="value" id="warpAmplitudeVal">${DEFAULT_PARAMS.warpAmplitude}</span>
-                </label>
-            </div>
-
-            <div class="ui-section">
-                <h3>Stage 3: Directional Profile Modifier</h3>
-                <label class="pass-toggle" data-pass="profileModifier">
-                    <input type="checkbox" id="stageProfileModifier" checked> Enable
-                </label>
-                <label>Windward power (gentle)
-                    <input type="range" id="windwardPower" min="0.5" max="0.9" step="0.05" value="${DEFAULT_PARAMS.windwardPower}">
-                    <span class="value" id="windwardPowerVal">${DEFAULT_PARAMS.windwardPower}</span>
-                </label>
-                <label>Leeward power (steep)
-                    <input type="range" id="leewardPower" min="2.0" max="3.0" step="0.1" value="${DEFAULT_PARAMS.leewardPower}">
-                    <span class="value" id="leewardPowerVal">${DEFAULT_PARAMS.leewardPower}</span>
-                </label>
-            </div>
-
-            <div class="ui-section">
-                <h3>Stage 4: Angle of Repose & Talus</h3>
-                <label class="pass-toggle" data-pass="angleRepose">
-                    <input type="checkbox" id="stageAngleRepose" checked> Enable
-                </label>
-                <label>Angle of repose (degrees)
-                    <input type="range" id="angleOfRepose" min="30" max="35" step="0.5" value="${DEFAULT_PARAMS.angleOfRepose}">
-                    <span class="value" id="angleOfReposeVal">${DEFAULT_PARAMS.angleOfRepose}</span>
-                </label>
-                <label>Talus strength
-                    <input type="range" id="talusStrength" min="0.1" max="1.0" step="0.05" value="${DEFAULT_PARAMS.talusStrength}">
-                    <span class="value" id="talusStrengthVal">${DEFAULT_PARAMS.talusStrength}</span>
-                </label>
-            </div>
-
-            <div class="ui-section">
-                <h3>Stage 5: Micro-Surface Detail</h3>
-                <label class="pass-toggle" data-pass="microDetail">
-                    <input type="checkbox" id="stageMicroDetail" checked> Enable
-                </label>
-                <label>Ripple frequency
-                    <input type="range" id="rippleFrequency" min="5.0" max="50.0" step="1.0" value="${DEFAULT_PARAMS.rippleFrequency}">
-                    <span class="value" id="rippleFrequencyVal">${DEFAULT_PARAMS.rippleFrequency}</span>
-                </label>
-                <label>Ripple amplitude
-                    <input type="range" id="rippleAmplitude" min="0.01" max="0.1" step="0.005" value="${DEFAULT_PARAMS.rippleAmplitude}">
-                    <span class="value" id="rippleAmplitudeVal">${DEFAULT_PARAMS.rippleAmplitude}</span>
-                </label>
-                <label>Slope mask threshold
-                    <input type="range" id="slopeMaskThreshold" min="0.1" max="0.5" step="0.05" value="${DEFAULT_PARAMS.slopeMaskThreshold}">
-                    <span class="value" id="slopeMaskThresholdVal">${DEFAULT_PARAMS.slopeMaskThreshold}</span>
-                </label>
-            </div>
-
-            <div class="ui-section">
-                <h3>Global Parameters</h3>
-                <label>Overall scale
-                    <input type="range" id="overallScale" min="0.5" max="2.0" step="0.1" value="${DEFAULT_PARAMS.overallScale}">
-                    <span class="value" id="overallScaleVal">${DEFAULT_PARAMS.overallScale}</span>
-                </label>
-                <label>Height scale
-                    <input type="range" id="heightScale" min="0.1" max="5.0" step="0.1" value="${DEFAULT_PARAMS.heightScale}">
-                    <span class="value" id="heightScaleVal">${DEFAULT_PARAMS.heightScale}</span>
-                </label>
-            </div>
-
-            <div class="ui-section">
-                <h3>Visualization Mode</h3>
-                <label><input type="radio" name="renderMode" value="${RENDER_HEIGHTMAP}" > Heightmap (grayscale)</label>
-                <label><input type="radio" name="renderMode" value="${RENDER_LIT}" checked> Lit terrain (sand)</label>
-                <label><input type="radio" name="renderMode" value="${RENDER_NORMALS}"> Normals (slope)</label>
-                <label><input type="radio" name="renderMode" value="${RENDER_STAGE_ISOLATION}"> Stage isolation</label>
-                <label><input type="radio" name="renderMode" value="${RENDER_SLOPE_HEATMAP}"> Slope heatmap</label>
-                <label><input type="radio" name="renderMode" value="${RENDER_CURVATURE}"> Curvature</label>
-                <label><input type="radio" name="renderMode" value="${RENDER_WIREFRAME}"> Wireframe</label>
-                <label><input type="radio" name="renderMode" value="${RENDER_DEBUG_NOISE}"> Debug noise</label>
-            </div>
-
-            <div class="ui-section">
-                <h3>Seed</h3>
-                <label>Seed value
-                    <input type="number" id="seed" min="0" max="999999" value="${DEFAULT_PARAMS.seed}">
-                </label>
-                <button id="regenerateBtn">Regenerate Dunes</button>
-            </div>
+        </div>
     `;
     container.appendChild(panel);
 
-    // Bind slider events
-    const sliderIds = [
-        'windDirection', 'ridgeSpacing', 'ridgeSharpness',
-        'warpFrequency', 'warpAmplitude',
-        'windwardPower', 'leewardPower',
-        'angleOfRepose', 'talusStrength',
-        'rippleFrequency', 'rippleAmplitude', 'slopeMaskThreshold',
-        'overallScale', 'heightScale'
-    ];
+    const applyModeVisibility = () => {
+        const mode = String(params.mode);
+        panel.querySelectorAll("label[data-modes]").forEach((el) => {
+            el.style.display = el.dataset.modes.split(",").includes(mode) ? "" : "none";
+        });
+        panel.querySelectorAll(".ui-section[data-group]").forEach((sec) => {
+            const visible = [...sec.querySelectorAll("label[data-modes]")].some((el) => el.style.display !== "none");
+            sec.style.display = visible ? "" : "none";
+        });
+        panel.querySelector("#modeHint").textContent = MODE_HINTS[params.mode];
+    };
 
-    sliderIds.forEach(id => {
-        const slider = document.getElementById(id);
-        const valueSpan = document.getElementById(id + 'Val');
-        slider.addEventListener('input', () => {
-            valueSpan.textContent = slider.value;
-            onParamChange({ [id]: parseFloat(slider.value) });
+    const set = (patch) => {
+        Object.assign(params, patch);
+        onParamChange(patch);
+    };
+
+    for (const g of groups) {
+        for (const p of g.items) {
+            const input = panel.querySelector(`#${p.key}`);
+            const valueSpan = panel.querySelector(`#${p.key}Val`);
+            input.addEventListener("input", () => {
+                valueSpan.textContent = input.value;
+                set({ [p.key]: parseFloat(input.value) });
+            });
+        }
+    }
+
+    panel.querySelectorAll('input[name="genMode"]').forEach((radio) => {
+        radio.addEventListener("change", () => {
+            if (!radio.checked) return;
+            set({ mode: parseInt(radio.value, 10) });
+            applyModeVisibility();
         });
     });
 
-    // Bind seed input
-    const seedInput = document.getElementById('seed');
-    seedInput.addEventListener('change', () => {
-        onParamChange({ seed: parseInt(seedInput.value, 10) });
+    panel.querySelectorAll('input[name="renderMode"]').forEach((radio) => {
+        radio.addEventListener("change", () => {
+            if (radio.checked) onRenderModeChange(parseInt(radio.value, 10));
+        });
     });
 
-    // Bind regenerate button
-    document.getElementById('regenerateBtn').addEventListener('click', () => {
-        onRegenerate();
+    const seedInput = panel.querySelector("#seed");
+    seedInput.addEventListener("change", () => set({ seed: parseInt(seedInput.value, 10) || 0 }));
+    panel.querySelector("#randomSeedBtn").addEventListener("click", () => {
+        seedInput.value = Math.floor(Math.random() * 1000000);
+        set({ seed: parseInt(seedInput.value, 10) });
     });
 
-    // Bind stage toggles
-    const stageToggles = [
-        { id: 'stageBaseWaveform', flag: STAGE_BASE_WAVEFORM },
-        { id: 'stageCrestWarping', flag: STAGE_CREST_WARPING },
-        { id: 'stageProfileModifier', flag: STAGE_PROFILE_MODIFIER },
-        { id: 'stageAngleRepose', flag: STAGE_ANGLE_REPOSE },
-        { id: 'stageMicroDetail', flag: STAGE_MICRO_DETAIL },
-    ];
-
-    let currentPassFlags = DEFAULT_PARAMS.passFlags;
-
-    stageToggles.forEach(({ id, flag }) => {
-        const checkbox = document.getElementById(id);
-        checkbox.addEventListener('change', () => {
-            if (checkbox.checked) {
-                currentPassFlags |= flag;
-            } else {
-                currentPassFlags &= ~flag;
+    panel.querySelector("#resetBtn").addEventListener("click", () => {
+        const mode = params.mode;
+        const patch = { ...DEFAULT_PARAMS, mode, seed: params.seed };
+        for (const g of groups) {
+            for (const p of g.items) {
+                panel.querySelector(`#${p.key}`).value = p.value;
+                panel.querySelector(`#${p.key}Val`).textContent = p.value;
             }
-            onPassToggle(currentPassFlags);
-        });
+        }
+        set(patch);
     });
 
-    // Bind render mode radio buttons
-    const renderModeRadios = document.querySelectorAll('input[name="renderMode"]');
-    renderModeRadios.forEach(radio => {
-        radio.addEventListener('change', () => {
-            if (radio.checked) {
-                onRenderModeChange(parseInt(radio.value, 10));
-            }
-        });
-    });
+    applyModeVisibility();
 }

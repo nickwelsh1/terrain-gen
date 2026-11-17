@@ -78,6 +78,13 @@
                 </div>
             </div>
 
+            <div class="fit-row shrink-0 flex items-center">
+                <label class="flex items-center gap-1.5 cursor-pointer select-none text-sm text-neutral-300">
+                    <input id="fitImage" type="checkbox" class="accent-[var(--accent)]" />
+                    <span>Fit image</span>
+                </label>
+            </div>
+
             <div id="controls" class="shrink-0 bg-neutral-900 border-t border-neutral-800 p-4">
                 <div class="flex flex-wrap gap-3 items-end text-sm">
                     <div class="flex flex-col gap-1">
@@ -206,6 +213,8 @@
             monochromatic: { label: 'Monochromatic', desc: 'Variations of a single base hue using tints, shades, and tones. Clean, elegant, and deeply unified.' }
         };
 
+        const DEFAULT_PALETTE = ['#52525a', '#181729', '#573d46', '#a16759', '#8a410c'];
+
         let images = [];
         const settings = {
             colorCount: 5,
@@ -215,13 +224,14 @@
             useKMeans: true,
             blur: false,
             blurRadius: 5,
-            invert: false
+            invert: false,
+            fit: false
         };
         let selectedImageId = null;
         let selectedPaletteId = null;
         let palettes = [];
         let activePalette = null;
-        const line = { start: null, end: null, dragging: null };
+        const line = { start: null, end: null, dragging: null, dragPointerId: null };
         let dragMarker = null;
 
         const els = {
@@ -251,6 +261,7 @@
             blurRadiusBox: document.getElementById('blurRadiusBox'),
             blurRadius: document.getElementById('blurRadius'),
             blurVal: document.getElementById('blurVal'),
+            fitImage: document.getElementById('fitImage'),
             activePalette: document.getElementById('activePalette'),
             activeSwatches: document.getElementById('activeSwatches'),
             activeValues: document.getElementById('activeValues'),
@@ -281,12 +292,13 @@
 
         async function dbGetAll() {
             const db = await dbPromise;
+            const reqResult = (r) => new Promise((res, rej) => { r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });
             return new Promise((resolve, reject) => {
                 const tx = db.transaction(DB_STORE, 'readonly');
                 const store = tx.objectStore(DB_STORE);
-                const req = store.getAll();
-                const keys = store.getAllKeys();
-                Promise.all([req, keys]).then(([values, ks]) => resolve(Object.fromEntries(ks.map((k, i) => [k, values[i]])))).catch(reject);
+                Promise.all([reqResult(store.getAll()), reqResult(store.getAllKeys())])
+                    .then(([values, ks]) => resolve(Object.fromEntries(ks.map((k, i) => [k, values[i]]))))
+                    .catch(reject);
             });
         }
 
@@ -351,6 +363,9 @@
                 }));
                 const selPal = (payload.images || []).find(im => im.id === selectedImageId)?.selectedPaletteId;
                 selectedPaletteId = payload.selectedPaletteId || selPal || palettes[0]?.id || null;
+                if (images.length && !images.some(i => i.id === selectedImageId)) {
+                    selectedImageId = images[0].id;
+                }
             } catch (e) { console.error('load failed', e); }
         }
 
@@ -365,7 +380,99 @@
             els.blurRadius.value = settings.blurRadius;
             els.blurVal.textContent = settings.blurRadius;
             els.invert.checked = settings.invert;
+            els.fitImage.checked = !!settings.fit;
+            applyFit();
             toggleControls();
+        }
+
+        function applyFit() {
+            els.mainImage.classList.toggle('object-contain', settings.fit);
+            els.mainImage.classList.toggle('object-cover', !settings.fit);
+        }
+
+        function getImageView() {
+            const im = els.mainImage;
+            const r = els.viewer.getBoundingClientRect();
+            const nw = im.naturalWidth, nh = im.naturalHeight;
+            if (!r.width || !r.height || !nw || !nh) return null;
+            const s = settings.fit ? Math.min(r.width / nw, r.height / nh) : Math.max(r.width / nw, r.height / nh);
+            const dw = nw * s, dh = nh * s;
+            return { vw: r.width, vh: r.height, dw, dh, offX: (r.width - dw) / 2, offY: (r.height - dh) / 2 };
+        }
+
+        function normToView(u, v, view = getImageView()) {
+            if (!view) return { x: 0, y: 0 };
+            return { x: view.offX + u * view.dw, y: view.offY + v * view.dh };
+        }
+
+        function viewToNorm(px, py, view = getImageView()) {
+            if (!view) return { x: 0.5, y: 0.5 };
+            return { x: clamp((px - view.offX) / view.dw, 0, 1), y: clamp((py - view.offY) / view.dh, 0, 1) };
+        }
+
+        function visibleNormBounds(view = getImageView()) {
+            if (!view) return { x0: 0, y0: 0, x1: 1, y1: 1 };
+            return {
+                x0: clamp(-view.offX / view.dw, 0, 1),
+                y0: clamp(-view.offY / view.dh, 0, 1),
+                x1: clamp((view.vw - view.offX) / view.dw, 0, 1),
+                y1: clamp((view.vh - view.offY) / view.dh, 0, 1)
+            };
+        }
+
+        function safeCapture(el, pointerId) {
+            try { el?.setPointerCapture(pointerId); } catch { /* pointer already released */ }
+        }
+
+        function restoreCapture() {
+            if (dragMarker) {
+                safeCapture(els.overlay.querySelector(`g.point-marker[data-idx="${dragMarker.idx}"]`), dragMarker.pointerId);
+            }
+            if (line.dragging && line.dragPointerId != null) {
+                safeCapture(els.overlay.querySelector(`.line-handle[data-line-key="${line.dragging}"]`), line.dragPointerId);
+            }
+        }
+
+        function markerLabelOffset(pos, view) {
+            const r = settings.useKMeans ? 20 : 14;
+            const k = r + 6;
+            const ix0 = Math.max(0, view.offX), iy0 = Math.max(0, view.offY);
+            const ix1 = Math.min(view.vw, view.offX + view.dw);
+            const iy1 = Math.min(view.vh, view.offY + view.dh);
+            const inside = (sx, sy) => {
+                const cx = pos.x + sx * k, cy = pos.y + sy * k;
+                return cx >= ix0 + r && cx <= ix1 - r && cy >= iy0 + r && cy <= iy1 - r;
+            };
+            for (const [sx, sy] of [[1, -1], [-1, -1], [1, 1], [-1, 1]]) {
+                if (inside(sx, sy)) return { x: sx * k, y: sy * k };
+            }
+            let best = [1, -1], bestDist = -Infinity;
+            for (const [sx, sy] of [[1, -1], [-1, -1], [1, 1], [-1, 1]]) {
+                const cx = pos.x + sx * k, cy = pos.y + sy * k;
+                const dist = Math.min(cx - ix0, ix1 - cx, cy - iy0, iy1 - cy);
+                if (dist > bestDist) { bestDist = dist; best = [sx, sy]; }
+            }
+            return { x: best[0] * k, y: best[1] * k };
+        }
+
+        function paintMarker(idx) {
+            const view = getImageView();
+            const g = els.overlay.querySelector(`g.point-marker[data-idx="${idx}"]`);
+            if (!view || !g || !activePalette) { renderOverlay(); return; }
+            const p = activePalette.points[idx];
+            const pos = normToView(p.x, p.y, view);
+            const off = markerLabelOffset(pos, view);
+            const cPos = { x: pos.x + off.x, y: pos.y + off.y };
+            const circle = g.querySelector('circle');
+            circle.setAttribute('cx', cPos.x);
+            circle.setAttribute('cy', cPos.y);
+            circle.setAttribute('fill', formatColor(activePalette.colors[idx].color, 'hex'));
+            const poly = g.querySelector('polygon');
+            if (poly) {
+                const ang = Math.atan2(-(cPos.y - pos.y), -(cPos.x - pos.x));
+                const perp = ang + Math.PI / 2;
+                poly.setAttribute('points', `${cPos.x + Math.cos(perp) * 6},${cPos.y + Math.sin(perp) * 6} ${cPos.x - Math.cos(perp) * 6},${cPos.y - Math.sin(perp) * 6} ${pos.x},${pos.y}`);
+            }
         }
 
         function rgbToColor(r, g, b, a = 255) {
@@ -447,11 +554,12 @@
                 const centers = kmeans(pixels, k, 15);
                 return centers.map((c, i) => ({ color: c, point: points[Math.min(i, points.length - 1)] }));
             } else {
-                return points.map(({ x, y }) => {
+                return points.map((p) => {
+                    const { x, y } = p;
                     const sx = Math.floor(clamp(x, 0, 1) * (w - 1));
                     const sy = Math.floor(clamp(y, 0, 1) * (h - 1));
                     const data = ctx.getImageData(sx, sy, 1, 1).data;
-                    return { color: rgbToColor(data[0], data[1], data[2]), point: { x, y } };
+                    return { color: rgbToColor(data[0], data[1], data[2]), point: { x, y, ox: p.ox, oy: p.oy } };
                 });
             }
         }
@@ -501,7 +609,7 @@
             return { x: best[0] * (r + 10), y: best[1] * (r + 10) };
         }
 
-        function generatePoints(method, count, w, h) {
+        function generatePoints(method, count, w, h, view = null) {
             const pts = [];
             const n = clamp(count, 1, 100);
             if (method === 'diagonal/') {
@@ -556,13 +664,22 @@
                     }
                 }
             }
+            let bx = 0, by = 0, bw = w, bh = h;
+            if (view && method !== 'line') {
+                const b = visibleNormBounds(view);
+                for (const p of pts) {
+                    p.x = b.x0 + p.x * (b.x1 - b.x0);
+                    p.y = b.y0 + p.y * (b.y1 - b.y0);
+                }
+                bx = b.x0 * w; by = b.y0 * h; bw = (b.x1 - b.x0) * w; bh = (b.y1 - b.y0) * h;
+            }
             return pts.map(p => {
-                const off = getPointOffset(p.x * w, p.y * h, w, h);
+                const off = getPointOffset(p.x * w - bx, p.y * h - by, bw, bh);
                 return { x: p.x, y: p.y, ox: off.x / w, oy: off.y / h };
             });
         }
 
-        function generateHarmony(baseColor, type, n) {
+        function harmonyTargets(baseColor, type, n) {
             const c = culori.oklch(baseColor);
             const h0 = c.h || 0;
             const colors = [];
@@ -587,7 +704,49 @@
                     colors.push(culori.rgb({ ...c, l }));
                 }
             }
-            return colors.slice(0, n || colors.length).map(color => ({ color, point: { x: 0.5, y: 0.5 } }));
+            return colors.slice(0, n || colors.length);
+        }
+
+        function sampleImageGrid(img, bounds, gridSize = 24) {
+            const { canvas, ctx } = getFilteredCanvas(img, settings.blur, settings.blurRadius, settings.invert);
+            const w = canvas.width, h = canvas.height;
+            const px = ctx.getImageData(0, 0, w, h).data;
+            const samples = [];
+            for (let gy = 0; gy < gridSize; gy++) {
+                for (let gx = 0; gx < gridSize; gx++) {
+                    const u = bounds.x0 + (gx + 0.5) / gridSize * (bounds.x1 - bounds.x0);
+                    const v = bounds.y0 + (gy + 0.5) / gridSize * (bounds.y1 - bounds.y0);
+                    const i = (Math.floor(v * (h - 1)) * w + Math.floor(u * (w - 1))) * 4;
+                    samples.push({ color: rgbToColor(px[i], px[i + 1], px[i + 2], px[i + 3]), point: { x: u, y: v } });
+                }
+            }
+            return samples;
+        }
+
+        const harmonyDistance = culori.differenceEuclidean('oklab');
+        const HARMONY_MIN_DIFF = 0.2;
+
+        function matchHarmonyColors(targets, samples, chosen) {
+            const used = new Set();
+            for (const t of targets) {
+                let bestIdx = -1, bestD = Infinity;
+                let fallbackIdx = -1, fallbackD = Infinity;
+                for (let i = 0; i < samples.length; i++) {
+                    if (used.has(i)) continue;
+                    const d = harmonyDistance(t, samples[i].color);
+                    if (d < fallbackD) { fallbackD = d; fallbackIdx = i; }
+                    if (d >= bestD) continue;
+                    if (chosen.every(s => harmonyDistance(s.color, samples[i].color) >= HARMONY_MIN_DIFF)) {
+                        bestD = d;
+                        bestIdx = i;
+                    }
+                }
+                const idx = bestIdx >= 0 ? bestIdx : fallbackIdx;
+                if (idx < 0) break;
+                used.add(idx);
+                chosen.push(samples[idx]);
+            }
+            return chosen;
         }
 
         function generateActivePalette(overrideMethod = null) {
@@ -597,14 +756,22 @@
             let data = [];
             const method = overrideMethod || settings.method;
             if (method === 'harmony') {
-                const base = palettes.length && palettes[0].colors.length
-                    ? palettes[0].colors[0].color
-                    : { mode: 'rgb', r: 0.5, g: 0.5, b: 0.5 };
-                data = generateHarmony(base, settings.harmony, settings.colorCount);
+                const view = getImageView();
+                const bounds = visibleNormBounds(view);
+                const basePt = {
+                    x: bounds.x0 + Math.random() * (bounds.x1 - bounds.x0),
+                    y: bounds.y0 + Math.random() * (bounds.y1 - bounds.y0)
+                };
+                const base = sampleSingleColor(basePt.x, basePt.y).color;
+                const targets = harmonyTargets(base, settings.harmony, settings.colorCount);
+                if (settings.harmony !== 'analogous' && settings.harmony !== 'monochromatic') targets.shift();
+                const samples = sampleImageGrid(els.mainImage, bounds);
+                const chosen = matchHarmonyColors(targets, samples, [{ color: base, point: basePt }]);
+                data = chosen.slice(0, settings.colorCount);
             } else if (method === 'line' && (!line.start || !line.end)) {
                 return null;
             } else {
-                const pts = generatePoints(method, settings.colorCount, w, h);
+                const pts = generatePoints(method, settings.colorCount, w, h, getImageView());
                 if (pts.length) data = sampleColors(els.mainImage, pts, settings.useKMeans, settings.colorCount);
             }
             return data.length ? {
@@ -630,6 +797,20 @@
             };
         }
 
+        function seedDefaultPalette() {
+            const n = DEFAULT_PALETTE.length;
+            palettes = [{
+                id: uid(),
+                name: 'Default palette',
+                method: 'diagonal/',
+                harmony: 'none',
+                colorCount: n,
+                colors: DEFAULT_PALETTE.map(h => ({ color: culori.parse(h) })),
+                points: DEFAULT_PALETTE.map((_, i) => ({ x: n === 1 ? 0.5 : i / (n - 1), y: 0.5 }))
+            }];
+            selectedPaletteId = palettes[0].id;
+        }
+
         function getSelectedImage() { return images.find(i => i.id === selectedImageId); }
         function getSelectedPalette() { return palettes.find(p => p.id === selectedPaletteId); }
 
@@ -650,7 +831,7 @@
                 images.push(image);
                 await dbPut(id, blob);
             }
-            if (images.length && !selectedImageId) selectedImageId = images[0].id;
+            if (images.length && !images.some(i => i.id === selectedImageId)) selectedImageId = images[0].id;
             saveState();
             renderThumbs();
             selectImage(selectedImageId);
@@ -734,25 +915,22 @@
             svg.innerHTML = '';
             if (!im) return;
             const viewerRect = els.viewer.getBoundingClientRect();
-            const imgRect = els.mainImage.getBoundingClientRect();
-            const left = imgRect.left - viewerRect.left;
-            const top = imgRect.top - viewerRect.top;
-            const w = imgRect.width, h = imgRect.height;
+            const w = viewerRect.width, h = viewerRect.height;
+            if (!w || !h) return;
+            const view = getImageView();
             svg.setAttribute('viewBox', `0 0 ${w} ${h}`);
-            svg.style.left = `${left}px`;
-            svg.style.top = `${top}px`;
-            svg.style.width = `${w}px`;
-            svg.style.height = `${h}px`;
+            svg.setAttribute('preserveAspectRatio', 'none');
+            if (!view) return;
 
             if (settings.method === 'line' && line.start && !line.end) {
-                const x = line.start.x * w, y = line.start.y * h;
+                const pos = normToView(line.start.x, line.start.y, view);
                 const c = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-                c.setAttribute('cx', x); c.setAttribute('cy', y); c.setAttribute('r', 10);
+                c.setAttribute('cx', pos.x); c.setAttribute('cy', pos.y); c.setAttribute('r', 10);
                 c.setAttribute('fill', 'white'); c.setAttribute('stroke', 'var(--accent)'); c.setAttribute('stroke-width', 2);
                 c.setAttribute('class', 'line-handle');
                 svg.appendChild(c);
                 const t = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-                t.setAttribute('x', x); t.setAttribute('y', y - 16); t.setAttribute('fill', 'white'); t.setAttribute('font-size', '12'); t.setAttribute('text-anchor', 'middle');
+                t.setAttribute('x', pos.x); t.setAttribute('y', pos.y - 16); t.setAttribute('fill', 'white'); t.setAttribute('font-size', '12'); t.setAttribute('text-anchor', 'middle');
                 t.textContent = 'Click to set end point';
                 svg.appendChild(t);
             }
@@ -762,17 +940,30 @@
             if (activePalette.method === 'line') {
                 const pts = activePalette.points;
                 if (pts && pts[0] && pts[pts.length - 1]) {
-                    const p1 = pts[0], p2 = pts[pts.length - 1];
-                    const x1 = p1.x * w, y1 = p1.y * h, x2 = p2.x * w, y2 = p2.y * h;
-                    svg.insertAdjacentHTML('beforeend', `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="white" stroke-width="2" stroke-dasharray="4 2"/>`);
-                    [[x1, y1, 'start'], [x2, y2, 'end']].forEach(([x, y, k]) => {
+                    const a = normToView(pts[0].x, pts[0].y, view);
+                    const b = normToView(pts[pts.length - 1].x, pts[pts.length - 1].y, view);
+                    svg.insertAdjacentHTML('beforeend', `<line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" stroke="white" stroke-width="2" stroke-dasharray="4 2"/>`);
+                    [[a, 'start'], [b, 'end']].forEach(([pos, k]) => {
                         const c = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-                        c.setAttribute('cx', x); c.setAttribute('cy', y); c.setAttribute('r', 10);
+                        c.setAttribute('cx', pos.x); c.setAttribute('cy', pos.y); c.setAttribute('r', 10);
                         c.setAttribute('fill', 'white'); c.setAttribute('stroke', 'var(--accent)'); c.setAttribute('stroke-width', 2);
                         c.setAttribute('class', 'line-handle');
-                        c.onpointerdown = (e) => { line.dragging = k; e.target.setPointerCapture(e.pointerId); };
-                        c.onpointermove = (e) => { if (line.dragging === k) { const pt = svgPoint(e); const start = line.dragging === 'start' ? { x: pt.x / w, y: pt.y / h } : line.start; const end = line.dragging === 'end' ? { x: pt.x / w, y: pt.y / h } : line.end; updateLine(start, end); } };
-                        c.onpointerup = () => { line.dragging = null; };
+                        c.setAttribute('data-line-key', k);
+                        c.onpointerdown = (e) => { line.dragging = k; line.dragPointerId = e.pointerId; e.target.setPointerCapture(e.pointerId); };
+                        c.onpointermove = (e) => {
+                            if (line.dragging !== k) return;
+                            const v = getImageView();
+                            if (!v) return;
+                            const pt = svgPoint(e);
+                            const p = viewToNorm(pt.x, pt.y, v);
+                            const start = line.dragging === 'start' ? p : line.start;
+                            const end = line.dragging === 'end' ? p : line.end;
+                            updateLine(start, end);
+                        };
+                        const endDrag = () => { if (line.dragging === k) { line.dragging = null; line.dragPointerId = null; } };
+                        c.onpointerup = endDrag;
+                        c.onpointercancel = endDrag;
+                        c.onlostpointercapture = endDrag;
                         svg.appendChild(c);
                     });
                 }
@@ -780,32 +971,35 @@
 
             activePalette.colors.forEach((col, i) => {
                 const p = activePalette.points[i] || { x: 0.5, y: 0.5 };
-                const px = p.x * w, py = p.y * h;
-                const ox = (p.ox ?? 0) * w, oy = (p.oy ?? 0) * h;
-                const cx = px + ox, cy = py + oy;
+                const pos = normToView(p.x, p.y, view);
+                const off = markerLabelOffset(pos, view);
+                const cPos = { x: pos.x + off.x, y: pos.y + off.y };
                 const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
                 g.setAttribute('class', 'point-marker');
                 g.setAttribute('data-idx', i);
                 const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-                circle.setAttribute('cx', cx); circle.setAttribute('cy', cy); circle.setAttribute('r', settings.useKMeans ? 20 : 14);
+                circle.setAttribute('cx', cPos.x); circle.setAttribute('cy', cPos.y); circle.setAttribute('r', settings.useKMeans ? 20 : 14);
                 circle.setAttribute('fill', formatColor(col.color, 'hex'));
                 circle.setAttribute('stroke', getContrastText(col.color)); circle.setAttribute('stroke-width', 2);
-                g.appendChild(circle);
                 if (!settings.useKMeans) {
                     const poly = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
-                    const ang = Math.atan2(-oy, -ox);
+                    const ang = Math.atan2(-(cPos.y - pos.y), -(cPos.x - pos.x));
                     const perp = ang + Math.PI / 2;
-                    const tip = `${px},${py}`;
-                    const base = `${cx + Math.cos(perp) * 6},${cy + Math.sin(perp) * 6} ${cx - Math.cos(perp) * 6},${cy - Math.sin(perp) * 6}`;
+                    const tip = `${pos.x},${pos.y}`;
+                    const base = `${cPos.x + Math.cos(perp) * 6},${cPos.y + Math.sin(perp) * 6} ${cPos.x - Math.cos(perp) * 6},${cPos.y - Math.sin(perp) * 6}`;
                     poly.setAttribute('points', `${base} ${tip}`);
                     poly.setAttribute('fill', 'white');
                     g.appendChild(poly);
                 }
-                g.onpointerdown = (e) => { e.preventDefault(); const pt = svgPoint(e); dragMarker = { idx: i, start: pt, orig: { x: p.x, y: p.y } }; g.setPointerCapture(e.pointerId); };
+                g.appendChild(circle);
+                g.onpointerdown = (e) => { e.preventDefault(); const pt = svgPoint(e); dragMarker = { idx: i, start: pt, orig: { x: p.x, y: p.y }, pointerId: e.pointerId }; g.setPointerCapture(e.pointerId); };
                 g.onpointermove = (e) => { if (dragMarker && dragMarker.idx === i) moveMarker(i, e); };
-                g.onpointerup = () => { if (settings.useKMeans && dragMarker && dragMarker.idx === i) updateKMeansMarker(i); dragMarker = null; };
+                g.onpointerup = () => { if (dragMarker && dragMarker.idx === i) { if (settings.useKMeans) updateKMeansMarker(i); dragMarker = null; } };
+                g.onpointercancel = () => { if (dragMarker && dragMarker.idx === i) dragMarker = null; };
+                g.onlostpointercapture = () => { if (dragMarker && dragMarker.idx === i) dragMarker = null; };
                 svg.appendChild(g);
             });
+            restoreCapture();
         }
 
         function svgPoint(evt) {
@@ -814,17 +1008,16 @@
         }
 
         function moveMarker(idx, evt) {
-            if (!dragMarker) return;
-            const im = getSelectedImage();
-            if (!im || !activePalette) return;
+            if (!dragMarker || !activePalette) return;
+            const view = getImageView();
+            if (!view) return;
             const pt = svgPoint(evt);
             const start = dragMarker.start;
-            const rect = els.mainImage.getBoundingClientRect();
-            const w = rect.width, h = rect.height;
-            const dx = (pt.x - start.x) / w;
-            const dy = (pt.y - start.y) / h;
-            activePalette.points[idx].x = clamp(dragMarker.orig.x + dx, 0, 1);
-            activePalette.points[idx].y = clamp(dragMarker.orig.y + dy, 0, 1);
+            const dx = (pt.x - start.x) / view.dw;
+            const dy = (pt.y - start.y) / view.dh;
+            const b = visibleNormBounds(view);
+            activePalette.points[idx].x = clamp(dragMarker.orig.x + dx, b.x0, b.x1);
+            activePalette.points[idx].y = clamp(dragMarker.orig.y + dy, b.y0, b.y1);
             if (settings.method === 'line') {
                 const linePts = activePalette.points;
                 const first = linePts[0], last = linePts[linePts.length - 1];
@@ -835,7 +1028,11 @@
                 const s = sampleSingleColor(activePalette.points[idx].x, activePalette.points[idx].y);
                 activePalette.colors[idx].color = s.color;
             }
-            renderOverlay();
+            if (settings.method === 'line') {
+                renderOverlay();
+            } else {
+                paintMarker(idx);
+            }
             renderActivePalette();
         }
 
@@ -851,9 +1048,8 @@
             if (!activePalette || activePalette.method !== 'line') return;
             line.start = start;
             line.end = end;
-            const rect = els.mainImage.getBoundingClientRect();
-            const w = rect.width, h = rect.height;
-            const pts = generatePoints('line', activePalette.colorCount, w, h);
+            const w = els.mainImage.naturalWidth, h = els.mainImage.naturalHeight;
+            const pts = generatePoints('line', activePalette.colorCount, w, h, getImageView());
             activePalette.points = pts;
             activePalette.colors = sampleColors(els.mainImage, pts, settings.useKMeans, activePalette.colorCount);
             renderOverlay();
@@ -1164,9 +1360,10 @@
         function onImageClick(e) {
             const im = getSelectedImage();
             if (!im || settings.method !== 'line') return;
-            const rect = els.mainImage.getBoundingClientRect();
-            const x = clamp(e.clientX - rect.left, 0, rect.width) / rect.width;
-            const y = clamp(e.clientY - rect.top, 0, rect.height) / rect.height;
+            const view = getImageView();
+            if (!view) return;
+            const pt = svgPoint(e);
+            const { x, y } = viewToNorm(pt.x, pt.y, view);
             if (!line.start) { line.start = { x, y }; renderOverlay(); }
             else if (!line.end) { line.end = { x, y }; updateActivePalette(); }
             else { line.start = { x, y }; line.end = null; renderOverlay(); }
@@ -1181,13 +1378,14 @@
             els.addActiveBtn.onclick = addActivePalette;
             els.colorCount.oninput = () => { settings.colorCount = +els.colorCount.value; updateActivePalette(); };
             els.outputFormat.onchange = () => { settings.outputFormat = els.outputFormat.value; saveState(); renderActivePalette(); renderPalettes(); };
-            els.method.onchange = () => { settings.method = els.method.value; line.start = null; line.end = null; updateActivePalette(); };
+            els.method.onchange = () => { settings.method = els.method.value; line.start = null; line.end = null; toggleControls(); updateActivePalette(); };
             els.randomBtn.onclick = () => { line.start = null; line.end = null; updateActivePalette('random'); };
             els.harmony.onchange = () => { settings.harmony = els.harmony.value; updateActivePalette(); };
             els.useKMeans.onchange = () => { settings.useKMeans = els.useKMeans.checked; updateActivePalette(); };
             els.blur.onchange = () => { settings.blur = els.blur.checked; saveState(); updateImageFilter(); updateActivePalette(); };
             els.blurRadius.oninput = () => { settings.blurRadius = +els.blurRadius.value; els.blurVal.textContent = settings.blurRadius; saveState(); updateImageFilter(); updateActivePalette(); };
             els.invert.onchange = () => { settings.invert = els.invert.checked; saveState(); updateImageFilter(); updateActivePalette(); };
+            els.fitImage.onchange = () => { settings.fit = els.fitImage.checked; saveState(); applyFit(); updateActivePalette(); };
 
             const dz = els.dropZone;
             dz.ondragover = (e) => { e.preventDefault(); dz.classList.add('dragover'); };
@@ -1218,9 +1416,10 @@
         async function init() {
             if (typeof lucide !== 'undefined') lucide.createIcons();
             await loadState();
+            if (!palettes.length) seedDefaultPalette();
             bindSettings();
             setupEvents();
-            window.addEventListener('resize', () => { if (selectedImageId) { renderOverlay(); renderActivePalette(); } });
+            new ResizeObserver(() => { if (selectedImageId) renderOverlay(); }).observe(els.viewer);
             renderThumbs();
             selectImage(selectedImageId);
         }

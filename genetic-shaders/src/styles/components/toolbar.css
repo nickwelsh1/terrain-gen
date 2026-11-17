@@ -1,0 +1,62 @@
+/* .toolbar — top application bar */
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding-inline: var(--space-4);
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+  z-index: 10;
+}
+
+.toolbar__brand {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-weight: 700;
+  font-size: var(--text-lg);
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.toolbar__brand-mark {
+  color: var(--color-accent);
+  font-size: 1.25rem;
+}
+
+.toolbar__group {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.toolbar__group--right {
+  margin-left: auto;
+}
+
+.toolbar__field {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-xs);
+  color: var(--color-text-dim);
+  white-space: nowrap;
+}
+
+.toolbar__field--variation input {
+  width: 100px;
+}
+
+.toolbar__output {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-accent-strong);
+  min-width: 3ch;
+  text-align: right;
+}
+
+.toolbar__divider {
+  width: 1px;
+  height: 22px;
+  background: var(--color-border);
+}

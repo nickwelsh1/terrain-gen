@@ -1,0 +1,47 @@
+/* Application shell layout */
+
+.app {
+  display: grid;
+  grid-template-rows: var(--toolbar-height) 1fr;
+  height: 100vh;
+  background: var(--color-bg);
+}
+
+.workspace {
+  display: grid;
+  grid-template-columns: 1fr var(--sidebar-width);
+  min-height: 0;
+  transition: grid-template-columns 0.28s var(--ease-out);
+}
+
+.workspace--sidebar-collapsed {
+  grid-template-columns: 1fr 0px;
+}
+
+/* Explorer canvas region — container-query sized so the grid stays square */
+.explorer {
+  position: relative; /* anchors .favorites-overlay */
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  padding: var(--space-3);
+  gap: var(--space-2);
+  container-type: size;
+}
+
+.explorer__hint {
+  font-size: var(--text-xs);
+  color: var(--color-text-faint);
+  text-align: center;
+  user-select: none;
+}
+
+.explorer__hint kbd {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 0 4px;
+}

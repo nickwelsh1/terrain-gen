@@ -7,6 +7,8 @@ import {
     PALETTE_NEUTRAL_CLAY,
     PALETTE_ZHANGJIAJIE_WINTER,
     RENDER_HARDNESS,
+    RENDER_LIT,
+    RENDER_MASK_INSPECTOR,
     PASS_EROSION,
     PASS_DEPOSITION,
 } from "../../src/webgpu/constants.js";
@@ -164,6 +166,61 @@ describe("WebGPU UI (src/webgpu/ui.js)", () => {
         expect(callbacks.onPassToggle).toHaveBeenCalledWith(
             DEFAULT_PARAMS.passFlags & ~PASS_EROSION & ~PASS_DEPOSITION,
         );
+    });
+
+    it("toggles a scoped mask inspector on and off and restores the previous render mode", () => {
+        const onMaskInspect = vi.fn();
+        const onRenderModeChange = vi.fn();
+        createUI(container, {
+            ...callbacks,
+            onMaskInspect,
+            onRenderModeChange,
+        });
+
+        const inspectButton = container.querySelector(
+            '.mask-inspect-btn[data-inspect-mask="layer2.mask"]',
+        );
+        const maskRadio = container.querySelector(
+            `input[name="renderMode"][value="${RENDER_MASK_INSPECTOR}"]`,
+        );
+        const litRadio = container.querySelector(`input[name="renderMode"][value="${RENDER_LIT}"]`);
+
+        inspectButton.click();
+        expect(onMaskInspect).toHaveBeenLastCalledWith("layer2.mask");
+        expect(maskRadio.checked).toBe(true);
+        expect(inspectButton.getAttribute("aria-pressed")).toBe("true");
+        expect(inspectButton.textContent).toBe("Hide on 3D");
+
+        inspectButton.click();
+        expect(onMaskInspect).toHaveBeenLastCalledWith(null);
+        expect(litRadio.checked).toBe(true);
+        expect(maskRadio.checked).toBe(false);
+        expect(inspectButton.getAttribute("aria-pressed")).toBe("false");
+        expect(inspectButton.textContent).toBe("View on 3D");
+        expect(onRenderModeChange).toHaveBeenLastCalledWith(RENDER_LIT);
+    });
+
+    it("switches the inspected mask without leaving mask inspector mode", () => {
+        const onMaskInspect = vi.fn();
+        createUI(container, { ...callbacks, onMaskInspect });
+
+        const layer2Button = container.querySelector(
+            '.mask-inspect-btn[data-inspect-mask="layer2.mask"]',
+        );
+        const erosionButton = container.querySelector(
+            '.mask-inspect-btn[data-inspect-mask="erosion.mask"]',
+        );
+        const maskRadio = container.querySelector(
+            `input[name="renderMode"][value="${RENDER_MASK_INSPECTOR}"]`,
+        );
+
+        layer2Button.click();
+        erosionButton.click();
+
+        expect(onMaskInspect).toHaveBeenLastCalledWith("erosion.mask");
+        expect(maskRadio.checked).toBe(true);
+        expect(layer2Button.getAttribute("aria-pressed")).toBe("false");
+        expect(erosionButton.getAttribute("aria-pressed")).toBe("true");
     });
 
     it("places Layer 2 enable checkbox inside .ui-summary next to On/Off badge and supports toggling without expanding", () => {

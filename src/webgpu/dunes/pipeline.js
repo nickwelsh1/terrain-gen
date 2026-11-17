@@ -1,4 +1,4 @@
-// GPU pipeline manager: creates buffers, compute pipelines, and runs dunes generation passes.
+// GPU pipeline manager: two compute passes (base landform → Phacelle arms).
 // Uses Babylon Lite's StorageBuffer for render-side binding,
 // accesses ._buffer for compute shader bind groups.
 
@@ -9,119 +9,123 @@ import {
     GRID_CELLS,
     HEIGHT_BUFFER_BYTES,
     UNIFORM_BUFFER_BYTES,
+    UNIFORM_FLOATS,
+    PARAM_KEYS,
     WORKGROUP_SIZE,
-    FIXED_POINT_SCALE,
     DEFAULT_PARAMS,
 } from "./constants.js";
-import { DUNES_SHADER } from "./shaders/dunes.wgsl.js";
+import { DUNES_BASE_SHADER, DUNES_ARMS_SHADER } from "./shaders/dunes.wgsl.js";
 
 export class DunesPipeline {
     constructor(engine) {
         this.engine = engine;
         this.device = engine._device;
-        this.pipeline = null;
-        this.bindGroup = null;
         this.storageBuffers = {};
         this.params = { ...DEFAULT_PARAMS };
     }
 
     async init() {
         this._createBuffers();
-        this._createPipeline();
-        this._createBindGroup();
+        await this._createPipelines();
+        this._createBindGroups();
     }
 
     _createBuffers() {
-        const engine = this.engine;
         const device = this.device;
 
-        // Uniform buffer — raw GPUBuffer (not used by Babylon Lite material system)
         this.uniformBuffer = device.createBuffer({
             size: UNIFORM_BUFFER_BYTES,
             usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
         });
 
-        // Height buffer — StorageBuffer wrapper for render binding
-        const zeroI32 = new Int32Array(GRID_CELLS);
-        this.storageBuffers.heights = createStorageBuffer(engine, zeroI32, "dunesHeight");
-    }
-
-    _createPipeline() {
-        const device = this.device;
-
-        const dunesModule = device.createShaderModule({ code: DUNES_SHADER });
-        this.pipeline = device.createComputePipeline({
-            layout: "auto",
-            compute: { module: dunesModule, entryPoint: "generateDunes" },
+        // Intermediate base landform in metres (compute-only):
+        // vec2f(main landform, smaller dune generations) per cell
+        this.baseBuffer = device.createBuffer({
+            size: HEIGHT_BUFFER_BYTES * 2,
+            usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC,
         });
+
+        // Final fixed-point heights + detail layer (bound to the render material).
+        // The Lite createStorageBuffer sets no COPY_SRC, so swap in an
+        // equivalent buffer that has it — needed for GPU readback/debugging.
+        this.storageBuffers.heights = createStorageBuffer(this.engine, new Int32Array(GRID_CELLS), "dunesHeight");
+        this.storageBuffers.detail = createStorageBuffer(this.engine, new Float32Array(GRID_CELLS), "dunesDetail");
+        for (const name of ["heights", "detail"]) {
+            const sb = this.storageBuffers[name];
+            sb._buffer.destroy();
+            sb._buffer = device.createBuffer({
+                size: HEIGHT_BUFFER_BYTES,
+                usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC,
+                label: name,
+            });
+        }
     }
 
-    _createBindGroup() {
+    async _compile(code, entryPoint, label) {
         const device = this.device;
+        const module = device.createShaderModule({ code, label });
+        const info = await module.getCompilationInfo();
+        for (const msg of info.messages) {
+            const fn = msg.type === "error" ? console.error : console.warn;
+            fn(`[${label}] ${msg.type} ${msg.lineNum}:${msg.linePos} ${msg.message}`);
+        }
+        return device.createComputePipeline({ layout: "auto", compute: { module, entryPoint }, label });
+    }
 
-        this.bindGroup = device.createBindGroup({
-            layout: this.pipeline.getBindGroupLayout(0),
+    async _createPipelines() {
+        this.basePipeline = await this._compile(DUNES_BASE_SHADER, "generateBase", "dunesBase");
+        this.armsPipeline = await this._compile(DUNES_ARMS_SHADER, "applyArms", "dunesArms");
+    }
+
+    _createBindGroups() {
+        const device = this.device;
+        const uniform = { buffer: this.uniformBuffer };
+        const base = { buffer: this.baseBuffer };
+        const heights = { buffer: this.storageBuffers.heights._buffer };
+        const detail = { buffer: this.storageBuffers.detail._buffer };
+
+        this.baseBindGroup = device.createBindGroup({
+            layout: this.basePipeline.getBindGroupLayout(0),
             entries: [
-                { binding: 0, resource: { buffer: this.uniformBuffer } },
-                { binding: 1, resource: { buffer: this.storageBuffers.heights._buffer } },
+                { binding: 0, resource: uniform },
+                { binding: 1, resource: base },
+            ],
+        });
+        this.armsBindGroup = device.createBindGroup({
+            layout: this.armsPipeline.getBindGroupLayout(0),
+            entries: [
+                { binding: 0, resource: uniform },
+                { binding: 1, resource: base },
+                { binding: 2, resource: heights },
+                { binding: 3, resource: detail },
             ],
         });
     }
 
     updateUniforms(params) {
         this.params = { ...this.params, ...params };
-        const data = new ArrayBuffer(UNIFORM_BUFFER_BYTES);
-        const view = new DataView(data);
-
-        // Stage 1: Base Waveform & Orientation
-        view.setFloat32(0, this.params.windDirection, true);
-        view.setFloat32(4, this.params.ridgeSpacing, true);
-        view.setFloat32(8, this.params.ridgeSharpness, true);
-
-        // Stage 2: Sinuous Crest Warping
-        view.setFloat32(12, this.params.warpFrequency, true);
-        view.setFloat32(16, this.params.warpAmplitude, true);
-
-        // Stage 3: Directional Profile Modifier
-        view.setFloat32(20, this.params.windwardPower, true);
-        view.setFloat32(24, this.params.leewardPower, true);
-
-        // Stage 4: Angle of Repose & Talus Limiter
-        view.setFloat32(28, this.params.angleOfRepose, true);
-        view.setFloat32(32, this.params.talusStrength, true);
-
-        // Stage 5: Micro-Surface Detail
-        view.setFloat32(36, this.params.rippleFrequency, true);
-        view.setFloat32(40, this.params.rippleAmplitude, true);
-        view.setFloat32(44, this.params.slopeMaskThreshold, true);
-
-        // Global parameters
-        view.setFloat32(48, this.params.seed, true);
-        view.setFloat32(52, this.params.overallScale, true);
-        view.setFloat32(56, this.params.heightScale, true);
-
-        // Stage toggles and render mode
-        view.setUint32(60, this.params.passFlags, true);
-        view.setUint32(64, this.params.renderMode, true);
-
-        // Padding to reach 80 bytes (16-byte aligned)
-        view.setUint32(68, 0, true);
-        view.setUint32(72, 0, true);
-        view.setUint32(76, 0, true);
-
+        const data = new Float32Array(UNIFORM_FLOATS);
+        PARAM_KEYS.forEach((key, i) => {
+            data[i] = this.params[key];
+        });
         this.device.queue.writeBuffer(this.uniformBuffer, 0, data);
     }
 
     generateDunes() {
         const encoder = this.device.createCommandEncoder();
-        const pass = encoder.beginComputePass();
+        const groups = N / WORKGROUP_SIZE;
 
-        pass.setPipeline(this.pipeline);
-        pass.setBindGroup(0, this.bindGroup);
-        // Ensure exact division for clean workgroup boundaries
-        pass.dispatchWorkgroups(N / WORKGROUP_SIZE, N / WORKGROUP_SIZE);
+        const basePass = encoder.beginComputePass();
+        basePass.setPipeline(this.basePipeline);
+        basePass.setBindGroup(0, this.baseBindGroup);
+        basePass.dispatchWorkgroups(groups, groups);
+        basePass.end();
 
-        pass.end();
+        const armsPass = encoder.beginComputePass();
+        armsPass.setPipeline(this.armsPipeline);
+        armsPass.setBindGroup(0, this.armsBindGroup);
+        armsPass.dispatchWorkgroups(groups, groups);
+        armsPass.end();
 
         this.device.queue.submit([encoder.finish()]);
     }

@@ -61,6 +61,14 @@ export const APPS = [
         icon: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>`,
     },
     {
+        id: 'genetic-shaders',
+        title: 'Genetic Shaders',
+        desc: 'IGA GLSL shader explorer & matcher',
+        path: 'genetic-shaders/index.html',
+        section: 'terrain',
+        icon: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 15c6.667-6 13.333 0 20-6"/><path d="M9 22c1.798-1.998 2.518-3.995 2.807-5.993"/><path d="M15 2c-1.798 1.998-2.518 3.995-2.807 5.993"/><path d="m17 6-2.5-2.5"/><path d="m7 18 2.5 2.5"/><path d="m10 16 1.5 1.5"/><path d="m14 8-1.5-1.5"/></svg>`,
+    },
+    {
         id: 'pose-capture',
         title: '2D Pose Capture',
         desc: 'motion & joint tracking',

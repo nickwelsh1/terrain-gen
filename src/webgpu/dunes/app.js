@@ -1,5 +1,5 @@
 // Main app: integrates all modules — device, pipeline, renderer, UI.
-// Entry point for dunes.html.
+// Entry point for dunes.html (Namib star-dune prototype).
 
 import { checkWebGPUSupport } from "./device.js";
 import { DunesPipeline } from "./pipeline.js";
@@ -12,7 +12,6 @@ export async function main() {
     const canvas = document.getElementById("renderCanvas");
     const statusEl = document.getElementById("status");
 
-    // 1. Check WebGPU support
     const result = await checkWebGPUSupport();
     if (result.error) {
         statusEl.textContent = result.error;
@@ -20,39 +19,38 @@ export async function main() {
         return;
     }
 
-    // 2. Create Babylon Lite engine (wraps the GPUDevice + canvas context)
     const engine = await createEngine(canvas);
 
-    // 3. Create and initialize the dunes pipeline (uses engine._device for compute)
     const pipeline = new DunesPipeline(engine);
     await pipeline.init();
-
-    // 4. Generate initial dunes
     pipeline.updateUniforms(DEFAULT_PARAMS);
     pipeline.generateDunes();
 
-    // 5. Create renderer (uses the same engine for scene/mesh/material)
     const renderer = await createRenderer(canvas, pipeline, engine);
 
-    // 6. Create UI
+    // Coalesce slider drags into one regeneration per frame.
+    let pending = false;
+    const regenerate = () => {
+        if (pending) return;
+        pending = true;
+        requestAnimationFrame(() => {
+            pending = false;
+            pipeline.generateDunes();
+        });
+    };
+
     createUI(document.body, {
         onParamChange(params) {
             pipeline.updateUniforms(params);
-            pipeline.generateDunes();
-        },
-        onRegenerate() {
-            pipeline.generateDunes();
+            regenerate();
         },
         onRenderModeChange(mode) {
             renderer.setRenderMode(mode);
         },
-        onPassToggle(flags) {
-            pipeline.updateUniforms({ passFlags: flags });
-            pipeline.generateDunes();
-        },
     });
 
-    // 7. Start render loop
+    window.__dunes = { pipeline, renderer };
+
     statusEl.style.display = "none";
     await renderer.start();
 }
