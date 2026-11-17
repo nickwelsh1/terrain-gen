@@ -32,6 +32,14 @@ The legacy terrain pipeline runs in this order:
 
 `DEFAULT_SETTINGS` holds all slider defaults; `index.html` spreads it and wires sliders/checkboxes 1:1 to keys (except `asymDirection`, which converts degrees→radians). `domainWarp(noise, coord)` wraps the fastnoise-lite **`DomainWrap` typo** (the library misspells the public method) with a fallback to `DomainWarp`.
 
+## Namib Star-Dune Prototype (`dunes.html`)
+
+`src/webgpu/dunes/` is a standalone WebGPU prototype for star dunes (not wired into the `webgpu.html` compositor yet). `PARAM_SCHEMA` in `constants.js` is the single source of truth: it generates the WGSL `DuneParams` struct, uniform packing (all f32), defaults and the UI. Two compute passes in `shaders/dunes.wgsl.js`:
+1. `generateBase` — Mode A/C: warped Voronoi crest network (edges = crests, cells = pans, vertices = star peaks via `F3 − F1`), edge distance converted to true metres with the warp Jacobian so slopes match the windward/slip-face angles; optional smaller "generations". Mode B: `smoothDomes` — smooth 2-octave swell with analytic gradient (pass 2 prepends a low-frequency Phacelle mega-ridge octave, `megaSpacing`/`megaHeight`, inside the same stacked-fade loop so arms are steered by it continuously). Writes `vec2f(main landform, smaller generations)`.
+2. `applyArms` — Mode B/C: Runevision stacked-fade Phacelle arms with a sharp wind-asymmetric crest profile, per-octave relief capped at repose and a Nyquist guard on the narrow side; then pan flattening.
+
+Phacelle arms only look patterned when steered by a **smooth** field: B uses the analytic gradient of `smoothDomes`; C steers by the main network only (generations excluded) via a wide stencil. `armBranching` scales octave-to-octave steering (low = parallel, high = dendritic/chaotic). Saw-tooth artifacts come from sharp features below ~5 grid cells (16 m cells) or from discontinuous direction fields feeding Phacelle — keep crest rounding, the Nyquist guard and the continuous feed-forward slope. `window.__dunes` exposes `{ pipeline, renderer }` for debugging; `pipeline.baseBuffer` (`vec2f` per cell) is `COPY_SRC` for readback.
+
 ## Code Conventions
 
 - **ES modules** — `"type": "module"` in package.json, use `import`/`export`

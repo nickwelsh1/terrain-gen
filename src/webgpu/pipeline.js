@@ -473,6 +473,40 @@ export class TerrainPipeline {
         }
     }
 
+    inspectMask(maskScope) {
+        const seed = this.stack.seed ?? this.params.seed ?? 42;
+        let maskCfg;
+        let maskSeed = seed;
+        if (maskScope === "erosion.mask") {
+            maskCfg = this.stack.erosionMask || {};
+            maskSeed += 503;
+        } else {
+            const materialMatch = /^(material[12])\.mask$/.exec(maskScope || "");
+            if (materialMatch) {
+                maskCfg = this.stack.materials?.[materialMatch[1]]?.maskParams || {};
+            } else {
+                const layerMatch = /^layer(\d+)\.(mask|detailMask)$/.exec(maskScope || "");
+                if (!layerMatch) return false;
+                const layerIndex = Number.parseInt(layerMatch[1], 10) - 1;
+                const layer = this.stack.layers?.[layerIndex];
+                if (!layer) return false;
+
+                const layerSeed = seed + layerIndex * 107;
+                if (layerMatch[2] === "detailMask") {
+                    maskCfg = layer.detailMaskParams || {};
+                    maskSeed = layerSeed + 168;
+                } else {
+                    maskCfg = layer.maskParams || {};
+                    maskSeed = layerSeed + 31;
+                }
+            }
+        }
+
+        this._evaluateMaskPass(maskCfg, maskSeed);
+        this._notifyBuffersChanged();
+        return true;
+    }
+
     _runLayerDetailPass(layer, seed) {
         const detailCfg = layer.shapers?.["shape.surfaceDetail"];
         if (!detailCfg?.enabled) return;

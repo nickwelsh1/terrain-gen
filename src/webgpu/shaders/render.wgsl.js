@@ -985,14 +985,6 @@ fn mainFragment(input: FragmentInput) -> @location(0) vec4f {
         return vec4f(hGray, hGray, hGray, 1.0);
     }
 
-    // Mode 5: Active Layer Mask Inspector (aux.z = maskA)
-    if (renderMode == 5u) {
-        let baseGray = clamp(input.height / 1600.0, 0.0, 1.0) * light;
-        let bg = vec3f(baseGray * 0.55);
-        let maskColor = mix(vec3f(0.12, 0.15, 0.22), vec3f(1.0, 0.82, 0.22), maskA);
-        return vec4f(mix(bg, maskColor, 0.78), 1.0);
-    }
-
     // Mode 6: Loose Sediment / Sand / Talus Depth Inspector (aux.y)
     if (renderMode == 6u) {
         let sedNorm = clamp(sedimentDepth / 80.0, 0.0, 1.0);
@@ -1103,6 +1095,11 @@ fn mainFragment(input: FragmentInput) -> @location(0) vec4f {
             let arrowColor = mix(vec3f(1.0, 0.9, 0.2), vec3f(1.0, 0.2, 0.1), clamp(slopeLen * 3.0, 0.0, 1.0));
             return vec4f(arrowColor, 1.0);
         }
+    }
+
+    if (renderMode == 5u) {
+        let maskYellow = vec3f(1.0, 0.82, 0.22) * max(light, 0.35);
+        return vec4f(mix(litColor, maskYellow, maskA), 1.0);
     }
 
     return vec4f(litColor, 1.0);

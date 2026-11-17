@@ -5,7 +5,7 @@ import { checkWebGPUSupport } from "./device.js";
 import { TerrainPipeline } from "./pipeline.js";
 import { createRenderer } from "./renderer.js";
 import { createUI } from "./ui.js";
-import { DEFAULT_PARAMS } from "./constants.js";
+import { DEFAULT_PARAMS, RENDER_MASK_INSPECTOR } from "./constants.js";
 import { createEngine } from "@babylonjs/lite";
 
 export async function main() {
@@ -34,6 +34,7 @@ export async function main() {
 
     // 5. Create renderer (uses the same engine for scene/mesh/material)
     const renderer = await createRenderer(canvas, pipeline, engine);
+    let maskInspectorScope = null;
 
     // 6. Create Layer-Centric Composer UI
     createUI(document.body, {
@@ -66,9 +67,15 @@ export async function main() {
         onRegenerate() {
             pipeline.generateMaps();
             pipeline.computeAnalysis();
+            if (maskInspectorScope) pipeline.inspectMask(maskInspectorScope);
         },
         onRenderModeChange(mode) {
+            if (mode !== RENDER_MASK_INSPECTOR) maskInspectorScope = null;
             renderer.setRenderMode(mode);
+        },
+        onMaskInspect(scope) {
+            maskInspectorScope = scope;
+            if (scope) pipeline.inspectMask(scope);
         },
         onMaterialPaletteChange(paletteId) {
             renderer.setMaterialPalette(paletteId);

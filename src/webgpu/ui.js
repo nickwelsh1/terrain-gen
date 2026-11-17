@@ -608,6 +608,7 @@ export function createUI(container, callbacks = {}) {
         onResetToBase = () => {},
         onRegenerate = () => {},
         onRenderModeChange = () => {},
+        onMaskInspect = () => {},
         onMaterialPaletteChange = () => {},
         onPassToggle = () => {},
         onPresetChange = null,
@@ -661,7 +662,7 @@ export function createUI(container, callbacks = {}) {
                     <div class="mask-preview-box" title="Live 2D mask preview (white = active)">
                         <canvas class="mask-preview-canvas" data-mask-preview="${maskScope}" width="200" height="200"></canvas>
                         <span class="mask-preview-caption">Mask 2D Preview (200 × 200)
-                            <button type="button" class="mask-inspect-btn" data-inspect-mask="${maskScope}" title="View the effective mask on the 3D terrain (switches render mode to Mask Inspector)">View on 3D</button>
+                            <button type="button" class="mask-inspect-btn" data-inspect-mask="${maskScope}" aria-pressed="false" title="Toggle this mask on the 3D terrain">View on 3D</button>
                         </span>
                     </div>
                     <div class="mask-primary-controls">
@@ -1267,6 +1268,16 @@ export function createUI(container, callbacks = {}) {
     const addLayerBtn = panel.querySelector("#addLayerBtn");
 
     let erosionPending = false;
+    let activeMaskInspectScope = null;
+    let lastNonMaskRenderMode = RENDER_LIT;
+
+    function updateMaskInspectButtons() {
+        panel.querySelectorAll(".mask-inspect-btn").forEach((button) => {
+            const isActive = button.dataset.inspectMask === activeMaskInspectScope;
+            button.setAttribute("aria-pressed", String(isActive));
+            button.textContent = isActive ? "Hide on 3D" : "View on 3D";
+        });
+    }
 
     function resolveMaskParamsByScope(maskScope) {
         if (maskScope === "erosion.mask") return activeStack.erosionMask || {};
@@ -1787,11 +1798,29 @@ export function createUI(container, callbacks = {}) {
         }
         const inspectBtn = e.target.closest?.(".mask-inspect-btn");
         if (inspectBtn) {
+            const maskScope = inspectBtn.dataset.inspectMask;
             const radio = panel.querySelector(`input[name="renderMode"][value="${RENDER_MASK_INSPECTOR}"]`);
+            if (activeMaskInspectScope === maskScope && radio?.checked) {
+                activeMaskInspectScope = null;
+                onMaskInspect(null);
+                const restoreRadio = panel.querySelector(
+                    `input[name="renderMode"][value="${lastNonMaskRenderMode}"]`,
+                );
+                if (restoreRadio) {
+                    restoreRadio.checked = true;
+                    restoreRadio.dispatchEvent(new Event("change", { bubbles: true }));
+                }
+                updateMaskInspectButtons();
+                return;
+            }
+
+            activeMaskInspectScope = maskScope;
+            onMaskInspect(maskScope);
             if (radio && !radio.checked) {
                 radio.checked = true;
                 radio.dispatchEvent(new Event("change", { bubbles: true }));
             }
+            updateMaskInspectButtons();
         }
     });
 
@@ -2156,6 +2185,11 @@ export function createUI(container, callbacks = {}) {
     panel.querySelectorAll('input[name="renderMode"]').forEach((radio) => {
         radio.addEventListener("change", (e) => {
             const mode = Number.parseInt(e.target.value, 10);
+            if (mode !== RENDER_MASK_INSPECTOR) {
+                lastNonMaskRenderMode = mode;
+                activeMaskInspectScope = null;
+                updateMaskInspectButtons();
+            }
             renderBadge.textContent = RENDER_MODE_LABELS[mode] || "Lit";
             onRenderModeChange(mode);
         });
