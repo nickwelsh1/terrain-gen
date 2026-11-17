@@ -1,0 +1,68 @@
+/* .sidebar-nav — find-a-control search + jump-to-section dropdown */
+
+.sidebar-nav {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.sidebar-nav__search-wrap {
+  position: relative;
+  min-width: 0;
+}
+
+.sidebar-nav__search {
+  width: 100%;
+  padding-right: 3.2em;
+}
+
+.sidebar-nav__search--none {
+  border-color: var(--color-red);
+}
+
+.sidebar-nav__count {
+  position: absolute;
+  top: 50%;
+  right: var(--space-2);
+  transform: translateY(-50%);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-text-faint);
+  pointer-events: none;
+}
+
+.sidebar-nav__jump {
+  max-width: 11rem;
+}
+
+/* Revealed items land just below the sticky Hero Preview card. */
+.inspector-sidebar__cards > .control-card:not(.control-card--pinned),
+.inspector-sidebar__cards .slider-row,
+.inspector-sidebar__cards .target-matcher__option,
+.inspector-sidebar__cards .target-matcher__res-row {
+  scroll-margin-top: calc(var(--pinned-offset, 0px) + var(--space-2));
+}
+
+.control-card--search-hit {
+  animation: card-hit-flash 1.6s var(--ease-out);
+}
+
+.target-matcher__option--search-hit {
+  border-radius: var(--radius-sm);
+  animation: search-hit-flash 1.6s var(--ease-out);
+}
+
+@keyframes card-hit-flash {
+  0%, 35% { border-color: var(--color-accent); box-shadow: 0 0 0 1px var(--color-accent); }
+  100% { box-shadow: 0 0 0 1px transparent; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .control-card--search-hit,
+  .target-matcher__option--search-hit {
+    animation: none;
+    border-color: var(--color-accent);
+  }
+}

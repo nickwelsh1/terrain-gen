@@ -1,2 +1,4 @@
+packages:
+  - "genetic-shaders"
 allowBuilds:
   "@biomejs/biome": false

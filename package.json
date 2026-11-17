@@ -11,7 +11,7 @@
     "scripts": {
         "dev": "vite",
         "dev:legacy": "live-server .",
-        "build": "vite build",
+        "build": "vite build && pnpm -C genetic-shaders build",
         "preview": "vite preview",
         "test": "vitest run",
         "test:ui": "vitest --ui",

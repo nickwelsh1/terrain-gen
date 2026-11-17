@@ -79,5 +79,5 @@ Phacelle arms only look patterned when steered by a **smooth** field: B uses the
 
 - **`examples/tempterrain.html` imports from `src/`** — it imports `Noise` from `../src/noise.js` but still duplicates terrain generation logic (`initHeightmap`, `simulateErosion`, `calculateSlopes`, `render`) inline. Changes to `src/terrain.js` may need to be mirrored in the HTML file.
 - **`examples/tempterrain.html` requires HTTP** — ES module imports require serving over HTTP (e.g. `pnpm dev`). Opening via `file://` will fail with CORS errors.
-- **No build step** — the project runs directly in the browser or via Vitest. No bundler, no transpilation.
-- **Package manager**: pnpm (lockfile is `pnpm-lock.yaml`)
+- **Build & deploy** — `pnpm build` runs `vite build` (9 multi-page inputs → `dist/`) then `pnpm -C genetic-shaders build`, which emits `dist/genetic-shaders/`. Cloudflare Pages runs `pnpm build` on push to `release` and publishes `dist/`; the Genetic Shaders app is served at `/genetic-shaders/`. `genetic-shaders` is a pnpm workspace member (`packages` in `pnpm-workspace.yaml`) with its own Vite 7 + three — its deps resolve from its own `node_modules`, not the root's.
+- **Package manager**: pnpm (single lockfile is `pnpm-lock.yaml` at root; `genetic-shaders` has no lockfile of its own)

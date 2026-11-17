@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Genetic Shaders — IGA Procedural Explorer</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='0.9em' font-size='90'>🧬</text></svg>" />
+    <link rel="stylesheet" href="/src/styles/tokens.css" />
+    <link rel="stylesheet" href="/src/styles/reset.css" />
+    <link rel="stylesheet" href="/src/styles/atomic.css" />
+    <link rel="stylesheet" href="/src/styles/layout.css" />
+    <link rel="stylesheet" href="/src/styles/components/toolbar.css" />
+    <link rel="stylesheet" href="/src/styles/components/controls.css" />
+    <link rel="stylesheet" href="/src/styles/components/explorer-grid.css" />
+    <link rel="stylesheet" href="/src/styles/components/inspector-sidebar.css" />
+    <link rel="stylesheet" href="/src/styles/components/sidebar-nav.css" />
+    <link rel="stylesheet" href="/src/styles/components/hero-preview.css" />
+    <link rel="stylesheet" href="/src/styles/components/target-matcher.css" />
+    <link rel="stylesheet" href="/src/styles/components/favorites.css" />
+    <link rel="stylesheet" href="/src/styles/components/modal.css" />
+  </head>
+  <body>
+    <div class="app">
+      <!-- ============ Top toolbar ============ -->
+      <header class="toolbar">
+        <div class="toolbar__brand">
+          <span class="toolbar__brand-mark">🧬</span>
+          <span>Genetic Shaders</span>
+        </div>
+
+        <div class="toolbar__group">
+          <label class="toolbar__field">
+            <span>Preset</span>
+            <select class="select" id="preset-select"></select>
+          </label>
+          <label class="toolbar__field">
+            <span>Grid</span>
+            <select class="select" id="grid-size-select">
+              <option value="3" selected>3×3</option>
+              <option value="5">5×5</option>
+              <option value="7">7×7</option>
+              <option value="9">9×9</option>
+            </select>
+          </label>
+        </div>
+
+        <div class="toolbar__group toolbar__group--right">
+          <label class="toolbar__field toolbar__field--variation">
+            <span>Variation</span>
+            <input type="range" id="variation-slider" min="0.02" max="1" step="0.01" value="0.4" />
+            <output class="toolbar__output" id="variation-output">40%</output>
+          </label>
+          <button class="btn btn--primary" id="btn-mutate" title="Mutate all cells around the center parent (M)">Mutate</button>
+          <button class="btn" id="btn-crossover" title="Crossover center parent with selected parent B" disabled>Crossover</button>
+          <button class="btn" id="btn-randomize" title="Fill the grid with random genotypes — keeps the current parent (R)">Randomize</button>
+          <div class="toolbar__divider"></div>
+          <button class="btn" id="btn-favorites" title="Open favorites library">★ <output class="toolbar__output" id="fav-count">0</output></button>
+          <div class="toolbar__divider"></div>
+          <button class="btn btn--icon" id="btn-undo" title="Undo (Ctrl+Z)" disabled>↶</button>
+          <button class="btn btn--icon" id="btn-redo" title="Redo (Ctrl+Y)" disabled>↷</button>
+          <button class="btn" id="btn-help" title="Help & Algorithm Guide (?)">? Help</button>
+          <button class="btn btn--icon" id="btn-sidebar" title="Toggle inspector sidebar">⇥</button>
+        </div>
+      </header>
+
+      <!-- ============ Workspace ============ -->
+      <main class="workspace" id="workspace">
+        <section class="explorer">
+          <p class="explorer__hint">
+            Click a cell to evolve it into the parent · <kbd>Shift</kbd>+click selects crossover parent B ·
+            ★ saves a favorite · eye inspects without evolving
+          </p>
+          <div class="explorer-grid" id="explorer-grid" style="--grid-cols: 3"></div>
+
+          <!-- Favorites overlay panel (populated by FavoritesView) -->
+          <div class="favorites-overlay hidden" id="favorites-overlay">
+            <div class="favorites-overlay__header">
+              <span class="favorites-overlay__title">★ Favorites</span>
+              <button class="modal__close" id="favorites-close" title="Close (Esc)">✕</button>
+            </div>
+            <div class="favorites-overlay__body" id="favorites-overlay-body"></div>
+          </div>
+        </section>
+
+        <aside class="inspector-sidebar" id="sidebar">
+          <div class="inspector-sidebar__header">
+            <h2 class="inspector-sidebar__title">Inspector</h2>
+            <div class="d-flex gap-1">
+              <button class="btn btn--sm" id="btn-expand-all">Expand all</button>
+              <button class="btn btn--sm" id="btn-collapse-all">Collapse</button>
+            </div>
+          </div>
+          <div class="sidebar-nav" id="sidebar-nav"></div>
+          <div class="inspector-sidebar__cards" id="cards-container"></div>
+        </aside>
+      </main>
+    </div>
+
+    <!-- Hidden file inputs -->
+    <input type="file" id="target-file-input" accept="image/png,image/jpeg,image/webp" hidden />
+    <input type="file" id="faves-file-input" accept="application/json,.json" hidden />
+    <input type="file" id="search-file-input" accept="application/json,.json" hidden />
+
+    <!-- Export modal (populated by ExportModalView) -->
+    <div class="modal" id="export-modal" hidden></div>
+
+    <!-- Help & Algorithm Guide modal (populated by HelpModalView) -->
+    <div class="modal" id="help-modal" hidden></div>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

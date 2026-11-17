@@ -1,0 +1,67 @@
+/* .hero-preview — large 2D/3D inspector viewport */
+
+.hero-preview {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.hero-preview__viewport {
+  position: relative;
+  /* Square, but capped so the pinned card never eats the whole sidebar. */
+  width: min(100%, 40vh);
+  aspect-ratio: 1;
+  margin-inline: auto;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+}
+
+.hero-preview__canvas {
+  width: 100% !important;
+  height: 100% !important;
+  cursor: grab;
+}
+
+.hero-preview__canvas:active {
+  cursor: grabbing;
+}
+
+.hero-preview__tag {
+  position: absolute;
+  top: var(--space-2);
+  left: var(--space-2);
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 2px 8px;
+  border-radius: 99px;
+  background: rgba(10, 13, 20, 0.8);
+  border: 1px solid var(--color-border-strong);
+  color: var(--color-text-dim);
+  pointer-events: none;
+}
+
+.hero-preview__fitness {
+  position: absolute;
+  top: var(--space-2);
+  right: var(--space-2);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 99px;
+  background: rgba(10, 13, 20, 0.8);
+  border: 1px solid rgba(61, 220, 151, 0.45);
+  color: var(--color-green);
+  pointer-events: none;
+}
+
+.hero-preview__bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
