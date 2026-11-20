@@ -1,0 +1,2014 @@
+{
+  "ignoreAlpha": false,
+  "maxSimultaneousLights": 4,
+  "mode": 0,
+  "forceAlphaBlending": false,
+  "blocks": [
+    {
+      "customType": "BABYLON.InputBlock",
+      "id": 1,
+      "name": "position",
+      "target": 1,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "output",
+          "displayName": "output"
+        }
+      ],
+      "mode": 1,
+      "min": 0,
+      "max": 0,
+      "isBoolean": false,
+      "matrixMode": 0,
+      "isConstant": false,
+      "groupInInspector": "",
+      "convertToGammaSpace": false,
+      "convertToLinearSpace": false,
+      "animationType": 0,
+      "type": 8,
+      "value": [
+        0,
+        0,
+        0
+      ],
+      "valueType": "BABYLON.Vector3",
+      "attributeName": "position"
+    },
+    {
+      "customType": "BABYLON.InputBlock",
+      "id": 2,
+      "name": "wvp",
+      "target": 1,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "output",
+          "displayName": "output"
+        }
+      ],
+      "mode": 0,
+      "min": 0,
+      "max": 0,
+      "isBoolean": false,
+      "matrixMode": 0,
+      "isConstant": false,
+      "groupInInspector": "",
+      "convertToGammaSpace": false,
+      "convertToLinearSpace": false,
+      "animationType": 0,
+      "type": 128,
+      "value": [
+        1,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        1
+      ],
+      "valueType": "BABYLON.Matrix",
+      "systemValue": 6
+    },
+    {
+      "customType": "BABYLON.TransformBlock",
+      "id": 3,
+      "name": "clipPos",
+      "target": 4,
+      "inputs": [
+        {
+          "name": "vector",
+          "displayName": "vector",
+          "inputName": "vector",
+          "targetBlockId": 42,
+          "targetConnectionName": "output"
+        },
+        {
+          "name": "transform",
+          "displayName": "transform",
+          "inputName": "transform",
+          "targetBlockId": 2,
+          "targetConnectionName": "output"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "output",
+          "displayName": "output"
+        },
+        {
+          "name": "xyz",
+          "displayName": "xyz"
+        }
+      ],
+      "complementZ": 0,
+      "complementW": 1
+    },
+    {
+      "customType": "BABYLON.VertexOutputBlock",
+      "id": 4,
+      "name": "vertexOutput",
+      "target": 1,
+      "inputs": [
+        {
+          "name": "vector",
+          "displayName": "vector",
+          "inputName": "vector",
+          "targetBlockId": 3,
+          "targetConnectionName": "output"
+        }
+      ],
+      "outputs": []
+    },
+    {
+      "customType": "BABYLON.InputBlock",
+      "id": 5,
+      "name": "uv",
+      "target": 1,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "output",
+          "displayName": "output"
+        }
+      ],
+      "mode": 1,
+      "min": 0,
+      "max": 0,
+      "isBoolean": false,
+      "matrixMode": 0,
+      "isConstant": false,
+      "groupInInspector": "",
+      "convertToGammaSpace": false,
+      "convertToLinearSpace": false,
+      "animationType": 0,
+      "type": 4,
+      "value": [
+        0,
+        0
+      ],
+      "valueType": "BABYLON.Vector2",
+      "attributeName": "uv"
+    },
+    {
+      "customType": "BABYLON.InputBlock",
+      "id": 6,
+      "name": "seed",
+      "target": 1,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "output",
+          "displayName": "output"
+        }
+      ],
+      "mode": 0,
+      "min": 0,
+      "max": 0,
+      "isBoolean": false,
+      "matrixMode": 0,
+      "isConstant": false,
+      "groupInInspector": "",
+      "convertToGammaSpace": false,
+      "convertToLinearSpace": false,
+      "animationType": 0,
+      "type": 4,
+      "value": [
+        137.5,
+        223.9
+      ],
+      "valueType": "BABYLON.Vector2"
+    },
+    {
+      "customType": "BABYLON.InputBlock",
+      "id": 7,
+      "name": "frequency",
+      "target": 1,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "output",
+          "displayName": "output"
+        }
+      ],
+      "mode": 0,
+      "min": 0.2,
+      "max": 5,
+      "isBoolean": false,
+      "matrixMode": 0,
+      "isConstant": false,
+      "groupInInspector": "",
+      "convertToGammaSpace": false,
+      "convertToLinearSpace": false,
+      "animationType": 0,
+      "type": 1,
+      "value": 0.5,
+      "valueType": "number"
+    },
+    {
+      "customType": "BABYLON.InputBlock",
+      "id": 8,
+      "name": "octaves",
+      "target": 1,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "output",
+          "displayName": "output"
+        }
+      ],
+      "mode": 0,
+      "min": 1,
+      "max": 8,
+      "isBoolean": false,
+      "matrixMode": 0,
+      "isConstant": false,
+      "groupInInspector": "",
+      "convertToGammaSpace": false,
+      "convertToLinearSpace": false,
+      "animationType": 0,
+      "type": 1,
+      "value": 5,
+      "valueType": "number"
+    },
+    {
+      "customType": "BABYLON.InputBlock",
+      "id": 9,
+      "name": "persistence",
+      "target": 1,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "output",
+          "displayName": "output"
+        }
+      ],
+      "mode": 0,
+      "min": 0.15,
+      "max": 0.85,
+      "isBoolean": false,
+      "matrixMode": 0,
+      "isConstant": false,
+      "groupInInspector": "",
+      "convertToGammaSpace": false,
+      "convertToLinearSpace": false,
+      "animationType": 0,
+      "type": 1,
+      "value": 0.5,
+      "valueType": "number"
+    },
+    {
+      "customType": "BABYLON.InputBlock",
+      "id": 10,
+      "name": "lacunarity",
+      "target": 1,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "output",
+          "displayName": "output"
+        }
+      ],
+      "mode": 0,
+      "min": 1.5,
+      "max": 3.2,
+      "isBoolean": false,
+      "matrixMode": 0,
+      "isConstant": false,
+      "groupInInspector": "",
+      "convertToGammaSpace": false,
+      "convertToLinearSpace": false,
+      "animationType": 0,
+      "type": 1,
+      "value": 2,
+      "valueType": "number"
+    },
+    {
+      "customType": "BABYLON.InputBlock",
+      "id": 11,
+      "name": "warpIntensity",
+      "target": 1,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "output",
+          "displayName": "output"
+        }
+      ],
+      "mode": 0,
+      "min": 0,
+      "max": 2.5,
+      "isBoolean": false,
+      "matrixMode": 0,
+      "isConstant": false,
+      "groupInInspector": "",
+      "convertToGammaSpace": false,
+      "convertToLinearSpace": false,
+      "animationType": 0,
+      "type": 1,
+      "value": 0.3,
+      "valueType": "number"
+    },
+    {
+      "customType": "BABYLON.InputBlock",
+      "id": 12,
+      "name": "warpFrequency",
+      "target": 1,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "output",
+          "displayName": "output"
+        }
+      ],
+      "mode": 0,
+      "min": 0.1,
+      "max": 8,
+      "isBoolean": false,
+      "matrixMode": 0,
+      "isConstant": false,
+      "groupInInspector": "",
+      "convertToGammaSpace": false,
+      "convertToLinearSpace": false,
+      "animationType": 0,
+      "type": 1,
+      "value": 0.7,
+      "valueType": "number"
+    },
+    {
+      "customType": "BABYLON.InputBlock",
+      "id": 13,
+      "name": "warpOctaves",
+      "target": 1,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "output",
+          "displayName": "output"
+        }
+      ],
+      "mode": 0,
+      "min": 1,
+      "max": 4,
+      "isBoolean": false,
+      "matrixMode": 0,
+      "isConstant": false,
+      "groupInInspector": "",
+      "convertToGammaSpace": false,
+      "convertToLinearSpace": false,
+      "animationType": 0,
+      "type": 1,
+      "value": 2,
+      "valueType": "number"
+    },
+    {
+      "customType": "BABYLON.InputBlock",
+      "id": 14,
+      "name": "rimAmount",
+      "target": 1,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "output",
+          "displayName": "output"
+        }
+      ],
+      "mode": 0,
+      "min": 0,
+      "max": 1,
+      "isBoolean": false,
+      "matrixMode": 0,
+      "isConstant": false,
+      "groupInInspector": "",
+      "convertToGammaSpace": false,
+      "convertToLinearSpace": false,
+      "animationType": 0,
+      "type": 1,
+      "value": 0.35,
+      "valueType": "number"
+    },
+    {
+      "customType": "BABYLON.CustomBlock",
+      "id": 15,
+      "name": "baseHS",
+      "target": 4,
+      "inputs": [
+        {
+          "name": "uv",
+          "displayName": "uv",
+          "inputName": "uv",
+          "targetBlockId": 5,
+          "targetConnectionName": "output"
+        },
+        {
+          "name": "seed",
+          "displayName": "seed",
+          "inputName": "seed",
+          "targetBlockId": 6,
+          "targetConnectionName": "output"
+        },
+        {
+          "name": "frequency",
+          "displayName": "frequency",
+          "inputName": "frequency",
+          "targetBlockId": 7,
+          "targetConnectionName": "output"
+        },
+        {
+          "name": "octaves",
+          "displayName": "octaves",
+          "inputName": "octaves",
+          "targetBlockId": 8,
+          "targetConnectionName": "output"
+        },
+        {
+          "name": "persistence",
+          "displayName": "persistence",
+          "inputName": "persistence",
+          "targetBlockId": 9,
+          "targetConnectionName": "output"
+        },
+        {
+          "name": "lacunarity",
+          "displayName": "lacunarity",
+          "inputName": "lacunarity",
+          "targetBlockId": 10,
+          "targetConnectionName": "output"
+        },
+        {
+          "name": "warpIntensity",
+          "displayName": "warpIntensity",
+          "inputName": "warpIntensity",
+          "targetBlockId": 11,
+          "targetConnectionName": "output"
+        },
+        {
+          "name": "warpFrequency",
+          "displayName": "warpFrequency",
+          "inputName": "warpFrequency",
+          "targetBlockId": 12,
+          "targetConnectionName": "output"
+        },
+        {
+          "name": "warpOctaves",
+          "displayName": "warpOctaves",
+          "inputName": "warpOctaves",
+          "targetBlockId": 13,
+          "targetConnectionName": "output"
+        },
+        {
+          "name": "rimAmount",
+          "displayName": "rimAmount",
+          "inputName": "rimAmount",
+          "targetBlockId": 14,
+          "targetConnectionName": "output"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "result",
+          "displayName": "result"
+        }
+      ],
+      "options": {
+        "code": [
+          "vec3 bf_permute(vec3 x) { return mod(((x * 34.0) + 1.0) * x, 289.0); }",
+          "float bf_simplex(vec2 v, vec2 seed) {",
+          "  v += seed;",
+          "  const vec4 C = vec4(0.211324865405187, 0.366025403784439, -0.577350269189626, 0.024390243902439);",
+          "  vec2 i = floor(v + dot(v, C.yy));",
+          "  vec2 x0 = v - i + dot(i, C.xx);",
+          "  vec2 i1 = (x0.x > x0.y) ? vec2(1.0, 0.0) : vec2(0.0, 1.0);",
+          "  vec4 x12 = x0.xyxy + C.xxzz;",
+          "  x12.xy -= i1;",
+          "  i = mod(i, 289.0);",
+          "  vec3 p = bf_permute(bf_permute(i.y + vec3(0.0, i1.y, 1.0)) + i.x + vec3(0.0, i1.x, 1.0));",
+          "  vec3 m = max(0.5 - vec3(dot(x0, x0), dot(x12.xy, x12.xy), dot(x12.zw, x12.zw)), 0.0);",
+          "  m = m * m;",
+          "  m = m * m;",
+          "  vec3 x = 2.0 * fract(p * C.www) - 1.0;",
+          "  vec3 h = abs(x) - 0.5;",
+          "  vec3 ox = floor(x + 0.5);",
+          "  vec3 a0 = x - ox;",
+          "  m *= 1.79284291400159 - 0.85373472095314 * (a0 * a0 + h * h);",
+          "  vec3 g;",
+          "  g.x = a0.x * x0.x + h.x * x0.y;",
+          "  g.yz = a0.yz * x12.xz + h.yz * x12.yw;",
+          "  return 130.0 * dot(m, g) * 0.5;",
+          "}",
+          "float bf_fbm(vec2 p, float octaves, float persistence, float lacunarity, vec2 seed) {",
+          "  float amp = 1.0; float sum = 0.0; float norm = 0.0;",
+          "  vec2 sp = p;",
+          "  for (int i = 0; i < 8; i++) {",
+          "    if (float(i) >= octaves) break;",
+          "    float n = bf_simplex(sp, seed) * 0.5 + 0.5;",
+          "    sum += n * amp; norm += amp;",
+          "    amp *= persistence;",
+          "    sp = mat2(0.8, -0.6, 0.6, 0.8) * sp * lacunarity;",
+          "  }",
+          "  return clamp(sum / max(norm, 0.0001), 0.0, 1.0);",
+          "}",
+          "vec2 bf_domainWarp(vec2 p, vec2 seed, float intensity, float freq, float octs, float persistence) {",
+          "  if (intensity < 0.0001) return p;",
+          "  vec2 q = vec2(",
+          "    bf_fbm(p * freq, octs, persistence, 2.0, seed + vec2(5.2, 1.3)),",
+          "    bf_fbm(p * freq, octs, persistence, 2.0, seed + vec2(6.8, 4.1)));",
+          "  vec2 r = vec2(",
+          "    bf_fbm(p * freq + 4.0 * q + vec2(1.7, 9.2), octs, persistence, 2.0, seed + vec2(0.4, 2.6)),",
+          "    bf_fbm(p * freq + 4.0 * q + vec2(8.3, 2.8), octs, persistence, 2.0, seed + vec2(9.1, 5.5)));",
+          "  return p + intensity * (r * 2.0 - 1.0);",
+          "}",
+          "float bf_baseAt(vec2 p, vec2 seed, float octaves, float persistence, float lacunarity, float wi, float wf, float wo) {",
+          "  vec2 wp = bf_domainWarp(p, seed, wi, wf, wo, persistence);",
+          "  return bf_fbm(wp, octaves, persistence, lacunarity, seed);",
+          "}",
+          "float bf_plateau(float h, float rimAmount) {",
+          "  if (rimAmount <= 0.001) return h;",
+          "  float rim = 0.42 + 0.14 * rimAmount;",
+          "  float plateauFloor = mix(rim, 0.66, rimAmount * 0.82);",
+          "  if (h >= rim) {",
+          "    float t = (h - rim) / max(1.0 - rim, 1e-4);",
+          "    float undulation = pow(t, 0.85);",
+          "    return mix(h, plateauFloor + (1.0 - plateauFloor) * undulation, rimAmount);",
+          "  }",
+          "  float t = clamp(h / max(rim, 1e-4), 0.0, 1.0);",
+          "  float incised = t * t * (3.0 - 2.0 * t) * pow(t, 0.55 + 0.85 * rimAmount);",
+          "  return mix(h, incised * plateauFloor, rimAmount);",
+          "}",
+          "// stage: vec4(plateau-shaped h, central-difference slope * 0.75, rawH)",
+          "void baseHS(vec2 uv, vec2 seed, float frequency, float octaves, float persistence, float lacunarity, float warpIntensity, float warpFrequency, float warpOctaves, float rimAmount, out vec4 result) {",
+          "  vec2 p = uv * frequency;",
+          "  float eps = 0.024;",
+          "  float rawH = bf_baseAt(p, seed, octaves, persistence, lacunarity, warpIntensity, warpFrequency, warpOctaves);",
+          "  float h = bf_plateau(rawH, rimAmount);",
+          "  float hxp = bf_plateau(bf_baseAt(p + vec2(eps, 0.0), seed, octaves, persistence, lacunarity, warpIntensity, warpFrequency, warpOctaves), rimAmount);",
+          "  float hxm = bf_plateau(bf_baseAt(p - vec2(eps, 0.0), seed, octaves, persistence, lacunarity, warpIntensity, warpFrequency, warpOctaves), rimAmount);",
+          "  float hyp = bf_plateau(bf_baseAt(p + vec2(0.0, eps), seed, octaves, persistence, lacunarity, warpIntensity, warpFrequency, warpOctaves), rimAmount);",
+          "  float hym = bf_plateau(bf_baseAt(p - vec2(0.0, eps), seed, octaves, persistence, lacunarity, warpIntensity, warpFrequency, warpOctaves), rimAmount);",
+          "  float gx = (hxp - hxm) / (2.0 * eps);",
+          "  float gy = (hyp - hym) / (2.0 * eps);",
+          "  result = vec4(h, gx * 0.75, gy * 0.75, rawH);",
+          "}"
+        ],
+        "functionName": "baseHS",
+        "target": "Neutral",
+        "inParameters": [
+          {
+            "name": "uv",
+            "type": "Vector2"
+          },
+          {
+            "name": "seed",
+            "type": "Vector2"
+          },
+          {
+            "name": "frequency",
+            "type": "Float"
+          },
+          {
+            "name": "octaves",
+            "type": "Float"
+          },
+          {
+            "name": "persistence",
+            "type": "Float"
+          },
+          {
+            "name": "lacunarity",
+            "type": "Float"
+          },
+          {
+            "name": "warpIntensity",
+            "type": "Float"
+          },
+          {
+            "name": "warpFrequency",
+            "type": "Float"
+          },
+          {
+            "name": "warpOctaves",
+            "type": "Float"
+          },
+          {
+            "name": "rimAmount",
+            "type": "Float"
+          }
+        ],
+        "outParameters": [
+          {
+            "name": "result",
+            "type": "Vector4"
+          }
+        ]
+      }
+    },
+    {
+      "customType": "BABYLON.VectorSplitterBlock",
+      "id": 16,
+      "name": "hsSplit",
+      "target": 4,
+      "inputs": [
+        {
+          "name": "xyzw",
+          "displayName": "xyzw",
+          "inputName": "xyzw",
+          "targetBlockId": 15,
+          "targetConnectionName": "result"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "xyz",
+          "displayName": "xyz"
+        },
+        {
+          "name": "x",
+          "displayName": "x"
+        },
+        {
+          "name": "y",
+          "displayName": "y"
+        },
+        {
+          "name": "z",
+          "displayName": "z"
+        },
+        {
+          "name": "w",
+          "displayName": "w"
+        },
+        {
+          "name": "xy",
+          "displayName": "xy"
+        }
+      ]
+    },
+    {
+      "customType": "BABYLON.InputBlock",
+      "id": 17,
+      "name": "erScale",
+      "target": 1,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "output",
+          "displayName": "output"
+        }
+      ],
+      "mode": 0,
+      "min": 0.05,
+      "max": 0.5,
+      "isBoolean": false,
+      "matrixMode": 0,
+      "isConstant": false,
+      "groupInInspector": "",
+      "convertToGammaSpace": false,
+      "convertToLinearSpace": false,
+      "animationType": 0,
+      "type": 1,
+      "value": 0.15,
+      "valueType": "number"
+    },
+    {
+      "customType": "BABYLON.InputBlock",
+      "id": 18,
+      "name": "erStrength",
+      "target": 1,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "output",
+          "displayName": "output"
+        }
+      ],
+      "mode": 0,
+      "min": 0,
+      "max": 0.4,
+      "isBoolean": false,
+      "matrixMode": 0,
+      "isConstant": false,
+      "groupInInspector": "",
+      "convertToGammaSpace": false,
+      "convertToLinearSpace": false,
+      "animationType": 0,
+      "type": 1,
+      "value": 0.2,
+      "valueType": "number"
+    },
+    {
+      "customType": "BABYLON.InputBlock",
+      "id": 19,
+      "name": "gullyWeight",
+      "target": 1,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "output",
+          "displayName": "output"
+        }
+      ],
+      "mode": 0,
+      "min": 0.15,
+      "max": 1,
+      "isBoolean": false,
+      "matrixMode": 0,
+      "isConstant": false,
+      "groupInInspector": "",
+      "convertToGammaSpace": false,
+      "convertToLinearSpace": false,
+      "animationType": 0,
+      "type": 1,
+      "value": 0.5,
+      "valueType": "number"
+    },
+    {
+      "customType": "BABYLON.InputBlock",
+      "id": 20,
+      "name": "erDetail",
+      "target": 1,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "output",
+          "displayName": "output"
+        }
+      ],
+      "mode": 0,
+      "min": 0.5,
+      "max": 3,
+      "isBoolean": false,
+      "matrixMode": 0,
+      "isConstant": false,
+      "groupInInspector": "",
+      "convertToGammaSpace": false,
+      "convertToLinearSpace": false,
+      "animationType": 0,
+      "type": 1,
+      "value": 1.5,
+      "valueType": "number"
+    },
+    {
+      "customType": "BABYLON.InputBlock",
+      "id": 21,
+      "name": "erRounding",
+      "target": 1,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "output",
+          "displayName": "output"
+        }
+      ],
+      "mode": 0,
+      "min": 0,
+      "max": 0.5,
+      "isBoolean": false,
+      "matrixMode": 0,
+      "isConstant": false,
+      "groupInInspector": "",
+      "convertToGammaSpace": false,
+      "convertToLinearSpace": false,
+      "animationType": 0,
+      "type": 1,
+      "value": 0.1,
+      "valueType": "number"
+    },
+    {
+      "customType": "BABYLON.InputBlock",
+      "id": 22,
+      "name": "cellScale",
+      "target": 1,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "output",
+          "displayName": "output"
+        }
+      ],
+      "mode": 0,
+      "min": 0.45,
+      "max": 1.1,
+      "isBoolean": false,
+      "matrixMode": 0,
+      "isConstant": false,
+      "groupInInspector": "",
+      "convertToGammaSpace": false,
+      "convertToLinearSpace": false,
+      "animationType": 0,
+      "type": 1,
+      "value": 0.7,
+      "valueType": "number"
+    },
+    {
+      "customType": "BABYLON.InputBlock",
+      "id": 23,
+      "name": "erNormalization",
+      "target": 1,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "output",
+          "displayName": "output"
+        }
+      ],
+      "mode": 0,
+      "min": 0,
+      "max": 0.85,
+      "isBoolean": false,
+      "matrixMode": 0,
+      "isConstant": false,
+      "groupInInspector": "",
+      "convertToGammaSpace": false,
+      "convertToLinearSpace": false,
+      "animationType": 0,
+      "type": 1,
+      "value": 0.5,
+      "valueType": "number"
+    },
+    {
+      "customType": "BABYLON.InputBlock",
+      "id": 24,
+      "name": "erOctaves",
+      "target": 1,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "output",
+          "displayName": "output"
+        }
+      ],
+      "mode": 0,
+      "min": 1,
+      "max": 5,
+      "isBoolean": false,
+      "matrixMode": 0,
+      "isConstant": false,
+      "groupInInspector": "",
+      "convertToGammaSpace": false,
+      "convertToLinearSpace": false,
+      "animationType": 0,
+      "type": 1,
+      "value": 4,
+      "valueType": "number"
+    },
+    {
+      "customType": "BABYLON.InputBlock",
+      "id": 25,
+      "name": "erLacunarity",
+      "target": 1,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "output",
+          "displayName": "output"
+        }
+      ],
+      "mode": 0,
+      "min": 1.5,
+      "max": 2.8,
+      "isBoolean": false,
+      "matrixMode": 0,
+      "isConstant": false,
+      "groupInInspector": "",
+      "convertToGammaSpace": false,
+      "convertToLinearSpace": false,
+      "animationType": 0,
+      "type": 1,
+      "value": 2,
+      "valueType": "number"
+    },
+    {
+      "customType": "BABYLON.InputBlock",
+      "id": 26,
+      "name": "erGain",
+      "target": 1,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "output",
+          "displayName": "output"
+        }
+      ],
+      "mode": 0,
+      "min": 0.25,
+      "max": 0.75,
+      "isBoolean": false,
+      "matrixMode": 0,
+      "isConstant": false,
+      "groupInInspector": "",
+      "convertToGammaSpace": false,
+      "convertToLinearSpace": false,
+      "animationType": 0,
+      "type": 1,
+      "value": 0.5,
+      "valueType": "number"
+    },
+    {
+      "customType": "BABYLON.CustomBlock",
+      "id": 27,
+      "name": "erosionPhacelle",
+      "target": 4,
+      "inputs": [
+        {
+          "name": "uv",
+          "displayName": "uv",
+          "inputName": "uv",
+          "targetBlockId": 5,
+          "targetConnectionName": "output"
+        },
+        {
+          "name": "frequency",
+          "displayName": "frequency",
+          "inputName": "frequency",
+          "targetBlockId": 7,
+          "targetConnectionName": "output"
+        },
+        {
+          "name": "scale",
+          "displayName": "scale",
+          "inputName": "scale",
+          "targetBlockId": 17,
+          "targetConnectionName": "output"
+        },
+        {
+          "name": "h",
+          "displayName": "h",
+          "inputName": "h",
+          "targetBlockId": 16,
+          "targetConnectionName": "x"
+        },
+        {
+          "name": "gx",
+          "displayName": "gx",
+          "inputName": "gx",
+          "targetBlockId": 16,
+          "targetConnectionName": "y"
+        },
+        {
+          "name": "gy",
+          "displayName": "gy",
+          "inputName": "gy",
+          "targetBlockId": 16,
+          "targetConnectionName": "z"
+        },
+        {
+          "name": "rawH",
+          "displayName": "rawH",
+          "inputName": "rawH",
+          "targetBlockId": 16,
+          "targetConnectionName": "w"
+        },
+        {
+          "name": "rimAmount",
+          "displayName": "rimAmount",
+          "inputName": "rimAmount",
+          "targetBlockId": 14,
+          "targetConnectionName": "output"
+        },
+        {
+          "name": "strength",
+          "displayName": "strength",
+          "inputName": "strength",
+          "targetBlockId": 18,
+          "targetConnectionName": "output"
+        },
+        {
+          "name": "gullyWeight",
+          "displayName": "gullyWeight",
+          "inputName": "gullyWeight",
+          "targetBlockId": 19,
+          "targetConnectionName": "output"
+        },
+        {
+          "name": "detail",
+          "displayName": "detail",
+          "inputName": "detail",
+          "targetBlockId": 20,
+          "targetConnectionName": "output"
+        },
+        {
+          "name": "rounding",
+          "displayName": "rounding",
+          "inputName": "rounding",
+          "targetBlockId": 21,
+          "targetConnectionName": "output"
+        },
+        {
+          "name": "cellScale",
+          "displayName": "cellScale",
+          "inputName": "cellScale",
+          "targetBlockId": 22,
+          "targetConnectionName": "output"
+        },
+        {
+          "name": "normalization",
+          "displayName": "normalization",
+          "inputName": "normalization",
+          "targetBlockId": 23,
+          "targetConnectionName": "output"
+        },
+        {
+          "name": "octaves",
+          "displayName": "octaves",
+          "inputName": "octaves",
+          "targetBlockId": 24,
+          "targetConnectionName": "output"
+        },
+        {
+          "name": "lacunarity",
+          "displayName": "lacunarity",
+          "inputName": "lacunarity",
+          "targetBlockId": 25,
+          "targetConnectionName": "output"
+        },
+        {
+          "name": "gain",
+          "displayName": "gain",
+          "inputName": "gain",
+          "targetBlockId": 26,
+          "targetConnectionName": "output"
+        },
+        {
+          "name": "seed",
+          "displayName": "seed",
+          "inputName": "seed",
+          "targetBlockId": 6,
+          "targetConnectionName": "output"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "result",
+          "displayName": "result"
+        }
+      ],
+      "options": {
+        "code": [
+          "const float ER_TAU = 6.28318530718;",
+          "float er_powInv(float t, float power) {",
+          "  return 1.0 - pow(1.0 - clamp(t, 0.0, 1.0), max(power, 0.001));",
+          "}",
+          "float er_easeOut(float t) {",
+          "  float v = 1.0 - clamp(t, 0.0, 1.0);",
+          "  return 1.0 - v * v;",
+          "}",
+          "float er_smoothStart(float t, float smoothing) {",
+          "  if (t >= smoothing) return t - 0.5 * smoothing;",
+          "  return 0.5 * t * t / max(smoothing, 0.0001);",
+          "}",
+          "vec2 er_safeNormalize(vec2 n) {",
+          "  float l = length(n);",
+          "  return (l > 1e-6) ? (n / l) : vec2(0.0);",
+          "}",
+          "vec2 er_hash22(vec2 p) {",
+          "  p = vec2(dot(p, vec2(127.1, 311.7)), dot(p, vec2(269.5, 183.3)));",
+          "  return fract(sin(p) * 43758.5453123) * 2.0 - 1.0;",
+          "}",
+          "vec4 er_phacelleNoise(vec2 p, vec2 normDir, float freq, float offsetCycles, float normalization, vec2 seed) {",
+          "  vec2 sideDir = normDir.yx * vec2(-1.0, 1.0) * freq * ER_TAU;",
+          "  float offset = offsetCycles * ER_TAU;",
+          "  vec2 pInt = floor(p);",
+          "  vec2 pFrac = fract(p);",
+          "  vec2 phaseDir = vec2(0.0);",
+          "  float weightSum = 0.0;",
+          "  for (int i = -1; i <= 2; i++) {",
+          "    for (int j = -1; j <= 2; j++) {",
+          "      vec2 gridOffset = vec2(float(i), float(j));",
+          "      vec2 gridPoint = pInt + gridOffset;",
+          "      vec2 randomOffset = er_hash22(gridPoint + seed) * 0.5;",
+          "      vec2 v = pFrac - gridOffset - randomOffset;",
+          "      float sqrDist = dot(v, v);",
+          "      float weight = max(exp(-sqrDist * 2.0) - 0.01111, 0.0);",
+          "      weightSum += weight;",
+          "      float waveInput = dot(v, sideDir) + offset;",
+          "      phaseDir += vec2(cos(waveInput), sin(waveInput)) * weight;",
+          "    }",
+          "  }",
+          "  vec2 interpolated = phaseDir / max(weightSum, 1e-5);",
+          "  float magRaw = length(interpolated);",
+          "  float magnitude = max(max(1.0 - normalization, magRaw), 1e-5);",
+          "  vec2 normalized = interpolated / magnitude;",
+          "  return vec4(normalized.x, normalized.y, sideDir.x, sideDir.y);",
+          "}",
+          "vec4 er_filter(vec2 p, vec3 baseHeightAndSlope, float fadeTargetIn, float scale, float strengthIn, float gullyWeight, float detail, float rounding, float cellScale, float normalization, int octaves, float lacunarity, float gain, vec2 seed) {",
+          "  float strength = strengthIn * scale;",
+          "  float fadeTarget = clamp(fadeTargetIn, -1.0, 1.0);",
+          "  vec3 inputHS = baseHeightAndSlope;",
+          "  vec3 hAndS = baseHeightAndSlope;",
+          "  float safeScale = max(scale * cellScale, 0.005);",
+          "  float freq = 1.0 / safeScale;",
+          "  vec2 slope = baseHeightAndSlope.yz;",
+          "  float slopeLength = max(length(slope), 1e-6);",
+          "  float roundingMult = 1.0;",
+          "  vec4 roundingVec = vec4(rounding, rounding * 0.35, 0.1, 2.0);",
+          "  vec4 onset = vec4(1.25, 1.25, 2.8, 1.5);",
+          "  vec2 assumedSlope = vec2(0.7, 0.78);",
+          "  float roundingForInput = mix(roundingVec.y, roundingVec.x, clamp(fadeTarget + 0.5, 0.0, 1.0)) * roundingVec.z;",
+          "  float combiMask = er_easeOut(er_smoothStart(slopeLength * onset.x, roundingForInput * onset.x));",
+          "  float ridgeMapCombiMask = er_easeOut(slopeLength * onset.z);",
+          "  float ridgeMapFadeTarget = fadeTarget;",
+          "  vec2 gullySlope = mix(slope, (slope / slopeLength) * assumedSlope.x, assumedSlope.y);",
+          "  for (int eo = 0; eo < 5; eo++) {",
+          "    if (eo >= octaves) break;",
+          "    vec2 octSeed = seed + vec2(float(eo) * 17.3, float(eo) * 31.7);",
+          "    vec4 phacelle = er_phacelleNoise(p * freq, er_safeNormalize(gullySlope), cellScale, 0.25, normalization, octSeed);",
+          "    vec2 pZw = phacelle.zw * (-freq);",
+          "    float sloping = abs(phacelle.y);",
+          "    float sgn = (phacelle.y > 0.0) ? 1.0 : ((phacelle.y < 0.0) ? -1.0 : 0.0);",
+          "    gullySlope += sgn * pZw * strength * gullyWeight;",
+          "    vec3 octaveHS = vec3(phacelle.x, phacelle.y * pZw.x, phacelle.y * pZw.y);",
+          "    vec3 faded = mix(vec3(fadeTarget, 0.0, 0.0), octaveHS * gullyWeight, combiMask);",
+          "    hAndS += faded * strength;",
+          "    fadeTarget = faded.x;",
+          "    float roundingForOctave = mix(roundingVec.y, roundingVec.x, clamp(phacelle.x + 0.5, 0.0, 1.0)) * roundingMult;",
+          "    float newMask = er_easeOut(er_smoothStart(sloping * onset.y, roundingForOctave * onset.y));",
+          "    combiMask = er_powInv(combiMask, detail) * newMask;",
+          "    ridgeMapFadeTarget = mix(ridgeMapFadeTarget, octaveHS.x, ridgeMapCombiMask);",
+          "    float newRidgeMask = er_easeOut(sloping * onset.w);",
+          "    ridgeMapCombiMask *= newRidgeMask;",
+          "    strength *= gain;",
+          "    freq *= lacunarity;",
+          "    roundingMult *= roundingVec.w;",
+          "  }",
+          "  float ridgeMap = ridgeMapFadeTarget * (1.0 - ridgeMapCombiMask);",
+          "  return vec4(hAndS.x - inputHS.x, hAndS.y - inputHS.y, hAndS.z - inputHS.z, ridgeMap);",
+          "}",
+          "// stage: erodedHeightAndRidge (mode 1) — plateau-masked phacelle erosion. vec2(h, ridgeMap)",
+          "void erosionPhacelle(vec2 uv, float frequency, float scale, float h, float gx, float gy, float rawH, float rimAmount, float strength, float gullyWeight, float detail, float rounding, float cellScale, float normalization, float octaves, float lacunarity, float gain, vec2 seed, out vec2 result) {",
+          "  vec3 baseHS = vec3(h, gx, gy);",
+          "  float slopeMag = length(vec2(gx, gy));",
+          "  float rimThresh = 0.42 + 0.14 * rimAmount;",
+          "  float inBasin = 1.0 - smoothstep(rimThresh - 0.06, rimThresh + 0.14, rawH);",
+          "  float onRimWall = smoothstep(0.18, 0.75, slopeMag);",
+          "  float plateauMask = mix(1.0, clamp(max(inBasin, onRimWall * 0.85), 0.15, 1.0), rimAmount);",
+          "  float effStrength = strength * plateauMask;",
+          "  if (effStrength <= 0.0001) {",
+          "    result = vec2(h, 0.0);",
+          "    return;",
+          "  }",
+          "  float fadeTarget = clamp((h - 0.5) * 2.6 - rimAmount * inBasin * 0.85, -1.0, 1.0);",
+          "  vec2 ep = uv * frequency * 0.3333333;",
+          "  vec4 er = er_filter(ep, baseHS, fadeTarget, scale, effStrength, gullyWeight, detail, rounding, cellScale, normalization, int(floor(octaves + 0.5)), lacunarity, gain, seed + vec2(11.3, 23.7));",
+          "  result = vec2(clamp(h + er.x * 3.2, 0.0, 1.0), er.w * plateauMask);",
+          "}"
+        ],
+        "functionName": "erosionPhacelle",
+        "target": "Neutral",
+        "inParameters": [
+          {
+            "name": "uv",
+            "type": "Vector2"
+          },
+          {
+            "name": "frequency",
+            "type": "Float"
+          },
+          {
+            "name": "scale",
+            "type": "Float"
+          },
+          {
+            "name": "h",
+            "type": "Float"
+          },
+          {
+            "name": "gx",
+            "type": "Float"
+          },
+          {
+            "name": "gy",
+            "type": "Float"
+          },
+          {
+            "name": "rawH",
+            "type": "Float"
+          },
+          {
+            "name": "rimAmount",
+            "type": "Float"
+          },
+          {
+            "name": "strength",
+            "type": "Float"
+          },
+          {
+            "name": "gullyWeight",
+            "type": "Float"
+          },
+          {
+            "name": "detail",
+            "type": "Float"
+          },
+          {
+            "name": "rounding",
+            "type": "Float"
+          },
+          {
+            "name": "cellScale",
+            "type": "Float"
+          },
+          {
+            "name": "normalization",
+            "type": "Float"
+          },
+          {
+            "name": "octaves",
+            "type": "Float"
+          },
+          {
+            "name": "lacunarity",
+            "type": "Float"
+          },
+          {
+            "name": "gain",
+            "type": "Float"
+          },
+          {
+            "name": "seed",
+            "type": "Vector2"
+          }
+        ],
+        "outParameters": [
+          {
+            "name": "result",
+            "type": "Vector2"
+          }
+        ]
+      }
+    },
+    {
+      "customType": "BABYLON.VectorSplitterBlock",
+      "id": 28,
+      "name": "hrSplit",
+      "target": 4,
+      "inputs": [
+        {
+          "name": "xyzw",
+          "displayName": "xyzw",
+          "inputName": "xyzw",
+          "targetBlockId": 27,
+          "targetConnectionName": "result"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "xyz",
+          "displayName": "xyz"
+        },
+        {
+          "name": "x",
+          "displayName": "x"
+        },
+        {
+          "name": "y",
+          "displayName": "y"
+        },
+        {
+          "name": "z",
+          "displayName": "z"
+        },
+        {
+          "name": "w",
+          "displayName": "w"
+        },
+        {
+          "name": "xy",
+          "displayName": "xy"
+        }
+      ]
+    },
+    {
+      "customType": "BABYLON.InputBlock",
+      "id": 29,
+      "name": "ridgeSharpness",
+      "target": 1,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "output",
+          "displayName": "output"
+        }
+      ],
+      "mode": 0,
+      "min": 0.1,
+      "max": 4,
+      "isBoolean": false,
+      "matrixMode": 0,
+      "isConstant": false,
+      "groupInInspector": "",
+      "convertToGammaSpace": false,
+      "convertToLinearSpace": false,
+      "animationType": 0,
+      "type": 1,
+      "value": 1,
+      "valueType": "number"
+    },
+    {
+      "customType": "BABYLON.InputBlock",
+      "id": 30,
+      "name": "contrast",
+      "target": 1,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "output",
+          "displayName": "output"
+        }
+      ],
+      "mode": 0,
+      "min": 0.2,
+      "max": 4,
+      "isBoolean": false,
+      "matrixMode": 0,
+      "isConstant": false,
+      "groupInInspector": "",
+      "convertToGammaSpace": false,
+      "convertToLinearSpace": false,
+      "animationType": 0,
+      "type": 1,
+      "value": 1,
+      "valueType": "number"
+    },
+    {
+      "customType": "BABYLON.InputBlock",
+      "id": 31,
+      "name": "bias",
+      "target": 1,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "output",
+          "displayName": "output"
+        }
+      ],
+      "mode": 0,
+      "min": -1,
+      "max": 1,
+      "isBoolean": false,
+      "matrixMode": 0,
+      "isConstant": false,
+      "groupInInspector": "",
+      "convertToGammaSpace": false,
+      "convertToLinearSpace": false,
+      "animationType": 0,
+      "type": 1,
+      "value": 0,
+      "valueType": "number"
+    },
+    {
+      "customType": "BABYLON.InputBlock",
+      "id": 32,
+      "name": "invert",
+      "target": 1,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "output",
+          "displayName": "output"
+        }
+      ],
+      "mode": 0,
+      "min": 0,
+      "max": 1,
+      "isBoolean": false,
+      "matrixMode": 0,
+      "isConstant": false,
+      "groupInInspector": "",
+      "convertToGammaSpace": false,
+      "convertToLinearSpace": false,
+      "animationType": 0,
+      "type": 1,
+      "value": 0,
+      "valueType": "number"
+    },
+    {
+      "customType": "BABYLON.InputBlock",
+      "id": 33,
+      "name": "peakRounding",
+      "target": 1,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "output",
+          "displayName": "output"
+        }
+      ],
+      "mode": 0,
+      "min": 0,
+      "max": 1,
+      "isBoolean": false,
+      "matrixMode": 0,
+      "isConstant": false,
+      "groupInInspector": "",
+      "convertToGammaSpace": false,
+      "convertToLinearSpace": false,
+      "animationType": 0,
+      "type": 1,
+      "value": 0,
+      "valueType": "number"
+    },
+    {
+      "customType": "BABYLON.CustomBlock",
+      "id": 34,
+      "name": "shapeHeight",
+      "target": 4,
+      "inputs": [
+        {
+          "name": "h",
+          "displayName": "h",
+          "inputName": "h",
+          "targetBlockId": 28,
+          "targetConnectionName": "x"
+        },
+        {
+          "name": "ridgeSharpness",
+          "displayName": "ridgeSharpness",
+          "inputName": "ridgeSharpness",
+          "targetBlockId": 29,
+          "targetConnectionName": "output"
+        },
+        {
+          "name": "contrast",
+          "displayName": "contrast",
+          "inputName": "contrast",
+          "targetBlockId": 30,
+          "targetConnectionName": "output"
+        },
+        {
+          "name": "bias",
+          "displayName": "bias",
+          "inputName": "bias",
+          "targetBlockId": 31,
+          "targetConnectionName": "output"
+        },
+        {
+          "name": "invert",
+          "displayName": "invert",
+          "inputName": "invert",
+          "targetBlockId": 32,
+          "targetConnectionName": "output"
+        },
+        {
+          "name": "peakRounding",
+          "displayName": "peakRounding",
+          "inputName": "peakRounding",
+          "targetBlockId": 33,
+          "targetConnectionName": "output"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "h",
+          "displayName": "h"
+        }
+      ],
+      "options": {
+        "code": [
+          "// stage: shapeHeight = ridgeSharpness pow -> contrast/bias -> invert -> roundPeaks",
+          "void shapeHeight(float h, float ridgeSharpness, float contrast, float bias, float invert, float peakRounding, out float result) {",
+          "  h = pow(clamp(h, 0.0, 1.0), ridgeSharpness);",
+          "  h = clamp((h - 0.5) * contrast + 0.5 + bias, 0.0, 1.0);",
+          "  if (invert > 0.5) h = 1.0 - h;",
+          "  if (peakRounding > 0.001) {",
+          "    float w = 0.45 * peakRounding;",
+          "    float c = 1.0 - w;",
+          "    if (h > c) h = c + w * (1.0 - exp(-(h - c) / w));",
+          "  }",
+          "  result = h;",
+          "}"
+        ],
+        "functionName": "shapeHeight",
+        "target": "Neutral",
+        "inParameters": [
+          {
+            "name": "h",
+            "type": "Float"
+          },
+          {
+            "name": "ridgeSharpness",
+            "type": "Float"
+          },
+          {
+            "name": "contrast",
+            "type": "Float"
+          },
+          {
+            "name": "bias",
+            "type": "Float"
+          },
+          {
+            "name": "invert",
+            "type": "Float"
+          },
+          {
+            "name": "peakRounding",
+            "type": "Float"
+          }
+        ],
+        "outParameters": [
+          {
+            "name": "h",
+            "type": "Float"
+          }
+        ]
+      }
+    },
+    {
+      "customType": "BABYLON.CustomBlock",
+      "id": 35,
+      "name": "alpineDrainage",
+      "target": 4,
+      "inputs": [
+        {
+          "name": "h",
+          "displayName": "h",
+          "inputName": "h",
+          "targetBlockId": 34,
+          "targetConnectionName": "h"
+        },
+        {
+          "name": "ridge",
+          "displayName": "ridge",
+          "inputName": "ridge",
+          "targetBlockId": 28,
+          "targetConnectionName": "y"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "result",
+          "displayName": "result"
+        }
+      ],
+      "options": {
+        "code": [
+          "vec3 ad_ramp(float h, float ridgeMap, float slopeMag) {",
+          "  vec3 valleyGrass = vec3(0.16, 0.30, 0.14);",
+          "  vec3 dryDirt     = vec3(0.48, 0.41, 0.31);",
+          "  vec3 cliffRock   = vec3(0.33, 0.31, 0.29);",
+          "  vec3 highSnow    = vec3(0.92, 0.94, 0.98);",
+          "  vec3 streamCol   = vec3(0.74, 0.84, 0.92);",
+          "  vec3 col = mix(valleyGrass, dryDirt, smoothstep(0.20, 0.62, h));",
+          "  float rockMask = clamp(slopeMag * 0.85 + smoothstep(0.45, 0.80, h) * 0.35, 0.0, 1.0);",
+          "  col = mix(col, cliffRock, rockMask);",
+          "  float ridgeHighlight = smoothstep(0.10, 0.75, ridgeMap);",
+          "  col = mix(col, vec3(0.68, 0.61, 0.50), ridgeHighlight * 0.38);",
+          "  float snowMask = smoothstep(0.68, 0.88, h - slopeMag * 0.14 + ridgeMap * 0.05);",
+          "  col = mix(col, highSnow, snowMask);",
+          "  float drainage = smoothstep(-0.08, -0.58, ridgeMap) * (1.0 - snowMask * 0.6);",
+          "  col = mix(col, streamCol, drainage * 0.78);",
+          "  return col;",
+          "}",
+          "void alpineDrainage(float h, float ridge, out vec3 result) {",
+          "  float slopeMag = length(vec2(dFdx(h), dFdy(h))) * 45.0;",
+          "  result = ad_ramp(h, ridge, slopeMag);",
+          "}"
+        ],
+        "functionName": "alpineDrainage",
+        "target": "Neutral",
+        "inParameters": [
+          {
+            "name": "h",
+            "type": "Float"
+          },
+          {
+            "name": "ridge",
+            "type": "Float"
+          }
+        ],
+        "outParameters": [
+          {
+            "name": "result",
+            "type": "Color3"
+          }
+        ]
+      }
+    },
+    {
+      "customType": "BABYLON.InputBlock",
+      "id": 36,
+      "name": "alpha",
+      "target": 1,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "output",
+          "displayName": "output"
+        }
+      ],
+      "mode": 0,
+      "min": 0,
+      "max": 0,
+      "isBoolean": false,
+      "matrixMode": 0,
+      "isConstant": true,
+      "groupInInspector": "",
+      "convertToGammaSpace": false,
+      "convertToLinearSpace": false,
+      "animationType": 0,
+      "type": 1,
+      "value": 1,
+      "valueType": "number"
+    },
+    {
+      "customType": "BABYLON.InputBlock",
+      "id": 38,
+      "name": "normal",
+      "target": 1,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "output",
+          "displayName": "output"
+        }
+      ],
+      "mode": 1,
+      "min": 0,
+      "max": 0,
+      "isBoolean": false,
+      "matrixMode": 0,
+      "isConstant": false,
+      "groupInInspector": "",
+      "convertToGammaSpace": false,
+      "convertToLinearSpace": false,
+      "animationType": 0,
+      "type": 8,
+      "value": [
+        0,
+        0,
+        0
+      ],
+      "valueType": "BABYLON.Vector3",
+      "attributeName": "normal"
+    },
+    {
+      "customType": "BABYLON.InputBlock",
+      "id": 39,
+      "name": "displacementScale",
+      "target": 1,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "output",
+          "displayName": "output"
+        }
+      ],
+      "mode": 0,
+      "min": 0,
+      "max": 2,
+      "isBoolean": false,
+      "matrixMode": 0,
+      "isConstant": false,
+      "groupInInspector": "",
+      "convertToGammaSpace": false,
+      "convertToLinearSpace": false,
+      "animationType": 0,
+      "type": 1,
+      "value": 1,
+      "valueType": "number"
+    },
+    {
+      "customType": "BABYLON.MultiplyBlock",
+      "id": 40,
+      "name": "hScaled",
+      "target": 4,
+      "inputs": [
+        {
+          "name": "left",
+          "displayName": "left",
+          "inputName": "left",
+          "targetBlockId": 34,
+          "targetConnectionName": "h"
+        },
+        {
+          "name": "right",
+          "displayName": "right",
+          "inputName": "right",
+          "targetBlockId": 39,
+          "targetConnectionName": "output"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "output",
+          "displayName": "output"
+        }
+      ]
+    },
+    {
+      "customType": "BABYLON.ScaleBlock",
+      "id": 41,
+      "name": "normalOffset",
+      "target": 4,
+      "inputs": [
+        {
+          "name": "input",
+          "displayName": "input",
+          "inputName": "input",
+          "targetBlockId": 38,
+          "targetConnectionName": "output"
+        },
+        {
+          "name": "factor",
+          "displayName": "factor",
+          "inputName": "factor",
+          "targetBlockId": 40,
+          "targetConnectionName": "output"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "output",
+          "displayName": "output"
+        }
+      ]
+    },
+    {
+      "customType": "BABYLON.AddBlock",
+      "id": 42,
+      "name": "displacedPos",
+      "target": 4,
+      "inputs": [
+        {
+          "name": "left",
+          "displayName": "left",
+          "inputName": "left",
+          "targetBlockId": 1,
+          "targetConnectionName": "output"
+        },
+        {
+          "name": "right",
+          "displayName": "right",
+          "inputName": "right",
+          "targetBlockId": 41,
+          "targetConnectionName": "output"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "output",
+          "displayName": "output"
+        }
+      ]
+    },
+    {
+      "customType": "BABYLON.FragmentOutputBlock",
+      "id": 37,
+      "name": "fragmentOutput",
+      "target": 2,
+      "inputs": [
+        {
+          "name": "rgba",
+          "displayName": "rgba"
+        },
+        {
+          "name": "rgb",
+          "displayName": "rgb",
+          "inputName": "rgb",
+          "targetBlockId": 35,
+          "targetConnectionName": "result"
+        },
+        {
+          "name": "a",
+          "displayName": "a",
+          "inputName": "a",
+          "targetBlockId": 36,
+          "targetConnectionName": "output"
+        },
+        {
+          "name": "glow",
+          "displayName": "glow"
+        }
+      ],
+      "outputs": []
+    }
+  ],
+  "outputNodes": [
+    4,
+    37
+  ],
+  "comment": "genetic-shaders mode-1 pipeline: baseHS -> erosionPhacelle (Runevision Simple Phacelle Noise, stacked fades, dendritic ridgeMap) -> shapeHeight -> alpineDrainage",
+  "editorData": {
+    "locations": [
+      {
+        "blockId": 1,
+        "x": 0,
+        "y": 0
+      },
+      {
+        "blockId": 2,
+        "x": 0,
+        "y": 180
+      },
+      {
+        "blockId": 3,
+        "x": 3060,
+        "y": 0
+      },
+      {
+        "blockId": 4,
+        "x": 3400,
+        "y": 0
+      },
+      {
+        "blockId": 5,
+        "x": 0,
+        "y": 360
+      },
+      {
+        "blockId": 6,
+        "x": 0,
+        "y": 540
+      },
+      {
+        "blockId": 7,
+        "x": 0,
+        "y": 720
+      },
+      {
+        "blockId": 8,
+        "x": 0,
+        "y": 900
+      },
+      {
+        "blockId": 9,
+        "x": 0,
+        "y": 1080
+      },
+      {
+        "blockId": 10,
+        "x": 0,
+        "y": 1260
+      },
+      {
+        "blockId": 11,
+        "x": 0,
+        "y": 1440
+      },
+      {
+        "blockId": 12,
+        "x": 0,
+        "y": 1620
+      },
+      {
+        "blockId": 13,
+        "x": 0,
+        "y": 1800
+      },
+      {
+        "blockId": 14,
+        "x": 0,
+        "y": 1980
+      },
+      {
+        "blockId": 15,
+        "x": 340,
+        "y": 0
+      },
+      {
+        "blockId": 16,
+        "x": 680,
+        "y": 0
+      },
+      {
+        "blockId": 17,
+        "x": 0,
+        "y": 2160
+      },
+      {
+        "blockId": 18,
+        "x": 0,
+        "y": 2340
+      },
+      {
+        "blockId": 19,
+        "x": 0,
+        "y": 2520
+      },
+      {
+        "blockId": 20,
+        "x": 0,
+        "y": 2700
+      },
+      {
+        "blockId": 21,
+        "x": 0,
+        "y": 2880
+      },
+      {
+        "blockId": 22,
+        "x": 0,
+        "y": 3060
+      },
+      {
+        "blockId": 23,
+        "x": 0,
+        "y": 3240
+      },
+      {
+        "blockId": 24,
+        "x": 0,
+        "y": 3420
+      },
+      {
+        "blockId": 25,
+        "x": 0,
+        "y": 3600
+      },
+      {
+        "blockId": 26,
+        "x": 0,
+        "y": 3780
+      },
+      {
+        "blockId": 27,
+        "x": 1020,
+        "y": 0
+      },
+      {
+        "blockId": 28,
+        "x": 1360,
+        "y": 0
+      },
+      {
+        "blockId": 29,
+        "x": 0,
+        "y": 3960
+      },
+      {
+        "blockId": 30,
+        "x": 0,
+        "y": 4140
+      },
+      {
+        "blockId": 31,
+        "x": 0,
+        "y": 4320
+      },
+      {
+        "blockId": 32,
+        "x": 0,
+        "y": 4500
+      },
+      {
+        "blockId": 33,
+        "x": 0,
+        "y": 4680
+      },
+      {
+        "blockId": 34,
+        "x": 1700,
+        "y": 0
+      },
+      {
+        "blockId": 35,
+        "x": 2040,
+        "y": 0
+      },
+      {
+        "blockId": 36,
+        "x": 0,
+        "y": 4860
+      },
+      {
+        "blockId": 38,
+        "x": 0,
+        "y": 5040
+      },
+      {
+        "blockId": 39,
+        "x": 0,
+        "y": 5220
+      },
+      {
+        "blockId": 40,
+        "x": 2040,
+        "y": 180
+      },
+      {
+        "blockId": 41,
+        "x": 2380,
+        "y": 0
+      },
+      {
+        "blockId": 42,
+        "x": 2720,
+        "y": 0
+      },
+      {
+        "blockId": 37,
+        "x": 2380,
+        "y": 180
+      }
+    ]
+  }
+}

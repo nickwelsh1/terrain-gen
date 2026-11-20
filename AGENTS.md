@@ -81,3 +81,7 @@ Phacelle arms only look patterned when steered by a **smooth** field: B uses the
 - **`examples/tempterrain.html` requires HTTP** — ES module imports require serving over HTTP (e.g. `pnpm dev`). Opening via `file://` will fail with CORS errors.
 - **Build & deploy** — `pnpm build` runs `vite build` (9 multi-page inputs → `dist/`) then `pnpm -C genetic-shaders build`, which emits `dist/genetic-shaders/`. Cloudflare Pages runs `pnpm build` on push to `release` and publishes `dist/`; the Genetic Shaders app is served at `/genetic-shaders/`. `genetic-shaders` is a pnpm workspace member (`packages` in `pnpm-workspace.yaml`) with its own Vite 7 + three — its deps resolve from its own `node_modules`, not the root's.
 - **Package manager**: pnpm (single lockfile is `pnpm-lock.yaml` at root; `genetic-shaders` has no lockfile of its own)
+
+## Babylon NME / MCP
+
+`materials/` holds Babylon Node Material Editor assets (`.nme.json` + `gen-*.mjs` generators). The `@babylonjs/mcp-servers` NME server is configured in `.devin/mcp_config.json`. **Read `docs/babylon-nme-mcp.md` before working on NME materials** — it documents the CustomBlock authoring rules (the MCP can't create custom-block ports; import serialized JSON instead) and the preview/session pitfalls.
