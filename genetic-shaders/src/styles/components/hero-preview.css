@@ -8,8 +8,8 @@
 
 .hero-preview__viewport {
   position: relative;
-  /* Square, but capped so the pinned card never eats the whole sidebar. */
-  width: min(100%, 40vh);
+  /* Square within the hero panel. */
+  width: 100%;
   aspect-ratio: 1;
   margin-inline: auto;
   border-radius: var(--radius-md);
@@ -64,4 +64,19 @@
   align-items: center;
   gap: var(--space-2);
   flex-wrap: wrap;
+}
+
+/* Medium desktop right rail: cap the square so the inspector pane below
+   always keeps room. */
+@media (max-width: 1439px) and (min-width: 901px) {
+  .hero-preview__viewport {
+    width: min(100%, 32vh);
+  }
+}
+
+/* Tablets: the stacked hero preview doesn't need to span the full width. */
+@media (max-width: 900px) and (min-width: 601px) {
+  .hero-preview__viewport {
+    width: min(100%, 420px);
+  }
 }

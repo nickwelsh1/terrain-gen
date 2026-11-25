@@ -3,7 +3,7 @@ import { centerIndexFor } from '../ga/GeneticEngine.js';
 // Dynamic 3x3..9x9 explorer grid. Owns the DOM for all shader cells and
 // funnels render jobs to the shared OffscreenTileRenderer.
 export class ExplorerGridView {
-  // callbacks: { onPromote(i), onInspect(i), onStar(i), onSelectB(i) }
+  // callbacks: { onPromote(i), onInspect(i), onStar(i) }
   constructor(container, tileRenderer, callbacks) {
     this.container = container;
     this.tileRenderer = tileRenderer;
@@ -51,9 +51,8 @@ export class ExplorerGridView {
       bottomRow.className = 'shader-cell__actions';
 
       const btnInspect = this._cellBtn('◉', 'Inspect in hero (no evolve)', 'inspect');
-      const btnB = this._cellBtn('B', 'Select as crossover parent B', 'b');
       const btnStar = this._cellBtn('★', 'Save to favorites', 'star');
-      bottomRow.append(btnInspect, btnB, btnStar);
+      bottomRow.append(btnInspect, btnStar);
 
       overlay.append(topRow, bottomRow);
 
@@ -67,15 +66,13 @@ export class ExplorerGridView {
       cell.append(canvas, overlay, badge, star);
       cell.addEventListener('click', (e) => {
         if (e.target.closest('.shader-cell__btn')) return;
-        if (e.shiftKey) this.cb.onSelectB(i);
-        else this.cb.onPromote(i);
+        this.cb.onPromote(i);
       });
       btnInspect.addEventListener('click', () => this.cb.onInspect(i));
-      btnB.addEventListener('click', () => this.cb.onSelectB(i));
       btnStar.addEventListener('click', () => this.cb.onStar(i));
 
       this.container.append(cell);
-      this.cells.push({ el: cell, canvas, fitness, badge, btnStar, btnB });
+      this.cells.push({ el: cell, canvas, fitness, badge, btnStar });
     }
   }
 
@@ -103,19 +100,15 @@ export class ExplorerGridView {
     if (cell) this.tileRenderer.renderInto(genotype, cell.canvas);
   }
 
-  updateBadges({ centerIndex, crossoverIndex, bestIndex, fitness }) {
+  updateBadges({ centerIndex, bestIndex, fitness }) {
     for (let i = 0; i < this.cells.length; i++) {
       const c = this.cells[i];
       c.el.classList.toggle('shader-cell--parent', i === centerIndex);
-      c.el.classList.toggle('shader-cell--crossover', i === crossoverIndex);
       c.el.classList.toggle('shader-cell--best', i === bestIndex && bestIndex >= 0);
 
       if (i === centerIndex) {
         c.badge.textContent = 'Parent';
         c.badge.className = 'shader-cell__badge';
-      } else if (i === crossoverIndex) {
-        c.badge.textContent = 'Parent B';
-        c.badge.className = 'shader-cell__badge shader-cell__badge--b';
       } else if (i === bestIndex && bestIndex >= 0) {
         c.badge.textContent = 'Best';
         c.badge.className = 'shader-cell__badge shader-cell__badge--best';
@@ -130,8 +123,6 @@ export class ExplorerGridView {
       } else {
         c.fitness.classList.add('hidden');
       }
-
-      c.btnB.classList.toggle('shader-cell__btn--b-active', i === crossoverIndex);
     }
   }
 

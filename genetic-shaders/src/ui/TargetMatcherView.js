@@ -59,7 +59,7 @@ export class TargetMatcherView {
 
     // Synthetic target + Load Search + Clear row
     const synthRow = document.createElement('div');
-    synthRow.className = 'd-flex gap-2';
+    synthRow.className = 'd-flex flex-wrap gap-2';
     this.btnSynth = document.createElement('button');
     this.btnSynth.className = 'btn btn--sm flex-1';
     this.btnSynth.textContent = '⚗ Random target';
@@ -181,7 +181,7 @@ export class TargetMatcherView {
     this.autoRow = document.createElement('div');
     this.autoRow.className = 'd-flex flex-col gap-2 hidden';
     const btnRow = document.createElement('div');
-    btnRow.className = 'd-flex gap-2';
+    btnRow.className = 'd-flex flex-wrap gap-2';
     this.btnAuto = document.createElement('button');
     this.btnAuto.className = 'btn btn--primary btn--sm flex-1';
     this.btnAuto.textContent = '▶ Auto-Evolve';

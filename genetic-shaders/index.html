@@ -51,7 +51,6 @@
             <output class="toolbar__output" id="variation-output">40%</output>
           </label>
           <button class="btn btn--primary" id="btn-mutate" title="Mutate all cells around the center parent (M)">Mutate</button>
-          <button class="btn" id="btn-crossover" title="Crossover center parent with selected parent B" disabled>Crossover</button>
           <button class="btn" id="btn-randomize" title="Fill the grid with random genotypes — keeps the current parent (R)">Randomize</button>
           <div class="toolbar__divider"></div>
           <button class="btn" id="btn-favorites" title="Open favorites library">★ <output class="toolbar__output" id="fav-count">0</output></button>
@@ -59,7 +58,7 @@
           <button class="btn btn--icon" id="btn-undo" title="Undo (Ctrl+Z)" disabled>↶</button>
           <button class="btn btn--icon" id="btn-redo" title="Redo (Ctrl+Y)" disabled>↷</button>
           <button class="btn" id="btn-help" title="Help & Algorithm Guide (?)">? Help</button>
-          <button class="btn btn--icon" id="btn-sidebar" title="Toggle inspector sidebar">⇥</button>
+          <button class="btn btn--icon toolbar__sidebar-btn" id="btn-sidebar" title="Toggle inspector sidebar" aria-expanded="true"><span class="toolbar__sidebar-icon">⇥</span><span class="toolbar__sidebar-label">Inspector</span></button>
         </div>
       </header>
 
@@ -67,10 +66,12 @@
       <main class="workspace" id="workspace">
         <section class="explorer">
           <p class="explorer__hint">
-            Click a cell to evolve it into the parent · <kbd>Shift</kbd>+click selects crossover parent B ·
-            ★ saves a favorite · eye inspects without evolving
+            Click a cell to make it the parent and breed a new generation around it ·
+            ★ saves a favorite · ◉ inspects without evolving
           </p>
-          <div class="explorer-grid" id="explorer-grid" style="--grid-cols: 3"></div>
+          <div class="explorer__stage">
+            <div class="explorer-grid" id="explorer-grid" style="--grid-cols: 3"></div>
+          </div>
 
           <!-- Favorites overlay panel (populated by FavoritesView) -->
           <div class="favorites-overlay hidden" id="favorites-overlay">
@@ -82,12 +83,18 @@
           </div>
         </section>
 
+        <section class="hero-panel" id="hero-panel"></section>
+
+        <div class="sidebar-backdrop" id="sidebar-backdrop" aria-hidden="true"></div>
+
         <aside class="inspector-sidebar" id="sidebar">
+          <div class="inspector-sidebar__handle" aria-hidden="true"></div>
           <div class="inspector-sidebar__header">
             <h2 class="inspector-sidebar__title">Inspector</h2>
-            <div class="d-flex gap-1">
+            <div class="d-flex gap-1 items-center">
               <button class="btn btn--sm" id="btn-expand-all">Expand all</button>
               <button class="btn btn--sm" id="btn-collapse-all">Collapse</button>
+              <button class="btn btn--sm btn--icon inspector-sidebar__close" id="btn-sidebar-close" title="Close inspector" aria-label="Close inspector">✕</button>
             </div>
           </div>
           <div class="sidebar-nav" id="sidebar-nav"></div>

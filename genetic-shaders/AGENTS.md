@@ -18,7 +18,7 @@ pnpm preview     # serve the production build
 - `src/config/parameterSchema.js` — single source of truth for genotype genes
   (bounds, types, defaults, UI grouping, and a one-sentence plain-language
   `hint` shown by each row's ⓘ button). Add a gene here and the control
-  panel, mutation and crossover pick it up automatically; shader genes also
+  panel and mutation pick it up automatically; shader genes also
   need a uniform in `noiseLib.glsl.js` `UNIFORM_DECLS` + `uniforms.js`, and a
   baked constant in `glslExporter.js`.
 - `src/shaders/` — GLSL chunks composed by `noiseLib.glsl.js` into a shared
@@ -34,7 +34,7 @@ pnpm preview     # serve the production build
 - `src/renderer/HeroPreviewRenderer.js` — dedicated renderer for the 2D/3D
   hero preview (renders on dirty-flag only, OrbitControls in 3D mode).
 - `src/ga/` — `Genotype` (validation + anti-fragmentation guardrails),
-  `GeneticEngine` (Gaussian mutation, BLX-alpha crossover, radial distance
+  `GeneticEngine` (Gaussian mutation, radial distance
   scaling, `NOISE_FREQ_SCALE` cross-noise frequency normalization,
   `adaptToneToTarget` analytical tone alignment, `specialistCrossover`,
   metric-guided group mutation, `immigrantGenotype` with structural chimeras),
@@ -66,6 +66,39 @@ pnpm preview     # serve the production build
   `main.js` is the orchestrator wiring everything.
 - `window.__iga` is exposed for console debugging (store, renderers, etc.).
 
+## Responsive layout architecture
+
+`.workspace` is a CSS grid whose three direct children (`.explorer`,
+`.hero-panel`, `.inspector-sidebar`) are repositioned per breakpoint:
+
+- **Wide (`>= 1440px`)**: 3 columns — explorer `1fr` | hero `--hero-width` (368px)
+  | inspector `--sidebar-width` (360px). Grid, hero preview and controls are
+  all visible simultaneously.
+- **Medium (901–1439px)**: 2 rows in one right rail — `.hero-panel` on top,
+  inspector below. Hero viewport is capped at `min(100%, 32vh)`.
+- **Mobile/tablet (`<= 900px`)**: workspace scrolls vertically
+  (`overflow-y: auto` — REQUIRED, otherwise the `auto` rows compress because
+  `.explorer`/`.hero-panel` carry `min-height: 0` for desktop flex). Explorer
+  grid stacks above the hero preview; the inspector becomes a
+  **viewport-fixed bottom sheet** (`position: fixed`, `height: min(60%, 460px)`,
+  grab-handle `.inspector-sidebar__handle`, close button) with a `fixed`
+  backdrop. `AppLayout.setSidebarOpen()` toggles it; closed by default on
+  mobile load; tapping a cell's inspect button scrolls the hero into view
+  instead of opening the sheet.
+- The **hero preview is NOT a card inside `#cards-container`** — it mounts
+  into `#hero-panel` (`AppLayout._buildHeroCard`), so inspector cards scroll
+  in their own bounded pane (no sticky/pinned hacks; `--pinned-offset` and
+  `.control-card--pinned` are gone).
+- **Square grid sizing**: `.explorer__stage` wrapper owns the container query
+  (`container-type: size` desktop / `inline-size` mobile) and centers the grid
+  via `place-items: center`; `.explorer-grid` is `width: 100cqmin;
+  aspect-ratio: 1` (mobile override `width: 100cqw` MUST live in
+  explorer-grid.css — layout.css loads earlier and loses the cascade). Do NOT
+  size the grid with flex; flex main-axis shrinking breaks the square.
+- `.shader-cell` has `container-type: inline-size`; cell container queries
+  shrink/hide badges and action buttons on small tiles, and overlays are
+  always visible under `@media (hover: none), (pointer: coarse)`.
+
 ## Conventions
 
 - CSS: BEM blocks (`.shader-cell__canvas`, `--modifier`) + atomic utilities
@@ -87,6 +120,6 @@ pnpm preview     # serve the production build
 
 - `pnpm build` must pass cleanly.
 - Manual smoke test: load dev server, confirm 3x3 renders, switch grid to 9x9
-  (81 tiles via single shared context), Mutate, Shift+click crossover, star a
+  (81 tiles via single shared context), Mutate, star a
   favorite, "Use random genotype as target" -> Auto-Evolve fitness climbs,
   Export GLSL/PNG modal opens, zero console errors.

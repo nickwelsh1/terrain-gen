@@ -34,7 +34,6 @@ export class HelpModalView {
               </p>
               <ul class="help-guide__list">
                 <li><strong>Click any cell</strong> to promote it to the center Parent and breed a new generation around it.</li>
-                <li><strong><kbd>Shift</kbd> + Click</strong> (or click <code>B</code>) on a cell to select a second parent, then click <strong>Crossover</strong> in the top toolbar to blend both genotypes (BLX-α crossover).</li>
                 <li><strong>Click <code>◉</code> (Inspect)</strong> on any cell to preview it in the 2D/3D Hero viewport without evolving the grid.</li>
                 <li><strong>Click <code>★</code></strong> on any cell to save it to your persistent Favorites library (accessible from the toolbar <code>★</code> button).</li>
                 <li><strong>Lock Genes (<code>🔒</code>)</strong> in the right-hand parameter cards to freeze specific parameters (such as <em>Noise Type</em> or <em>Frequency</em>) while evolving everything else.</li>

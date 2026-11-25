@@ -306,3 +306,22 @@
   opacity: 1;
   transform: translateX(-50%) translateY(0);
 }
+
+@media (pointer: coarse) {
+  .slider-row__icon-btn {
+    width: 28px;
+    height: 28px;
+    padding: 5px;
+  }
+}
+
+@media (max-width: 420px) {
+  .metric-bar {
+    grid-template-columns: 76px 1fr 40px;
+  }
+
+  .toast {
+    max-width: calc(100vw - var(--space-4));
+    text-align: center;
+  }
+}
