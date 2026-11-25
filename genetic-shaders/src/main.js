@@ -10,7 +10,6 @@ import {
 import { Genotype } from './ga/Genotype.js';
 import {
   populateGrid,
-  populateCrossoverGrid,
   populateRandomGrid,
   randomGenotype,
   centerIndexFor,
@@ -108,7 +107,6 @@ function refreshBadges() {
   const st = store.state;
   gridView.updateBadges({
     centerIndex: st.centerIndex,
-    crossoverIndex: st.crossoverIndex,
     bestIndex: st.target ? st.auto.bestIndex : -1,
     fitness: st.fitness,
   });
@@ -120,7 +118,6 @@ function syncToolbar() {
     variation: st.variationIntensity,
     canUndo: store.canUndo,
     canRedo: store.canRedo,
-    canCrossover: st.crossoverIndex >= 0 && st.crossoverIndex !== st.centerIndex,
   });
 }
 
@@ -133,7 +130,6 @@ const layout = new AppLayout({
   },
   onGridSize(n) {
     store.state.gridSize = n;
-    store.state.crossoverIndex = -1;
     gridView.setGridSize(n);
     repopulate();
   },
@@ -142,19 +138,6 @@ const layout = new AppLayout({
     syncToolbar();
   },
   onMutate() { repopulate(); },
-  onCrossover() {
-    const st = store.state;
-    const b = st.cells[st.crossoverIndex];
-    if (!b || st.crossoverIndex === st.centerIndex) return;
-    store.pushHistory();
-    st.cells = populateCrossoverGrid(st.parent, b, st.gridSize, gaOptions());
-    st.fitness = null;
-    st.auto.bestIndex = -1;
-    st.crossoverIndex = -1;
-    st.inspectIndex = -1;
-    store.emit('grid');
-    store.emit('inspect');
-  },
   onRandomize() {
     // Fill the grid with random genotypes; the selected parent stays put.
     const st = store.state;
@@ -200,6 +183,9 @@ const gridView = new ExplorerGridView(
       const st = store.state;
       st.inspectIndex = i === st.centerIndex ? -1 : i;
       store.emit('inspect');
+      if (layout.isMobileLayout()) {
+        layout.heroPanel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
     },
     onStar(i) {
       const st = store.state;
@@ -216,12 +202,6 @@ const gridView = new ExplorerGridView(
         });
         toast('★ Saved to favorites');
       }
-    },
-    onSelectB(i) {
-      const st = store.state;
-      st.crossoverIndex = st.crossoverIndex === i ? -1 : i;
-      refreshBadges();
-      syncToolbar();
     },
   }
 );
@@ -737,6 +717,7 @@ window.addEventListener('keydown', (e) => {
     toggleFavoritesOverlay(false);
     exportModal.close();
     helpModal.close();
+    if (layout.isMobileLayout()) layout.setSidebarOpen(false);
   } else if (e.key === '?') {
     helpModal.open('quickstart');
   } else if (e.key.toLowerCase() === 'm') {
@@ -761,4 +742,5 @@ controlPanel.refreshLocks(store.state.lockedGenes);
 controlPanel.refreshGroupStatus({ lockedSet: store.state.lockedGenes });
 matcherView.syncOptions(store.state.matcher);
 matcherView.setCheckpointBanner(loadCheckpoint());
+heroRenderer.warmup3D();
 syncToolbar();

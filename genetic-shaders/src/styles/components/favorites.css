@@ -154,3 +154,14 @@
   color: var(--color-red);
   border-color: var(--color-red);
 }
+
+@media (max-width: 600px) {
+  .favorites-overlay {
+    top: var(--space-2);
+    right: var(--space-2);
+    left: var(--space-2);
+    width: auto;
+    max-width: none;
+    max-height: calc(100% - var(--space-4));
+  }
+}

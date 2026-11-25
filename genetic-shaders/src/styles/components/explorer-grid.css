@@ -1,18 +1,21 @@
 /* .explorer-grid — the configurable 3x3..9x9 shader cell matrix */
 
 .explorer-grid {
-  /* Square viewport: size to the smaller of the explorer's width/height.
-     Falls back to full width when container queries are unsupported. */
-  width: 100%;
-  height: 100%;
+  /* True square sized to the smaller of the stage's width/height. */
   width: 100cqmin;
-  height: 100cqmin;
-  min-height: 0;
-  margin: auto;
+  aspect-ratio: 1;
   display: grid;
   grid-template-columns: repeat(var(--grid-cols, 3), 1fr);
   grid-template-rows: repeat(var(--grid-cols, 3), 1fr);
   gap: clamp(4px, 0.6vw, 10px);
+}
+
+/* On mobile the stage has inline-size containment only (its height is
+   content-driven), so size purely from the width — aspect-ratio does the rest. */
+@media (max-width: 900px) {
+  .explorer-grid {
+    width: 100cqw;
+  }
 }
 
 /* .shader-cell — one candidate tile */
@@ -20,6 +23,7 @@
   position: relative;
   min-width: 0;
   min-height: 0;
+  container-type: inline-size;
   border-radius: var(--radius-md);
   overflow: hidden;
   background: var(--color-surface-2);
@@ -47,12 +51,6 @@
   cursor: default;
 }
 
-/* Crossover second-parent highlight */
-.shader-cell--crossover {
-  border-color: var(--color-purple);
-  box-shadow: 0 0 0 1px var(--color-purple), 0 0 18px rgba(161, 126, 255, 0.3);
-}
-
 .shader-cell--best {
   border-color: var(--color-green);
   box-shadow: 0 0 0 1px var(--color-green), 0 0 18px rgba(61, 220, 151, 0.3);
@@ -72,8 +70,7 @@
 }
 
 .shader-cell:hover .shader-cell__overlay,
-.shader-cell--parent .shader-cell__overlay,
-.shader-cell--crossover .shader-cell__overlay {
+.shader-cell--parent .shader-cell__overlay {
   opacity: 1;
 }
 
@@ -118,10 +115,6 @@
   background: var(--color-accent);
   color: #fff;
   pointer-events: none;
-}
-
-.shader-cell__badge--b {
-  background: var(--color-purple);
 }
 
 .shader-cell__badge--best {
@@ -176,12 +169,6 @@
   display: block;
 }
 
-.shader-cell__btn--b:hover,
-.shader-cell__btn--b-active {
-  color: var(--color-purple);
-  border-color: var(--color-purple);
-}
-
 /* Fast evolution mode when grid tile redraws are paused */
 .explorer-grid--paused-render .shader-cell:not(.shader-cell--parent) .shader-cell__canvas {
   opacity: 0.35;
@@ -207,4 +194,46 @@
   font-size: var(--text-xs);
   color: var(--color-accent-strong);
   pointer-events: none;
+  max-width: calc(100% - var(--space-4));
+  text-align: center;
+}
+
+@media (hover: none), (pointer: coarse) {
+  .shader-cell__overlay {
+    opacity: 1;
+    background: linear-gradient(180deg, rgba(8, 10, 16, 0.42), transparent 28%, transparent 66%, rgba(8, 10, 16, 0.65));
+  }
+}
+
+@container (max-width: 110px) {
+  .shader-cell__label {
+    display: none;
+  }
+
+  .shader-cell__btn {
+    width: 20px;
+    height: 20px;
+    font-size: 0.65rem;
+  }
+
+  .shader-cell__badge {
+    font-size: 0.52rem;
+    padding: 1px 5px;
+  }
+
+  .shader-cell__fitness {
+    font-size: 0.6rem;
+    padding: 0 3px;
+  }
+}
+
+@container (max-width: 68px) {
+  .shader-cell__actions {
+    display: none;
+  }
+
+  .shader-cell__badge {
+    font-size: 0.46rem;
+    padding: 0 4px;
+  }
 }

@@ -39,6 +39,7 @@
   --shadow-panel: 0 4px 18px rgba(0, 0, 0, 0.35);
   --toolbar-height: 52px;
   --sidebar-width: 360px;
+  --hero-width: 368px;
 
   --ease-out: cubic-bezier(0.22, 0.9, 0.3, 1);
 }

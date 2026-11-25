@@ -33,6 +33,15 @@
   color: var(--color-text-dim);
 }
 
+.inspector-sidebar__close {
+  display: none;
+}
+
+/* Grab-handle pill for the mobile bottom sheet (hidden on desktop). */
+.inspector-sidebar__handle {
+  display: none;
+}
+
 .inspector-sidebar__cards {
   flex: 1;
   min-height: 0;
@@ -63,15 +72,8 @@
   flex: 0 0 auto;
 }
 
-/* Pinned cards (e.g. the hero preview) stay at the top of the
-   scrollport while the cards beneath them scroll away. */
-.control-card--pinned {
-  position: sticky;
-  /* Negative offset cancels the scroller's padding so scrolled cards can't peek above it. */
-  top: calc(-1 * var(--space-3));
-  z-index: 6;
-  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.5);
-}
+/* Pinned cards are a legacy concept — the hero preview now lives in its own
+   .hero-panel sibling, so cards always scroll in their own bounded pane. */
 
 .control-card__header {
   display: flex;
@@ -154,4 +156,52 @@
 
 .control-card--collapsed .control-card__body {
   display: none;
+}
+
+@media (max-width: 900px) {
+  /* Bottom-sheet inspector: slides up from the bottom so the explorer grid
+     and hero preview stay visible above it while tweaking controls.
+     Viewport-fixed so it stays anchored while the workspace scrolls. */
+  .inspector-sidebar {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 40;
+    width: auto;
+    max-width: none;
+    height: min(60%, 460px);
+    max-width: 720px;
+    margin-inline: auto;
+    border-left: none;
+    border-top: 1px solid var(--color-border-strong);
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    box-shadow: 0 -8px 28px rgba(0, 0, 0, 0.55);
+    transform: translateY(0);
+    transition: transform 0.26s var(--ease-out), opacity 0.2s var(--ease-out);
+  }
+
+  .workspace--sidebar-collapsed .inspector-sidebar {
+    transform: translateY(100%);
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .inspector-sidebar__handle {
+    display: block;
+    width: 36px;
+    height: 4px;
+    margin: 6px auto 0;
+    border-radius: 99px;
+    background: var(--color-border-strong);
+    flex: 0 0 auto;
+  }
+
+  .inspector-sidebar__header {
+    padding: var(--space-1) var(--space-3) var(--space-2);
+  }
+
+  .inspector-sidebar__close {
+    display: inline-flex;
+  }
 }

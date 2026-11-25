@@ -10,7 +10,6 @@ export class SidebarNavView {
     this.matches = [];
     this.matchIndex = -1;
     this._build(mount);
-    this._trackPinnedOffset();
   }
 
   _build(mount) {
@@ -136,15 +135,5 @@ export class SidebarNavView {
       this._scrollRaf = k < 1 ? requestAnimationFrame(step) : null;
     };
     this._scrollRaf = requestAnimationFrame(step);
-  }
-
-  // Keeps --pinned-offset equal to the sticky card's height so scroll-margin
-  // lands revealed items just below it.
-  _trackPinnedOffset() {
-    const pinned = this.cards.querySelector('.control-card--pinned');
-    if (!pinned) return;
-    const update = () => this.cards.style.setProperty('--pinned-offset', `${pinned.offsetHeight}px`);
-    new ResizeObserver(update).observe(pinned);
-    update();
   }
 }

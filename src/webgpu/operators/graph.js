@@ -11,17 +11,43 @@ export class OperatorGraphRunner {
         this.registry = registry;
         this.state = state;
         this.compiledOps = new Map();
+        this.pendingOps = new Map();
     }
 
     /**
-     * Compiles all registered operators on the GPUDevice (if a device is present).
+     * Asynchronously compiles the specified operators (or all registered operators
+     * if opIds is omitted) on the GPUDevice.
      */
-    init() {
+    async init(opIds = null) {
         if (!this.device) return;
+        const ids = opIds ? [...opIds] : this.registry.listAll().map((op) => op.id);
+        await this.compileOperators(ids);
+    }
 
-        for (const op of this.registry.listAll()) {
-            this._compileOperator(op);
+    async compileOperators(opIds) {
+        if (!this.device) return;
+        const uniqueOps = [];
+        const seen = new Set();
+        for (const id of opIds) {
+            if (seen.has(id) || this.compiledOps.has(id)) continue;
+            const op = this.registry.get(id);
+            if (op) {
+                seen.add(id);
+                uniqueOps.push(op);
+            }
         }
+        await Promise.all(uniqueOps.map((op) => this._compileOperatorAsync(op)));
+    }
+
+    /**
+     * Warms all remaining uncompiled operators in the background without blocking startup.
+     */
+    warmRemainingOperators() {
+        if (!this.device) return Promise.resolve();
+        const remaining = this.registry
+            .listAll()
+            .filter((op) => !this.compiledOps.has(op.id) && !this.pendingOps.has(op.id));
+        return Promise.allSettled(remaining.map((op) => this._compileOperatorAsync(op)));
     }
 
     _compileOperator(op) {
@@ -44,11 +70,69 @@ export class OperatorGraphRunner {
             });
         }
 
-        this.compiledOps.set(op.id, {
+        const entry = {
             op,
             pipeline,
             uniformBuffer,
+        };
+        this.compiledOps.set(op.id, entry);
+        return entry;
+    }
+
+    async _compileOperatorAsync(op) {
+        const existing = this.compiledOps.get(op.id);
+        if (existing) return existing;
+
+        const inFlight = this.pendingOps.get(op.id);
+        if (inFlight) return inFlight;
+
+        const device = this.device;
+        const compilePromise = (async () => {
+            const uniformBuffer = device.createBuffer({
+                size: op.uniformSchema.byteLength,
+                usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+            });
+
+            let pipeline = null;
+            if (typeof op.shaderCode === "function" || typeof op.shaderCode === "string") {
+                const code = typeof op.shaderCode === "function" ? op.shaderCode() : op.shaderCode;
+                const module = device.createShaderModule({ code });
+                const descriptor = {
+                    layout: "auto",
+                    compute: {
+                        module,
+                        entryPoint: op.entryPoint || "main",
+                    },
+                };
+                pipeline =
+                    typeof device.createComputePipelineAsync === "function"
+                        ? await device.createComputePipelineAsync(descriptor)
+                        : device.createComputePipeline(descriptor);
+            }
+
+            // If synchronous getCompiled() already populated this entry while awaiting, keep it
+            // so any uniforms written to its buffer remain intact.
+            const winner = this.compiledOps.get(op.id);
+            if (winner) {
+                uniformBuffer.destroy?.();
+                return winner;
+            }
+
+            const entry = {
+                op,
+                pipeline,
+                uniformBuffer,
+            };
+            this.compiledOps.set(op.id, entry);
+            return entry;
+        })().finally(() => {
+            if (this.pendingOps.get(op.id) === compilePromise) {
+                this.pendingOps.delete(op.id);
+            }
         });
+
+        this.pendingOps.set(op.id, compilePromise);
+        return compilePromise;
     }
 
     getCompiled(opId) {

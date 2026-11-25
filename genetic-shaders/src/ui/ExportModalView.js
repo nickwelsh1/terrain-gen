@@ -29,7 +29,7 @@ export class ExportModalView {
           </div>
           <div data-pane="png" class="hidden">
             <p class="text-xs text-dim mb-2">Render the active genotype to a high-resolution grayscale heightmap.</p>
-            <div class="d-flex gap-2 items-center">
+            <div class="d-flex flex-wrap gap-2 items-center">
               <label class="field__label">Resolution</label>
               <select class="select" id="__png-size">
                 <option value="512">512 × 512</option>

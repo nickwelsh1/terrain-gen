@@ -5,13 +5,14 @@ import { PRESETS, DEFAULT_PRESET } from '../config/presets.js';
 // and the first two inspector cards (Hero Preview, Evolution).
 export class AppLayout {
   // callbacks: {
-  //   onPreset(name), onGridSize(n), onVariation(v), onMutate(), onCrossover(),
+  //   onPreset(name), onGridSize(n), onVariation(v), onMutate(),
   //   onRandomize(), onUndo(), onRedo(), onPreviewMode(mode), onWireframe(on),
   //   onSpatialScaling(on), onMutationRate(v), onExport()
   // }
   constructor(callbacks) {
     this.cb = callbacks;
     this.workspace = document.getElementById('workspace');
+    this.heroPanel = document.getElementById('hero-panel');
     this.cardsContainer = document.getElementById('cards-container');
     this._wireToolbar();
     this._wireSidebar();
@@ -40,7 +41,6 @@ export class AppLayout {
     });
 
     this.btnMutate = document.getElementById('btn-mutate');
-    this.btnCrossover = document.getElementById('btn-crossover');
     this.btnRandomize = document.getElementById('btn-randomize');
     this.btnUndo = document.getElementById('btn-undo');
     this.btnRedo = document.getElementById('btn-redo');
@@ -50,17 +50,24 @@ export class AppLayout {
     this.btnMutate.addEventListener('click', () => this.cb.onMutate());
     this.btnFavorites.addEventListener('click', () => this.cb.onFavoritesToggle());
     this.btnHelp?.addEventListener('click', () => this.cb.onHelpToggle?.());
-    this.btnCrossover.addEventListener('click', () => this.cb.onCrossover());
     this.btnRandomize.addEventListener('click', () => this.cb.onRandomize());
     this.btnUndo.addEventListener('click', () => this.cb.onUndo());
     this.btnRedo.addEventListener('click', () => this.cb.onRedo());
   }
 
   _wireSidebar() {
-    const sidebarBtn = document.getElementById('btn-sidebar');
-    sidebarBtn.addEventListener('click', () => {
-      this.workspace.classList.toggle('workspace--sidebar-collapsed');
+    this.sidebarBtn = document.getElementById('btn-sidebar');
+    this.sidebarBackdrop = document.getElementById('sidebar-backdrop');
+    this.sidebarCloseBtn = document.getElementById('btn-sidebar-close');
+    this.sidebarBtn.addEventListener('click', () => {
+      const collapsed = this.workspace.classList.contains('workspace--sidebar-collapsed');
+      this.setSidebarOpen(collapsed);
     });
+    this.sidebarBackdrop?.addEventListener('click', () => this.setSidebarOpen(false));
+    this.sidebarCloseBtn?.addEventListener('click', () => this.setSidebarOpen(false));
+    if (this.isMobileLayout()) {
+      this.setSidebarOpen(false);
+    }
     document.getElementById('btn-expand-all').addEventListener('click', () => {
       for (const c of this.cardsContainer.querySelectorAll('.control-card')) {
         c.classList.remove('control-card--collapsed');
@@ -73,9 +80,19 @@ export class AppLayout {
     });
   }
 
+  isMobileLayout() {
+    return window.matchMedia('(max-width: 900px)').matches;
+  }
+
+  setSidebarOpen(open) {
+    this.workspace.classList.toggle('workspace--sidebar-collapsed', !open);
+    this.sidebarBtn.setAttribute('aria-expanded', String(open));
+    this.sidebarBtn.classList.toggle('btn--active', open && this.isMobileLayout());
+  }
+
   _buildHeroCard() {
     const card = createCard({ title: 'Hero Preview & 3D Heightmap', icon: '🔍' });
-    card.el.classList.add('control-card--pinned');
+    card.el.classList.add('hero-panel__card');
 
     const wrap = document.createElement('div');
     wrap.className = 'hero-preview';
@@ -125,7 +142,7 @@ export class AppLayout {
     bar.append(seg, wireLabel, btnExport);
     wrap.append(viewport, bar);
     card.body.append(wrap);
-    this.cardsContainer.append(card.el);
+    this.heroPanel.append(card.el);
   }
 
   _setMode(mode) {
@@ -230,7 +247,7 @@ export class AppLayout {
   }
 
   // Reflect state into toolbar controls without firing callbacks.
-  syncToolbar({ variation, canUndo, canRedo, canCrossover }) {
+  syncToolbar({ variation, canUndo, canRedo }) {
     this.variationSlider.value = variation;
     this.variationOutput.textContent = `${Math.round(variation * 100)}%`;
     if (this.evoVariationRange) {
@@ -239,7 +256,6 @@ export class AppLayout {
     }
     this.btnUndo.disabled = !canUndo;
     this.btnRedo.disabled = !canRedo;
-    this.btnCrossover.disabled = !canCrossover;
   }
 
   setFavCount(n) {

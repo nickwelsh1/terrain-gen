@@ -21,7 +21,17 @@ export async function main() {
     }
 
     // 2. Create Babylon Lite engine (wraps the GPUDevice + canvas context)
-    const engine = await createEngine(canvas);
+    let engine;
+    try {
+        engine = await createEngine(canvas);
+    } catch (err) {
+        statusEl.textContent =
+            err?.message === "#46"
+                ? "No suitable GPU adapter found. WebGPU requires a compatible GPU."
+                : `Error: ${err?.message || err}`;
+        statusEl.style.color = "#ff6060";
+        return;
+    }
 
     // 3. Create and initialize the terrain pipeline (uses engine._device for compute)
     const pipeline = new TerrainPipeline(engine);
@@ -88,6 +98,9 @@ export async function main() {
     // 7. Start render loop
     statusEl.style.display = "none";
     await renderer.start();
+
+    // 8. Warm remaining unused compute operators in the background
+    pipeline.warmUnusedOperators();
 }
 
 main().catch((err) => {

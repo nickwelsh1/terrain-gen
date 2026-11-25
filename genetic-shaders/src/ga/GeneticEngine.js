@@ -335,34 +335,6 @@ export function genotypeDistance(genoA, genoB) {
   return count > 0 ? Math.sqrt(sumSq / count) : 0;
 }
 
-// BLX-alpha blend crossover for continuous genes, uniform pick for discrete.
-export function crossoverGenotypes(parentA, parentB, {
-  alpha = 0.35,
-  locked = new Set(),
-  rng = Math.random,
-} = {}) {
-  const a = parentA.genes;
-  const b = parentB.genes;
-  const genes = {};
-
-  for (const def of SCHEMA) {
-    const key = def.key;
-    const va = a[key];
-    const vb = b[key];
-    if (def.type === 'float') {
-      const lo = Math.min(va, vb);
-      const hi = Math.max(va, vb);
-      const span = (hi - lo) * alpha;
-      genes[key] = lo - span + rng() * (hi - lo + 2 * span);
-    } else {
-      genes[key] = rng() < 0.5 ? va : vb;
-    }
-    if (locked.has(key)) genes[key] = va;
-  }
-
-  return new Genotype(genes, locked);
-}
-
 // Center index for an NxN grid (exact center for odd N).
 export function centerIndexFor(gridSize) {
   const half = Math.floor(gridSize / 2);
@@ -485,35 +457,6 @@ export function populateRandomGrid(parent, gridSize, {
 
   for (let i = 0; i < total; i++) {
     cells[i] = i === center ? parent.clone() : immigrantGenotype(parent, locked, rng);
-  }
-  return cells;
-}
-
-// Builds a grid of crossover offspring between two parents.
-export function populateCrossoverGrid(parentA, parentB, gridSize, {
-  intensity = 0.25,
-  spatialScaling = true,
-  locked = new Set(),
-  rng = Math.random,
-} = {}) {
-  const total = gridSize * gridSize;
-  const center = centerIndexFor(gridSize);
-  const cells = new Array(total);
-
-  for (let i = 0; i < total; i++) {
-    if (i === center) {
-      cells[i] = parentA.clone();
-      continue;
-    }
-    // Hybrid offspring get a light mutation dusting so children vary.
-    const child = crossoverGenotypes(parentA, parentB, { locked, rng });
-    const distanceScale = spatialScaling
-      ? 0.35 + 0.9 * radialDistance(i, gridSize)
-      : 1.0;
-    cells[i] = mutateGenotype(child, {
-      intensity: intensity * 0.5, distanceScale, locked, rng,
-      allowDisplay: false,
-    });
   }
   return cells;
 }

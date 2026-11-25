@@ -2,23 +2,61 @@
 
 .app {
   display: grid;
-  grid-template-rows: var(--toolbar-height) 1fr;
+  grid-template-rows: auto 1fr;
   height: 100vh;
+  height: 100dvh;
   background: var(--color-bg);
 }
 
+/* Wide desktop (16:9 / >=1440px): three dedicated columns —
+   explorer | hero preview | inspector controls */
 .workspace {
+  position: relative;
   display: grid;
-  grid-template-columns: 1fr var(--sidebar-width);
+  grid-template-columns: 1fr var(--hero-width) var(--sidebar-width);
+  grid-template-areas: 'explorer hero inspector';
   min-height: 0;
+  overflow: hidden;
   transition: grid-template-columns 0.28s var(--ease-out);
 }
 
 .workspace--sidebar-collapsed {
-  grid-template-columns: 1fr 0px;
+  grid-template-columns: 1fr var(--hero-width) 0px;
 }
 
-/* Explorer canvas region — container-query sized so the grid stays square */
+.explorer {
+  grid-area: explorer;
+}
+
+.hero-panel {
+  grid-area: hero;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--space-3);
+  background: var(--color-surface);
+  border-left: 1px solid var(--color-border);
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border-strong) transparent;
+}
+
+.hero-panel__card {
+  flex: 0 0 auto;
+}
+
+.inspector-sidebar {
+  grid-area: inspector;
+}
+
+.sidebar-backdrop {
+  display: none;
+}
+
+/* Explorer canvas region — the stage wrapper owns the container query so the
+   grid can size itself to a true square (flex main-axis shrinking would
+   otherwise compress it in the column flex layout). */
 .explorer {
   position: relative; /* anchors .favorites-overlay */
   display: flex;
@@ -27,21 +65,109 @@
   min-height: 0;
   padding: var(--space-3);
   gap: var(--space-2);
+}
+
+.explorer__stage {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: grid;
+  place-items: center;
   container-type: size;
 }
 
-.explorer__hint {
-  font-size: var(--text-xs);
-  color: var(--color-text-faint);
-  text-align: center;
-  user-select: none;
+/* Medium desktop: single right rail split into hero (top) + inspector (bottom).
+   The hero is its own row, so cards scroll in their own bounded pane. */
+@media (max-width: 1439px) and (min-width: 901px) {
+  .workspace {
+    grid-template-columns: 1fr var(--sidebar-width);
+    grid-template-rows: auto 1fr;
+    grid-template-areas:
+      'explorer hero'
+      'explorer inspector';
+  }
+
+  .workspace--sidebar-collapsed {
+    grid-template-columns: 1fr 0px;
+  }
+
+  .hero-panel {
+    border-left: none;
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  .inspector-sidebar {
+    width: var(--sidebar-width);
+  }
 }
 
-.explorer__hint kbd {
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  background: var(--color-surface-2);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  padding: 0 4px;
+/* Mobile & tablet: explorer grid + hero preview stack vertically in the
+   scrollable main pane; the inspector becomes a bottom sheet. */
+@media (max-width: 900px) {
+  .workspace,
+  .workspace--sidebar-collapsed {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto;
+    grid-template-areas:
+      'explorer'
+      'hero';
+    align-content: start;
+    overflow-y: auto;
+    overflow-x: hidden;
+  }
+
+  .explorer {
+    grid-area: explorer;
+    flex: 0 0 auto;
+    /* min-height: 0 (desktop) would let the auto track compress this pane
+       below its content height instead of overflowing into the scrollport. */
+    min-height: auto;
+  }
+
+  .explorer__stage {
+    /* Height is content-driven on mobile, so only inline-size containment
+       is possible — the grid sizes itself from the width + aspect-ratio. */
+    container-type: inline-size;
+    flex: 0 0 auto;
+  }
+
+  .hero-panel {
+    border-left: none;
+    border-top: 1px solid var(--color-border);
+    overflow: visible;
+    min-height: auto;
+  }
+
+  .sidebar-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 35;
+    background: rgba(5, 7, 11, 0.5);
+    backdrop-filter: blur(2px);
+    opacity: 1;
+    transition: opacity 0.22s var(--ease-out);
+  }
+
+  .workspace--sidebar-collapsed .sidebar-backdrop {
+    opacity: 0;
+    pointer-events: none;
+  }
+}
+
+@media (max-width: 600px) {
+  .explorer {
+    padding: var(--space-2);
+    gap: var(--space-1);
+  }
+
+  .hero-panel {
+    padding: var(--space-2);
+  }
+
+  .explorer__hint {
+    font-size: 0.625rem;
+    line-height: 1.3;
+  }
 }

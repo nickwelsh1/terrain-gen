@@ -37,12 +37,12 @@
   max-width: 11rem;
 }
 
-/* Revealed items land just below the sticky Hero Preview card. */
-.inspector-sidebar__cards > .control-card:not(.control-card--pinned),
+/* Revealed items land at the top of the inspector's scroll pane. */
+.inspector-sidebar__cards > .control-card,
 .inspector-sidebar__cards .slider-row,
 .inspector-sidebar__cards .target-matcher__option,
 .inspector-sidebar__cards .target-matcher__res-row {
-  scroll-margin-top: calc(var(--pinned-offset, 0px) + var(--space-2));
+  scroll-margin-top: var(--space-2);
 }
 
 .control-card--search-hit {
@@ -64,5 +64,17 @@
   .target-matcher__option--search-hit {
     animation: none;
     border-color: var(--color-accent);
+  }
+}
+
+@media (max-width: 420px) {
+  .sidebar-nav {
+    grid-template-columns: 1fr;
+    gap: var(--space-1);
+  }
+
+  .sidebar-nav__jump {
+    max-width: none;
+    width: 100%;
   }
 }

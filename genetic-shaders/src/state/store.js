@@ -16,7 +16,6 @@ export class Store {
       parent: null,          // Genotype
       cells: [],             // Genotype[]
       inspectIndex: -1,      // -1 => hero shows parent
-      crossoverIndex: -1,    // second parent selection for crossover
       variationIntensity: 0.4,
       spatialScaling: true,
       mutationRate: 1.0,
