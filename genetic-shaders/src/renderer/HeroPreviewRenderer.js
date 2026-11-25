@@ -80,6 +80,30 @@ export class HeroPreviewRenderer {
     this.dirty = true;
   }
 
+  warmup3D() {
+    if (this._warmup3dScheduled) return;
+    this._warmup3dScheduled = true;
+
+    const compile = () => {
+      if (this._disposed) return;
+      try {
+        this.renderer.compileAsync(this.scene3d, this.cam3d).catch((err) => {
+          console.warn('3D preview warmup failed', err);
+        });
+      } catch (err) {
+        console.warn('3D preview warmup failed', err);
+      }
+    };
+
+    if (window.requestIdleCallback) {
+      const id = window.requestIdleCallback(compile);
+      this._cancelWarmup3d = () => window.cancelIdleCallback(id);
+    } else {
+      const id = window.setTimeout(compile, 1000);
+      this._cancelWarmup3d = () => window.clearTimeout(id);
+    }
+  }
+
   update(genotype) {
     syncUniforms(this.uniforms2d, genotype);
     syncUniforms(this.uniforms3d, genotype);
@@ -114,6 +138,8 @@ export class HeroPreviewRenderer {
   }
 
   dispose() {
+    this._disposed = true;
+    if (this._cancelWarmup3d) this._cancelWarmup3d();
     this._resizeObserver.disconnect();
     this.controls.dispose();
     this.renderer.dispose();

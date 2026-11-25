@@ -742,4 +742,5 @@ controlPanel.refreshLocks(store.state.lockedGenes);
 controlPanel.refreshGroupStatus({ lockedSet: store.state.lockedGenes });
 matcherView.syncOptions(store.state.matcher);
 matcherView.setCheckpointBanner(loadCheckpoint());
+heroRenderer.warmup3D();
 syncToolbar();
