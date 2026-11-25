@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import {
     computeUniformSchema,
     packUniforms,
@@ -165,6 +165,53 @@ describe("WebGPU Terrain Compositor Architecture", () => {
             runner.runOperator("sim.thermalTalus", {}, { iterations: 3 });
             expect(fakeState.heightIndex).toBe(1);
             expect(fakeState.auxIndex).toBe(1);
+        });
+
+        it("compiles only requested operators asynchronously via createComputePipelineAsync and warms remaining ones on demand", async () => {
+            const registry = createDefaultRegistry();
+            const originalGPUBufferUsage = globalThis.GPUBufferUsage;
+            globalThis.GPUBufferUsage = { UNIFORM: 0x40, COPY_DST: 0x08 };
+            try {
+                const fakeDevice = {
+                    createBuffer: vi.fn(() => ({ destroy: vi.fn() })),
+                    createShaderModule: vi.fn(({ code }) => ({ code })),
+                    createComputePipeline: vi.fn(() => ({ sync: true })),
+                    createComputePipelineAsync: vi.fn(async (desc) => ({ async: true, entryPoint: desc.compute.entryPoint })),
+                };
+                const runner = new OperatorGraphRunner(fakeDevice, registry, {});
+
+                await runner.init(["gen.phacellePeaks", "detail.analysis", "gen.phacellePeaks"]);
+
+                expect(fakeDevice.createComputePipelineAsync).toHaveBeenCalledTimes(2);
+                expect(fakeDevice.createComputePipeline).not.toHaveBeenCalled();
+                expect(runner.compiledOps.has("gen.phacellePeaks")).toBe(true);
+                expect(runner.compiledOps.has("detail.analysis")).toBe(true);
+                expect(runner.compiledOps.has("gen.duneField")).toBe(false);
+
+                await runner.warmRemainingOperators();
+                expect(runner.compiledOps.size).toBe(registry.listAll().length);
+                expect(fakeDevice.createComputePipelineAsync).toHaveBeenCalledTimes(registry.listAll().length);
+            } finally {
+                globalThis.GPUBufferUsage = originalGPUBufferUsage;
+            }
+        });
+    });
+
+    describe("Selective Startup Operator Collection", () => {
+        it("collects only the operators needed by the active preset stack", () => {
+            const pipeline = new TerrainPipeline(null);
+            pipeline.setPreset("alpine-dolomites");
+            const required = new Set(pipeline.getRequiredOperatorIds());
+
+            expect(required.has("gen.phacellePeaks")).toBe(true);
+            expect(required.has("sim.thermalTalus")).toBe(true);
+            expect(required.has("sim.waterLevel")).toBe(true);
+            expect(required.has("mask.hardness")).toBe(true);
+            expect(required.has("util.copyHeight")).toBe(true);
+            expect(required.has("detail.analysis")).toBe(true);
+            expect(required.has("gen.duneField")).toBe(false);
+            expect(required.has("gen.voronoiBlock")).toBe(false);
+            expect(required.has("sim.dropletErosion")).toBe(false);
         });
     });
 

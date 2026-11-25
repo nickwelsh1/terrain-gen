@@ -90,10 +90,95 @@ export class TerrainPipeline {
         }
     }
 
+    getRequiredOperatorIds() {
+        const ids = new Set();
+        const flags = this.params.passFlags ?? DEFAULT_PARAMS.passFlags;
+        const layers = this.stack?.layers || [];
+        const baseLayer = layers[0];
+
+        const addMaskOps = (maskCfg = {}) => {
+            ids.add("detail.analysis");
+            ids.add("mask.select");
+            if (Math.max(0, Math.trunc(maskCfg.blurIterations ?? 2)) > 0) {
+                ids.add("mask.blur");
+            }
+        };
+
+        const addLayerDetailOps = (layer) => {
+            if (!layer?.shapers?.["shape.surfaceDetail"]?.enabled) return;
+            addMaskOps(layer.detailMaskParams || {});
+            const detailGenId = layer.detailGeneratorId || "shape.surfaceDetail";
+            ids.add(detailGenId);
+            if (detailGenId !== "shape.surfaceDetail") {
+                ids.add("blend.layer");
+            }
+        };
+
+        if ((flags & PASS_HEIGHTMAP) !== 0 && baseLayer && baseLayer.enabled !== false) {
+            ids.add(baseLayer.generatorId || "gen.ridgeFbm");
+            for (const shaperId of MACRO_SHAPER_ORDER) {
+                if (baseLayer.shapers?.[shaperId]?.enabled) {
+                    ids.add(shaperId);
+                }
+            }
+            ids.add("util.copyHeight");
+            addLayerDetailOps(baseLayer);
+        }
+
+        const maxLayerCount = Math.min(layers.length, MAX_BIOME_LAYERS);
+        for (let i = 1; i < maxLayerCount; i++) {
+            const overlay = layers[i];
+            if (!overlay?.enabled) continue;
+            addMaskOps(overlay.maskParams || {});
+            const genId = overlay.generatorId || "gen.duneField";
+            ids.add(genId);
+            if (genId !== "shape.surfaceDetail") {
+                for (const shaperId of ["shape.terrace", "shape.curveRemap"]) {
+                    if (overlay.shapers?.[shaperId]?.enabled) {
+                        ids.add(shaperId);
+                    }
+                }
+                ids.add("blend.layer");
+            }
+            addLayerDetailOps(overlay);
+        }
+
+        if ((flags & PASS_HARDNESS) !== 0) {
+            ids.add("mask.hardness");
+        }
+
+        ids.add("util.copyHeight");
+
+        const sims = this.stack?.simulations || {};
+        const anyExtraSimEnabled =
+            sims["sim.phacelleErosion"]?.enabled ||
+            sims["sim.thermalTalus"]?.enabled ||
+            sims["sim.windDrift"]?.enabled ||
+            sims["sim.waterLevel"]?.enabled;
+
+        if (anyExtraSimEnabled && this.stack?.erosionMask) {
+            addMaskOps(this.stack.erosionMask);
+        }
+        if (sims["sim.phacelleErosion"]?.enabled) ids.add("sim.phacelleErosion");
+        if (sims["sim.thermalTalus"]?.enabled) ids.add("sim.thermalTalus");
+        if (sims["sim.windDrift"]?.enabled) ids.add("sim.windDrift");
+        ids.add("sim.waterLevel");
+
+        if ((flags & PASS_NORMALS) !== 0) {
+            ids.add("detail.analysis");
+        }
+
+        return [...ids];
+    }
+
     async init() {
         this.state.init();
-        this.runner.init();
+        await this.runner.init(this.getRequiredOperatorIds());
         this.syncMaterialsBuffer();
+    }
+
+    warmUnusedOperators() {
+        return this.runner.warmRemainingOperators();
     }
 
     setOnBuffersChanged(cb) {
